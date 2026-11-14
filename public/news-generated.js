@@ -1,6 +1,18 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-6d5392f9",
+    "at": "2026-11-14T20:35:33.000Z",
+    "title": "Fotos dos amigos online",
+    "body": "Em \"Ativos agora\", os amigos online aparecem com a foto de perfil.",
+    "href": "#hoje",
+    "area": "site",
+    "details": [
+      "Sem foto, continuam as iniciais.",
+      "O cabeçalho agora cobre a largura toda da tela, sem o canto vazio no topo direito."
+    ]
+  },
+  {
     "id": "news-17ea328e",
     "at": "2026-11-14T19:59:26.000Z",
     "title": "Discord mostra o que você estuda",
