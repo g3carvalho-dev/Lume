@@ -13,6 +13,17 @@ export const GENERATED_NEWS = [
     ]
   },
   {
+    "id": "news-4d137377",
+    "at": "2026-11-14T19:59:44.000Z",
+    "title": "Nova tela de entrada",
+    "body": "Login e cadastro agora seguem a Identidade Norte, com layout em duas colunas e leitura mais limpa.",
+    "href": "#login",
+    "area": "site",
+    "details": [
+      "Cartão de entrada mais enxuto, prévia de constelação e semana em pontos, e campos de senha e privacidade alinhados."
+    ]
+  },
+  {
     "id": "news-17ea328e",
     "at": "2026-11-14T19:59:26.000Z",
     "title": "Discord mostra o que você estuda",

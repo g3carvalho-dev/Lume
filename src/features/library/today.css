@@ -8,6 +8,35 @@
   gap: 1.25rem;
 }
 
+.today-workspace-main {
+  min-width: 0;
+  display: grid;
+  gap: 1.25rem;
+  align-content: start;
+}
+
+@media (min-width: 1200px) {
+  .today-root.has-active-panel {
+    /* Só reserva espaço à direita se a margem externa da tela for menor que o painel fixo */
+    padding-right: clamp(0px, calc(18.5rem - max(0px, (100vw - 1280px) / 2)), 18.5rem);
+  }
+
+  .active-rail.is-docked {
+    position: fixed;
+    top: 4.5rem;
+    right: 0;
+    bottom: 0;
+    z-index: 35;
+    width: 18.5rem;
+    overflow-y: auto;
+    border-radius: 0;
+    border-width: 0 0 0 1px;
+    padding: 1.35rem 1rem 1.25rem;
+    background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+    backdrop-filter: blur(14px);
+  }
+}
+
 .today-layout {
   display: flex;
   flex-wrap: wrap;
@@ -16,14 +45,14 @@
 }
 
 .today-main {
-  flex: 999 1 34rem;
+  flex: 999 1 26rem;
   min-width: 0;
   display: grid;
   gap: 1.25rem;
 }
 
 .today-side {
-  flex: 1 1 18rem;
+  flex: 1 1 16.5rem;
   min-width: 0;
   display: grid;
   gap: 1.25rem;
@@ -40,10 +69,62 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem 0.9rem;
+  justify-content: space-between;
+  gap: 0.5rem 0.9rem;
   font-family: var(--font-mono);
   font-size: 0.82rem;
   color: var(--text-subtle);
+}
+
+.today-date-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.9rem;
+}
+
+.today-active-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+
+.today-active-toggle:hover,
+.today-active-toggle.is-open {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--inner);
+}
+
+.today-active-toggle .icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--lume);
+}
+
+.today-active-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--text-subtle);
+}
+
+.today-active-dot.is-live {
+  background: var(--success);
+}
+
+.today-active-count {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .today-rhythm {
@@ -769,22 +850,99 @@ a.milestone:hover .milestone-arrow {
 
 /* Barra lateral "Ativos agora" */
 .active-rail {
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 0.9rem;
-  padding: 1.25rem 1rem;
-  background: var(--surface);
+  padding: 1.15rem 1rem;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
 }
 
+.active-rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0 0.15rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.active-rail-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  color: var(--lume);
+}
+
+.active-rail-heading .icon {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: none;
+}
+
 .active-rail-title {
   margin: 0;
-  padding: 0 0.25rem;
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text);
+}
+
+.active-rail-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: none;
+}
+
+.active-rail-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.5rem;
+  height: 1.35rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--inner);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--reward);
+}
+
+.active-rail-hide {
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.active-rail-hide:hover {
+  background: var(--inner);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.active-rail-hide .icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.active-rail-foot {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: 0.84rem;
 }
 
 .active-rail-empty {
@@ -936,33 +1094,4 @@ a.milestone:hover .milestone-arrow {
 .active-msg .icon {
   width: 1rem;
   height: 1rem;
-}
-
-/* Telas largas: a barra ocupa a borda direita, abaixo do cabeçalho, e a página
-   (cabeçalho, conteúdo e rodapé) cede a largura dela. */
-@media (min-width: 1200px) {
-  html.has-active-rail .app-shell {
-    padding-right: 20rem;
-  }
-
-  /* O cabeçalho cobre a largura inteira (inclusive sobre a barra), com o conteúdo
-     alinhado à coluna da página; sem isso sobrava um canto vazio no topo direito. */
-  html.has-active-rail .app-header {
-    margin-right: -20rem;
-    padding-right: 20rem;
-  }
-
-  html.has-active-rail .active-rail {
-    position: fixed;
-    top: 4.5rem;
-    right: 0;
-    bottom: 0;
-    z-index: 30;
-    width: 20rem;
-    overflow-y: auto;
-    border-width: 0 0 0 1px;
-    border-radius: 0;
-    padding: 1.5rem 1rem;
-    background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
-  }
 }

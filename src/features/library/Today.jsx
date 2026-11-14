@@ -115,6 +115,31 @@ export function Home({ state, open, go, planActions, notify, account }) {
     if (planActions.focusTask(task.id)) notify(`Foco agora: ${task.title}.`);
   }
 
+  const wide = useWideRail();
+  const [showActive, setShowActive] = useState(() => {
+    try {
+      return localStorage.getItem('lume:today-active-rail') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  function toggleActive() {
+    setShowActive((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('lume:today-active-rail', String(next));
+      } catch {
+        // Ignora falha de armazenamento em navegação privada.
+      }
+      return next;
+    });
+  }
+  const friendsResource = useResource('/api/friends', { interval: 45000, enabled: Boolean(account) });
+  const friends = friendsResource.data?.friends || [];
+  const activeFriends = friends
+    .filter((friend) => friend.activity?.active)
+    .sort((a, b) => Number(b.activity?.status === 'studying') - Number(a.activity?.status === 'studying') || a.name.localeCompare(b.name, 'pt-BR'));
+
   const today = localDay();
   const firstName = (account?.name || '').split(' ')[0];
   const hour = new Date().getHours();
@@ -126,18 +151,36 @@ export function Home({ state, open, go, planActions, notify, account }) {
     : '';
   const focusButton = (primary = false) => <Button secondary={!primary} onClick={() => go('foco')}><Icon name="timer"/>Sessão de foco</Button>;
 
-  return <div className="study-root today-root">
-    <section className="today-welcome" aria-labelledby="today-title">
-      <h1 id="today-title" className="sr-only">Início</h1>
-      <div className="today-date">
-        <span>{shortDate(today)}</span>
-        <button type="button" className="today-rhythm" onClick={() => go('inicio')} title="Ajustar seu ritmo">ritmo: {plan.title.toLowerCase()}</button>
-      </div>
-      <p className="today-greeting">{greeting}{firstName ? `, ${firstName}` : ''}.<span>{headlineFor({ focus, action, trail, unit })}</span></p>
-    </section>
+  return <div className={`study-root today-root ${showActive ? 'has-active-panel' : ''}`}>
+    <div className="today-workspace-main">
+      <section className="today-welcome" aria-labelledby="today-title">
+        <h1 id="today-title" className="sr-only">Início</h1>
+        <div className="today-date">
+          <div className="today-date-meta">
+            <span>{shortDate(today)}</span>
+            <button type="button" className="today-rhythm" onClick={() => go('inicio')} title="Ajustar seu ritmo">ritmo: {plan.title.toLowerCase()}</button>
+          </div>
+          {!showActive && <button
+            type="button"
+            className="today-active-toggle"
+            aria-expanded="false"
+            aria-controls="active-rail-panel"
+            onClick={toggleActive}
+            title="Mostrar Ativos agora"
+          >
+            <Icon name="users"/>
+            <span>Ativos</span>
+            {account && friendsResource.data && <>
+              <span className={`today-active-dot ${activeFriends.length ? 'is-live' : ''}`} aria-hidden="true"/>
+              <span className="today-active-count">{activeFriends.length}</span>
+            </>}
+          </button>}
+        </div>
+        <p className="today-greeting">{greeting}{firstName ? `, ${firstName}` : ''}.<span>{headlineFor({ focus, action, trail, unit })}</span></p>
+      </section>
 
-    <div className="today-layout">
-      <div className="today-main">
+      <div className="today-layout">
+        <div className="today-main">
         <section className={`card-surface next-action today-resume ${focus ? 'is-focus' : ''}`} aria-labelledby="next-title">
           {focus ? <>
             <div className="today-resume-top">
@@ -260,7 +303,16 @@ export function Home({ state, open, go, planActions, notify, account }) {
         <WeekLights state={state} today={today}/>
       </aside>
     </div>
-    <ActiveRail account={account} go={go}/>
+    </div>
+    {showActive && <ActiveRail
+      wide={wide}
+      account={account}
+      go={go}
+      friends={friends}
+      activeFriends={activeFriends}
+      loaded={Boolean(friendsResource.data)}
+      onHide={toggleActive}
+    />}
   </div>;
 }
 
@@ -315,10 +367,6 @@ function WeekLights({ state }) {
   </section>;
 }
 
-// Barra lateral "Ativos agora": amigos com presença recente (sessão de foco aberta,
-// aplicativo de desktop ou site aberto) e a matéria que estudam, quando compartilham.
-// Em telas largas fica fixa na borda direita, em altura total, abaixo do cabeçalho;
-// em telas estreitas vira uma seção comum no fim da página.
 const RAIL_QUERY = '(min-width: 1200px)';
 
 function useWideRail() {
@@ -333,25 +381,33 @@ function useWideRail() {
   return wide;
 }
 
-function ActiveRail({ account, go }) {
-  const wide = useWideRail();
-  const resource = useResource('/api/friends', { interval: 45000, enabled: Boolean(account) });
-  const friends = resource.data?.friends || [];
-  const activeFriends = friends
-    .filter((friend) => friend.activity?.active)
-    .sort((a, b) => Number(b.activity?.status === 'studying') - Number(a.activity?.status === 'studying') || a.name.localeCompare(b.name, 'pt-BR'));
-
-  useEffect(() => {
-    if (!wide) return undefined;
-    document.documentElement.classList.add('has-active-rail');
-    return () => document.documentElement.classList.remove('has-active-rail');
-  }, [wide]);
-
-  const rail = <aside className="active-rail" aria-labelledby="active-rail-title">
-    <h2 id="active-rail-title" className="active-rail-title">Ativos agora</h2>
+// Barra lateral "Ativos agora": amigos com presença recente (sessão de foco aberta,
+// aplicativo de desktop ou site aberto) e a matéria que estudam, quando compartilham.
+// Em telas largas monta direto no body (fora da transição de página) em altura total,
+// sem deslocar o cabeçalho nem outras páginas; em telas estreitas fica no fim da página.
+function ActiveRail({ wide, account, go, friends, activeFriends, loaded, onHide }) {
+  const rail = <aside id="active-rail-panel" className={`active-rail ${wide ? 'is-docked' : ''}`} aria-labelledby="active-rail-title">
+    <div className="active-rail-head">
+      <div className="active-rail-heading">
+        <Icon name="users"/>
+        <h2 id="active-rail-title" className="active-rail-title">Ativos agora</h2>
+      </div>
+      <div className="active-rail-actions">
+        {account && loaded && <span className="active-rail-badge">{activeFriends.length}</span>}
+        <button
+          type="button"
+          className="active-rail-hide"
+          onClick={onHide}
+          title="Ocultar ativos"
+          aria-label="Ocultar Ativos agora"
+        >
+          <Icon name="close"/>
+        </button>
+      </div>
+    </div>
     {!account
       ? <p className="muted-text active-rail-empty">Amigos, mensagens e ranking ficam disponíveis com uma conta.</p>
-      : !resource.data
+      : !loaded
         ? <Skeleton label="Carregando amigos…" rows={2}/>
         : activeFriends.length
           ? <ul className="active-rail-list">{activeFriends.map((friend) => {
@@ -383,6 +439,9 @@ function ActiveRail({ account, go }) {
             </li>;
           })}</ul>
           : <p className="muted-text active-rail-empty">{friends.length ? 'Nenhum amigo ativo agora.' : 'Estudar junto é opcional. Um convite começa a lista.'}</p>}
+    {account && <div className="active-rail-foot">
+      <a className="text-link" href="#amigos">Ver todos os amigos{friends.length ? ` (${friends.length})` : ''}</a>
+    </div>}
   </aside>;
 
   return wide ? createPortal(rail, document.body) : rail;
