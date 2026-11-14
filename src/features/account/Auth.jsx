@@ -195,7 +195,7 @@ export function Login({ model, mode, setMode, go, notify }) {
                       required
                       minLength={2}
                       maxLength={60}
-                      placeholder="Ana Luz"
+                      placeholder="João Silva"
                     />
                   </div>
                   <div className="field">
