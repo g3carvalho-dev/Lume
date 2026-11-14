@@ -835,14 +835,28 @@ a.milestone:hover .milestone-arrow {
   text-decoration: none;
 }
 
+.active-avatar-wrap {
+  position: relative;
+  flex: none;
+  display: grid;
+}
+
 .active-avatar {
   position: relative;
   width: 2.5rem;
   height: 2.5rem;
   flex: none;
+  overflow: hidden;
   font-family: var(--font-mono);
   font-size: 0.92rem;
   font-weight: 600;
+}
+
+.active-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
 }
 
 .active-presence {
@@ -928,6 +942,13 @@ a.milestone:hover .milestone-arrow {
    (cabeçalho, conteúdo e rodapé) cede a largura dela. */
 @media (min-width: 1200px) {
   html.has-active-rail .app-shell {
+    padding-right: 20rem;
+  }
+
+  /* O cabeçalho cobre a largura inteira (inclusive sobre a barra), com o conteúdo
+     alinhado à coluna da página; sem isso sobrava um canto vazio no topo direito. */
+  html.has-active-rail .app-header {
+    margin-right: -20rem;
     padding-right: 20rem;
   }
 

@@ -17,7 +17,7 @@ import { readingLabel } from '../../../public/pdf-domain.js';
 import { overdueMessage } from '../plan/Tasks.jsx';
 import { useResource } from '../../lib/resources.js';
 import Icon from '../../ui/Icon.jsx';
-import { Button, Progress, Skeleton, STAR_PATH, Star } from '../../ui/ui.jsx';
+import { Button, PersonAvatar, Progress, Skeleton, STAR_PATH, Star } from '../../ui/ui.jsx';
 import { warmProfileProps } from '../social/prefetch.js';
 
 function plural(count, one, many) {
@@ -360,8 +360,8 @@ function ActiveRail({ account, go }) {
             return <li key={friend.id} className={`active-card ${studying ? 'is-studying' : ''}`}>
               <div className="active-card-head">
                 <a className="active-card-who" {...warmProfileProps(friend)} href={`#perfil?id=${encodeURIComponent(friend.id)}`} onClick={friend.handle ? (event) => { event.preventDefault(); go(`perfil?u=${friend.handle}`); } : undefined}>
-                  <span className="avatar active-avatar" aria-hidden="true">
-                    {String(friend.name || '?').slice(0, 1).toUpperCase()}
+                  <span className="active-avatar-wrap">
+                    <PersonAvatar person={friend} className="avatar active-avatar"/>
                     <span className="active-presence" />
                   </span>
                   <span className="active-copy">
