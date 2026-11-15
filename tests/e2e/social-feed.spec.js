@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { seedAccount, E2E_ORIGIN } from './library-helpers.js';
+import { seedAccount, E2E_ORIGIN, addMaterial } from './library-helpers.js';
 import { penalPdf, scannedPdf } from '../fixtures/sample-pdf.js';
 import { noisePng } from '../fixtures/sample-image.js';
 
@@ -146,7 +146,7 @@ test('PDF digitalizado do Social só publica depois de optar pela redução com 
 test('compartilhar conquista validada não duplica a recompensa de estudo', async ({ page }) => {
   await seedAccount(page);
   await page.goto('/#biblioteca');
-  await page.getByRole('button', { name: 'Anexar PDF', exact: true }).click();
+  await addMaterial(page, 'Anexar PDF');
   const dialog = page.getByRole('dialog');
   await dialog.locator('input[type=file]').setInputFiles({ name: 'apostila.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
   await dialog.getByRole('button', { name: 'Anexar PDF', exact: true }).click();

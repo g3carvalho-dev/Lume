@@ -10,12 +10,11 @@ for (const theme of ['dark', 'light']) {
     // Contexto novo do Playwright: sem assets antigos do service worker.
     await page.goto('/#biblioteca');
     const toolbar = page.locator('.library-root > .page-heading');
-    const primary = toolbar.getByRole('button', { name: 'Adicionar curso', exact: true });
-    const secondary = toolbar.getByRole('button', { name: 'Anexar PDF', exact: true });
+    const primary = toolbar.getByRole('button', { name: 'Adicionar material', exact: true });
     await expect(primary).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
 
-    for (const button of [primary, secondary]) {
+    for (const button of [primary]) {
       const initial = await button.evaluate((element) => {
         const style = getComputedStyle(element);
         return { radius: parseFloat(style.borderTopLeftRadius), height: element.offsetHeight };
@@ -27,7 +26,7 @@ for (const theme of ['dark', 'light']) {
       expect(await button.evaluate((element) => element.getAnimations({ subtree: true }).filter((animation) => animation instanceof CSSAnimation).length)).toBe(0);
       expect(await button.evaluate((element) => element.offsetHeight)).toBe(initial.height);
     }
-    // Primário dourado sólido; secundário só com contorno.
+    // Primário dourado sólido.
     const colors = await page.evaluate(() => {
       const root = getComputedStyle(document.documentElement);
       const probe = document.createElement('span');
@@ -39,16 +38,17 @@ for (const theme of ['dark', 'light']) {
     });
     await page.mouse.move(0, 0);
     await expect.poll(() => primary.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(colors.action);
-    await expect.poll(() => secondary.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
 
-    await secondary.focus();
+    await primary.focus();
     await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
     await expect(primary).toBeFocused();
     expect(await primary.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
     expect(await primary.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('solid');
     expect(await primary.evaluate((element) => parseFloat(getComputedStyle(element).outlineWidth))).toBeGreaterThanOrEqual(2);
 
-    await secondary.click();
+    await primary.click();
+    await page.getByRole('menuitem', { name: 'Anexar PDF', exact: true }).click();
     const submit = page.getByRole('dialog').getByRole('button', { name: 'Anexar PDF', exact: true });
     await expect(submit).toBeDisabled();
     await page.getByRole('button', { name: 'Cancelar', exact: true }).click();

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Reorder, motion, useDragControls } from 'motion/react';
 import {
   MAX_SUBTASKS, MAX_TASKS, TASK_PRIORITIES, isOverdue, localDate,
@@ -8,7 +8,6 @@ import Icon from '../../ui/Icon.jsx';
 import { materialSteps } from '../../../public/material-model.js';
 import { Button, Empty, stagger } from '../../ui/ui.jsx';
 import SectionTabs from '../../app/SectionTabs.jsx';
-import { localDay } from '../../../public/session-domain.js';
 
 // Lista de tarefas de estudo para uma prova. Criar e organizar não gera XP;
 // concluir uma tarefa vinculada registra a aula, sem recompensa própria.
@@ -29,7 +28,7 @@ const NO_SUBTASKS = [];
 
 // Uma subtarefa: arrastar pela alça (ou setas do teclado nela), renomear no
 // lugar com Enter/Esc, marcar e remover.
-function SubtaskItem({ task, item, index, count, actions, onDragEnd, onError }) {
+function SubtaskItem({ task, item, index, count, actions, hidden, onDragEnd, onError }) {
   const controls = useDragControls();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(item.title);
@@ -58,7 +57,7 @@ function SubtaskItem({ task, item, index, count, actions, onDragEnd, onError }) 
     const target = index + step;
     if (target >= 0 && target < count) actions.moveSubtask(task.id, item.id, target);
   }
-  return <Reorder.Item as="li" value={item} dragListener={false} dragControls={controls} onDragStart={() => setDragging(true)} onDragEnd={() => { setDragging(false); onDragEnd(item); }} className={`${item.done ? 'is-done' : ''} ${editing ? 'is-editing' : ''} ${dragging ? 'is-dragging' : ''}`}>
+  return <Reorder.Item as="li" hidden={hidden} value={item} dragListener={false} dragControls={controls} onDragStart={() => setDragging(true)} onDragEnd={() => { setDragging(false); onDragEnd(item); }} className={`${item.done ? 'is-done' : ''} ${editing ? 'is-editing' : ''} ${dragging ? 'is-dragging' : ''}`}>
     {count > 1 && <button type="button" className="subtask-handle" title="Arraste ou use as setas para mover" aria-label={`Mover subtarefa ${item.title}`} onPointerDown={(event) => controls.start(event)} onKeyDown={moveWithKeys}><Icon name="grip"/></button>}
     {editing
       ? <span className="subtask">
@@ -83,10 +82,13 @@ function SubtaskItem({ task, item, index, count, actions, onDragEnd, onError }) 
   </Reorder.Item>;
 }
 
-// Subtarefas: aparecem só quando a pessoa decide dividir a tarefa.
+// Subtarefas: resumo com barra, só as abertas à vista; as concluídas ficam
+// recolhidas e o campo de nova subtarefa só aparece quando pedido.
 function Subtasks({ task, actions }) {
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [showDone, setShowDone] = useState(false);
   const items = task.subtasks || NO_SUBTASKS;
   const done = items.filter((item) => item.done).length;
   // Ordem provisória só durante o arrasto; grava uma vez, ao soltar.
@@ -114,22 +116,50 @@ function Subtasks({ task, actions }) {
     }
   }
   const percent = items.length ? Math.round(done / items.length * 100) : 0;
-  return <details className={`todo-subtasks ${items.length ? 'has-items' : ''}`} open={items.length > 0 && done < items.length ? true : undefined}>
-    <summary>
-      <Icon name="chevron"/>
-      <span>{items.length ? `Subtarefas ${done}/${items.length}` : 'Dividir em subtarefas'}</span>
-      {items.length > 0 && <span className={`subtask-meter ${done === items.length ? 'is-full' : ''}`} aria-hidden="true"><span style={{ width: `${percent}%` }}/></span>}
-    </summary>
+  return <div className={`todo-subtasks ${items.length ? 'has-items' : ''}`}>
+    {items.length > 0 && <div className="subtask-summary">
+      <span className={`subtask-meter ${done === items.length ? 'is-full' : ''}`} aria-hidden="true"><span style={{ width: `${percent}%` }}/></span>
+      <span className="subtask-count">{done} de {items.length} {items.length === 1 ? 'subtarefa concluída' : 'subtarefas concluídas'}</span>
+    </div>}
     {items.length > 0 && <Reorder.Group as="ul" axis="y" className="subtask-list" values={order} onReorder={reorder}>
-      {order.map((item, index) => <SubtaskItem key={item.id} task={task} item={item} index={index} count={order.length} actions={actions} onDragEnd={drop} onError={setError}/>)}
+      {order.map((item, index) => <SubtaskItem key={item.id} task={task} item={item} index={index} count={order.length} actions={actions} hidden={item.done && !showDone} onDragEnd={drop} onError={setError}/>)}
     </Reorder.Group>}
-    {!task.done && items.length < MAX_SUBTASKS && <form className="subtask-form" onSubmit={add}>
-      <Icon name="plus"/>
-      <input aria-label={`Nova subtarefa de ${task.title}`} maxLength={140} value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Próximo passo pequeno, ex.: ler os artigos 5º a 7º"/>
-      <button type="submit" className="subtask-add" disabled={!draft.trim()}>Adicionar</button>
-    </form>}
+    {done > 0 && <button type="button" className="subtask-toggle" aria-expanded={showDone} onClick={() => setShowDone((value) => !value)}><Icon name="chevron"/>{showDone ? 'Ocultar concluídas' : `Ver ${done} ${done === 1 ? 'concluída' : 'concluídas'}`}</button>}
+    {!task.done && items.length < MAX_SUBTASKS && (adding
+      ? <form className="subtask-form" onSubmit={add}>
+        <Icon name="plus"/>
+        <input aria-label={`Nova subtarefa de ${task.title}`} maxLength={140} value={draft} autoFocus onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); setAdding(false); } }} placeholder="Próximo passo pequeno, ex.: ler os artigos 5º a 7º"/>
+        <button type="submit" className="subtask-add" disabled={!draft.trim()}>Adicionar</button>
+      </form>
+      : <button type="button" className="subtask-new" onClick={() => setAdding(true)}><Icon name="plus"/>Adicionar subtarefa</button>)}
     {error && <p className="form-error" role="alert">{error}</p>}
-  </details>;
+  </div>;
+}
+
+// Menu "…" da tarefa: prioridade, agendar e remover num só lugar.
+function TaskMenu({ task, onPriority, onSchedule, onRemove }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const outside = (event) => { if (!root.current?.contains(event.target)) setOpen(false); };
+    const escape = (event) => { if (event.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
+  }, [open]);
+  return <div className="todo-menu" ref={root}>
+    <button type="button" className="todo-icon-button" aria-label={`Mais ações de ${task.title}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><Icon name="more"/></button>
+    {open && <div className="todo-menu-list" role="menu">
+      {!task.done && <label className="todo-menu-field">Prioridade
+        <select aria-label={`Prioridade de ${task.title}`} value={String(task.priority || 0)} onChange={(event) => onPriority(event.target.value)}>
+          {TASK_PRIORITIES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select>
+      </label>}
+      {onSchedule && <button type="button" role="menuitem" className="todo-menu-item" aria-label={`Agendar tarefa ${task.title}`} onClick={() => { setOpen(false); onSchedule(); }}><Icon name="calendar"/>Agendar</button>}
+      <button type="button" role="menuitem" className="todo-menu-item is-danger" aria-label={`Remover tarefa ${task.title}`} onClick={() => { setOpen(false); onRemove(); }}><Icon name="trash"/>Remover</button>
+    </div>}
+  </div>;
 }
 
 export default function Tasks({ state, actions, notify, onSchedule }) {
@@ -139,6 +169,8 @@ export default function Tasks({ state, actions, notify, onSchedule }) {
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState('0');
   const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const today = localDate();
   const tasks = sortTasks(state.tasks || [], today);
   const pending = tasks.filter((task) => !task.done);
@@ -179,10 +211,6 @@ export default function Tasks({ state, actions, notify, onSchedule }) {
     notify(`Tarefa concluída: ${task.title}.${task.lessonId ? ' A conclusão da aula vinculada foi registrada.' : ''}`);
   }
 
-  function prioritize(task, value) {
-    actions.setTaskPriority(task.id, value);
-  }
-
   function remove(task) {
     if (!actions.removeTask(task.id)) return;
     notify('Tarefa removida.');
@@ -207,26 +235,18 @@ export default function Tasks({ state, actions, notify, onSchedule }) {
         <span className="todo-chips">
           {!task.done && task.priority > 0 && <span className="todo-chip todo-priority">Prioridade {priorityLabel(task.priority).toLowerCase()}</span>}
           {late && <span className="todo-chip todo-late">Atrasada</span>}
-          {task.dueDate && <span className="todo-chip"><Icon name="calendar"/>{late ? 'Venceu' : 'Vence'} em {dateLabel(task.dueDate)}</span>}
-          {course && <span className="todo-chip"><Icon name="book"/>{course}</span>}
+          {task.dueDate && <span className="todo-chip">{dateLabel(task.dueDate)}</span>}
+          {course && <span className="todo-chip">{course}</span>}
           {task.lessonId && lessons.get(task.lessonId) && <span className="todo-chip">{lessons.get(task.lessonId)}</span>}
-          {task.done && task.lessonId && <span className="todo-chip">Aula vinculada</span>}
         </span>
       </span>
-      <span className="todo-actions">
-        {!task.done && <select className="todo-priority-select" aria-label={`Prioridade de ${task.title}`} value={String(task.priority || 0)} onChange={(event) => prioritize(task, event.target.value)}>
-          {TASK_PRIORITIES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-        </select>}
-        {onSchedule && <button type="button" className="todo-icon-button" title="Agendar" aria-label={`Agendar tarefa ${task.title}`} onClick={() => onSchedule(task)}><Icon name="calendar"/></button>}
-        <button type="button" className="todo-icon-button is-danger" title="Remover" aria-label={`Remover tarefa ${task.title}`} onClick={() => remove(task)}><Icon name="trash"/></button>
-      </span>
+      <TaskMenu task={task} onPriority={(value) => actions.setTaskPriority(task.id, value)} onSchedule={onSchedule && (() => onSchedule(task))} onRemove={() => remove(task)}/>
       <Subtasks task={task} actions={actions}/>
     </motion.li>;
   }
 
   const [filter, setFilter] = useState('all');
   const dueToday = pending.filter((task) => task.dueDate === today).length;
-  const doneToday = done.filter((task) => task.completedAt && localDay(Date.parse(task.completedAt)) === today).length;
   const linked = pending.filter((task) => task.lessonId).length;
   const filters = {
     all: ['Todas', pending.length],
@@ -243,81 +263,67 @@ export default function Tasks({ state, actions, notify, onSchedule }) {
     <header className="plan-heading">
       <div>
         <h1 className="display">Tarefas</h1>
+        <p className="tasks-count">{pending.length} {pending.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}{overdue > 0 ? ` · ${overdue} ${overdue === 1 ? 'atrasada' : 'atrasadas'}` : ''}</p>
       </div>
       <div className="page-heading-actions">
-        <a className="button secondary" href="#plano"><Icon name="calendar"/>Ver o Plano</a>
+        <Button aria-expanded={creating} onClick={() => setCreating((value) => !value)}><Icon name="plus"/>Nova tarefa</Button>
       </div>
     </header>
     <SectionTabs route="tarefas"/>
 
-    <div className="plan-layout">
-      <div className="plan-main">
-        <section className="card-surface crest-card tasks-board" aria-labelledby="todo-pending-title">
-          <div className="plan-board-head">
-            <h2 id="todo-pending-title" className="title"><Icon name="list"/>Para fazer <span className="shelf-count">{pending.length}</span></h2>
-            <span className="muted-text">{overdue ? `${overdue} ${overdue === 1 ? 'atrasada' : 'atrasadas'}` : 'Nada atrasado'}</span>
+    <div className="tasks-column">
+      {creating && <section className="card-surface tasks-new" aria-labelledby="task-new-title">
+        <h2 id="task-new-title" className="sr-only">Nova tarefa</h2>
+        <form className="form-stack" onSubmit={submit}>
+          <label className="field">Tarefa
+            <input name="task-title" maxLength={180} value={title} autoFocus onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Resolver 20 questões de constitucional" autoComplete="off"/>
+          </label>
+          <label className="field">Curso ou prova (opcional)
+            <select name="task-course" value={courseId} onChange={(event) => { setCourseId(event.target.value); setLessonId(''); }}>
+              <option value="">Sem vínculo</option>
+              {state.courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
+            </select>
+          </label>
+          {chosenCourse && <label className="field">Aula ou etapa (opcional)
+            <select name="task-lesson" value={lessonId} onChange={(event) => setLessonId(event.target.value)}>
+              <option value="">Curso inteiro</option>
+              {materialSteps(chosenCourse).map((step) => <option key={step.id} value={step.id}>{step.title}</option>)}
+            </select>
+          </label>}
+          <div className="form-grid todo-form-row">
+            <label className="field">Prazo (opcional)
+              <input name="task-due" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)}/>
+            </label>
+            <label className="field">Prioridade
+              <select name="task-priority" value={priority} onChange={(event) => setPriority(event.target.value)}>
+                {TASK_PRIORITIES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+              </select>
+            </label>
           </div>
-          {pending.length > 0 && <div className="tasks-filters" role="group" aria-label="Filtrar tarefas">
-            {Object.entries(filters).map(([id, [label, count]]) => <button key={id} type="button" className="kind-tab" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}<span className="kind-count">{count}</span></button>)}
-          </div>}
-          {overdue > 0 && <p className="inline-note todo-overdue-note" role="status"><Icon name="flag"/><span>{overdueMessage(overdue)}</span></p>}
-          {pending.length
-            ? shown.length
-              ? <ul className="todo-list">{shown.map(taskRow)}</ul>
-              : <p className="muted-text">Nenhuma tarefa neste filtro.</p>
-            : <Empty icon="list" title="Sem tarefas pendentes.">Defina a próxima ação concreta da sua preparação em Nova tarefa.</Empty>}
-        </section>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <Button type="submit" className="full-width" disabled={(state.tasks || []).length >= MAX_TASKS}><Icon name="plus"/>Adicionar tarefa</Button>
+        </form>
+      </section>}
 
-        {done.length > 0 && <details className="card-surface tasks-done" aria-labelledby="todo-done-title" open>
-          <summary><h2 id="todo-done-title" className="title"><Icon name="check"/>Concluídas <span className="shelf-count">{done.length}</span></h2><Icon name="chevron-down"/></summary>
-          <ul className="todo-list">{done.map(taskRow)}</ul>
-        </details>}
-      </div>
+      <section className="card-surface tasks-board" aria-labelledby="todo-pending-title">
+        <div className="tasks-board-head">
+          <h2 id="todo-pending-title" className="title"><Icon name="list"/>Para fazer</h2>
+          {pending.length > 0 && <button type="button" className="tasks-filter-toggle" aria-expanded={showFilters || filter !== 'all'} onClick={() => setShowFilters((value) => !value)}><Icon name="tune"/>Filtrar{filter !== 'all' ? `: ${filters[filter][0]}` : ''}</button>}
+        </div>
+        {(showFilters || filter !== 'all') && pending.length > 0 && <div className="tasks-filters" role="group" aria-label="Filtrar tarefas">
+          {Object.entries(filters).map(([id, [label, count]]) => <button key={id} type="button" className="kind-tab" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}<span className="kind-count">{count}</span></button>)}
+        </div>}
+        {pending.length
+          ? shown.length
+            ? <ul className="todo-list">{shown.map(taskRow)}</ul>
+            : <p className="muted-text tasks-empty">Nenhuma tarefa neste filtro.</p>
+          : <Empty icon="list" title="Sem tarefas pendentes.">Defina a próxima ação concreta da sua preparação em Nova tarefa.</Empty>}
+      </section>
 
-      <aside className="plan-aside" aria-label="Nova tarefa e resumo">
-        <section className="card-surface tasks-new" aria-labelledby="task-new-title">
-          <div className="plan-card-head"><h2 id="task-new-title" className="title"><Icon name="plus"/>Nova tarefa</h2></div>
-          <p className="muted-text">Escreva uma ação concreta, não um tema vago.</p>
-          <form className="form-stack" onSubmit={submit}>
-            <label className="field">Tarefa
-              <input name="task-title" maxLength={180} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Resolver 20 questões de constitucional" autoComplete="off"/>
-            </label>
-            <label className="field">Curso ou prova (opcional)
-              <select name="task-course" value={courseId} onChange={(event) => { setCourseId(event.target.value); setLessonId(''); }}>
-                <option value="">Sem vínculo</option>
-                {state.courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
-              </select>
-            </label>
-            {chosenCourse && <label className="field">Aula ou etapa (opcional)
-              <select name="task-lesson" value={lessonId} onChange={(event) => setLessonId(event.target.value)}>
-                <option value="">Curso inteiro</option>
-                {materialSteps(chosenCourse).map((step) => <option key={step.id} value={step.id}>{step.title}</option>)}
-              </select>
-            </label>}
-            <div className="form-grid todo-form-row">
-              <label className="field">Prazo (opcional)
-                <input name="task-due" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)}/>
-              </label>
-              <label className="field">Prioridade
-                <select name="task-priority" value={priority} onChange={(event) => setPriority(event.target.value)}>
-                  {TASK_PRIORITIES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-                </select>
-              </label>
-            </div>
-            {error && <p className="form-error" role="alert">{error}</p>}
-            <Button type="submit" className="full-width" disabled={(state.tasks || []).length >= MAX_TASKS}><Icon name="plus"/>Adicionar tarefa</Button>
-          </form>
-        </section>
-
-        <section className="card-surface tasks-summary" aria-labelledby="task-summary-title">
-          <div className="plan-card-head"><h2 id="task-summary-title" className="title"><Icon name="chart"/>Resumo</h2></div>
-          <dl className="tasks-stats">
-            <div><dt>Pendentes</dt><dd>{pending.length}</dd></div>
-            <div><dt>Para hoje</dt><dd>{dueToday}</dd></div>
-            <div><dt>Concluídas hoje</dt><dd className="tone-mint-text">{doneToday}</dd></div>
-          </dl>
-        </section>
-      </aside>
+      {done.length > 0 && <details className="card-surface tasks-done" aria-labelledby="todo-done-title" open>
+        <summary><h2 id="todo-done-title" className="title"><Icon name="check"/>Concluídas <span className="shelf-count">{done.length}</span></h2><Icon name="chevron-down"/></summary>
+        <ul className="todo-list">{done.map(taskRow)}</ul>
+      </details>}
     </div>
   </div>;
 }

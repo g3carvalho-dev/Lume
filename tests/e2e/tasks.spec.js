@@ -8,6 +8,7 @@ test('tarefa sem aula é concluída sem XP e sobrevive ao recarregamento', async
 
   await page.goto('/#tarefas');
   await expect(page.getByRole('heading', { name: 'Tarefas', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Nova tarefa', exact: true }).click();
   await page.getByLabel('Tarefa', { exact: true }).fill('Resolver 10 questões de constitucional');
   await page.getByRole('button', { name: 'Adicionar tarefa' }).click();
   await expect(page.getByText('Resolver 10 questões de constitucional')).toBeVisible();
@@ -49,6 +50,7 @@ test('prioridade e atraso aparecem na lista e na Hoje e sobrevivem ao recarregam
   await expect(page.getByText(/estimativa/).first()).toBeVisible();
 
   await page.goto('/#tarefas');
+  await page.getByRole('button', { name: 'Mais ações de Separar súmulas vinculantes' }).click();
   await page.getByLabel('Prioridade de Separar súmulas vinculantes').selectOption('1');
   await expect(page.getByLabel('Prioridade de Separar súmulas vinculantes')).toHaveValue('1');
   const items = page.locator('.todo-item');
@@ -56,6 +58,7 @@ test('prioridade e atraso aparecem na lista e na Hoje e sobrevivem ao recarregam
   await expect(items.first()).toContainText('Atrasada');
 
   await page.reload();
+  await page.getByRole('button', { name: 'Mais ações de Separar súmulas vinculantes' }).click();
   await expect(page.getByLabel('Prioridade de Separar súmulas vinculantes')).toHaveValue('1');
   const saved = await readAccount(page);
   expect(saved.tasks.find((task) => task.id === 'plain').priority).toBe(1);

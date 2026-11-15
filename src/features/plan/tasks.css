@@ -481,3 +481,238 @@
     grid-column: 1 / -1;
   }
 }
+
+/* Menos ruído: coluna única, linhas separadas por filetes e ações recolhidas. */
+.tasks-count {
+  margin: 0.35rem 0 0;
+  color: var(--text-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+.tasks-column {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 62rem;
+}
+.tasks-board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+.tasks-board-head .title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-size: 1.1rem;
+}
+.tasks-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.tasks-filter-toggle:hover,
+.tasks-filter-toggle[aria-expanded='true'] {
+  color: var(--text);
+}
+.tasks-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.85rem 0 0;
+}
+.tasks-empty {
+  padding-top: 1rem;
+}
+.todo-list {
+  gap: 0;
+}
+.todo-list > .todo-item {
+  align-items: start;
+  padding: 1.1rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.todo-list > .todo-item + .todo-item {
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.todo-list > .todo-item::before {
+  content: none;
+}
+.todo-list > .todo-item.is-late {
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+}
+.todo-list .todo-copy strong {
+  font-size: 1.05rem;
+}
+.todo-chip {
+  padding: 0.1rem 0;
+  background: transparent;
+  color: var(--text-subtle);
+}
+.todo-chip + .todo-chip::before {
+  content: '·';
+  margin-right: 0.35rem;
+}
+.todo-chip.todo-priority,
+.todo-chip.todo-late {
+  padding: 0.12rem 0.5rem;
+}
+.todo-chip.todo-priority + .todo-chip::before,
+.todo-chip.todo-late + .todo-chip::before {
+  content: '·';
+}
+.todo-chip.todo-priority::before,
+.todo-chip.todo-late::before {
+  content: none;
+}
+.todo-chip.todo-priority {
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+  color: var(--text);
+}
+.todo-chips {
+  align-items: center;
+}
+
+.todo-menu {
+  position: relative;
+}
+.todo-menu-list {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 0.15rem;
+  min-width: 12.5rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 12px 32px color-mix(in srgb, black 35%, transparent);
+}
+.todo-menu-field {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.45rem 0.6rem;
+  color: var(--text-subtle);
+  font-size: 0.78rem;
+}
+.todo-menu-field select {
+  height: 2.2rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--inner);
+  color: var(--text);
+}
+.todo-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.6rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+.todo-menu-item:hover,
+.todo-menu-item:focus-visible {
+  background: var(--surface-2);
+}
+.todo-menu-item.is-danger {
+  color: var(--danger);
+}
+
+/* Subtarefas: resumo, abertas à vista, concluídas e novo campo sob pedido. */
+.todo-subtasks {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+  margin-top: 0.4rem;
+}
+.subtask-summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+.subtask-meter {
+  flex: 0 0 auto;
+  width: 17rem;
+  max-width: 55%;
+  height: 6px;
+}
+.subtask-count {
+  color: var(--text-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+.todo-subtasks .subtask-list {
+  width: 100%;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.subtask-list li[hidden] {
+  display: none;
+}
+.subtask-toggle,
+.subtask-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-subtle);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.subtask-toggle:hover {
+  color: var(--text);
+}
+.subtask-toggle .icon,
+.subtask-new .icon {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+.subtask-toggle[aria-expanded='true'] .icon {
+  transform: rotate(90deg);
+}
+.subtask-new {
+  color: var(--lume);
+  font-weight: 500;
+}
+.todo-subtasks:not(.has-items) .subtask-new {
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+.todo-item:hover .subtask-new,
+.todo-item:focus-within .subtask-new,
+.todo-subtasks:not(.has-items) .subtask-new:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .todo-subtasks:not(.has-items) .subtask-new {
+    opacity: 1;
+  }
+}
+.todo-subtasks .subtask-form {
+  width: 100%;
+}

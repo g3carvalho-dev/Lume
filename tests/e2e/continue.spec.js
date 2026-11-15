@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { seedAccount, readAccount } from './library-helpers.js';
+import { seedAccount, readAccount, addMaterial } from './library-helpers.js';
 import { addCourse, completeMission, createInitialState } from '../../public/domain.js';
 import { addSubject, linkMaterialSubject } from '../../public/subject-domain.js';
 import { addTask } from '../../public/tasks-domain.js';
@@ -12,7 +12,7 @@ async function importCourse(page) {
   await seedAccount(page, { ...createInitialState(), onboarded: true });
   await page.goto('/#biblioteca');
   await expect(page.getByRole('heading', { name: 'Biblioteca', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Adicionar curso', exact: true }).click();
+  await addMaterial(page, 'Adicionar curso');
   await page.getByRole('tab', { name: 'Colar a grade' }).click();
   await page.getByLabel('Nome do curso (opcional)').fill('Curso em sequência');
   await page.getByLabel('Grade do curso', { exact: true }).fill([
@@ -117,7 +117,7 @@ test('focar uma tarefa a coloca no cartão principal da Hoje, sobrevive ao recar
   await expect(page.getByRole('heading', { name: 'Sessão de foco', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Iniciar foco' }).click();
   await expect(page.getByText('Sessão em andamento: A2 – Falência')).toBeVisible();
-  await page.getByRole('button', { name: 'Finalizar com resumo' }).click();
+  await page.getByRole('button', { name: 'Finalizar', exact: true }).click();
   await page.getByRole('link', { name: 'Voltar ao Início' }).click();
 
   await page.locator('section.next-action').getByRole('button', { name: 'Concluir tarefa' }).click();
@@ -137,12 +137,12 @@ function falencia(doneIds) {
   return state;
 }
 
-test('Continuar agora segue para o próximo material da mesma disciplina, com um só botão de detalhes', async ({ page }) => {
+test('Continuar de onde parei segue para o próximo material da mesma disciplina, com um só botão de ação', async ({ page }) => {
   await seedAccount(page, falencia(['aula7']));
   await page.goto('/#biblioteca');
   const resume = page.locator('.library-resume');
   await expect(resume.getByRole('heading', { name: 'Falência aula8' })).toBeVisible();
-  await expect(resume.getByRole('button', { name: /detalhes/i })).toHaveCount(1);
+  await expect(resume.getByRole('button', { name: 'Falência aula8' })).toHaveCount(1);
   await expect(resume.getByRole('button', { name: 'Continuar meu próximo passo' })).toBeVisible();
 });
 

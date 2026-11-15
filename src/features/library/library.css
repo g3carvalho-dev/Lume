@@ -72,60 +72,6 @@
   flex: 1;
   width: 100%;
 }
-.course-menu {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
-  z-index: 3;
-}
-.course-menu-button {
-  display: grid;
-  place-items: center;
-  width: 2.2rem;
-  height: 2.2rem;
-  border-radius: 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  cursor: pointer;
-}
-.course-menu-button:hover,
-.course-menu-button[aria-expanded="true"] {
-  background: var(--surface-2);
-  border-color: var(--border-strong);
-}
-.course-menu-list {
-  position: absolute;
-  top: calc(100% + 0.35rem);
-  right: 0;
-  min-width: 11rem;
-  padding: 0.3rem;
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-sm);
-}
-.course-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.55rem 0.7rem;
-  border-radius: var(--radius-md);
-  background: transparent;
-  border: 0;
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.course-menu-item:hover,
-.course-menu-item:focus-visible {
-  background: color-mix(in srgb, var(--danger) 16%, var(--surface));
-}
-.course-menu-item.danger {
-  color: var(--danger);
-}
 .course-card-wrap .course-slide-chip {
   right: 3.2rem;
 }

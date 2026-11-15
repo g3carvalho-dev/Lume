@@ -28,3 +28,9 @@ export async function readAccount(page) {
   expect(response.ok()).toBe(true);
   return (await response.json()).state;
 }
+
+// Abre o menu "Adicionar material" da Biblioteca e escolhe uma das opções.
+export async function addMaterial(page, option) {
+  await page.getByRole('button', { name: 'Adicionar material', exact: true }).click();
+  await page.getByRole('menuitem', { name: option, exact: true }).click();
+}
