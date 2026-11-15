@@ -3,6 +3,8 @@ import { HIGHLIGHT_COLORS, formatBytes, highlightAt, identifyPage, readingLabel 
 import { materialStanding, subjectOf } from '../../../public/subject-domain.js';
 import { materialSteps } from '../../../public/material-model.js';
 import { isCompleted } from '../../../public/progress-domain.js';
+import { formatSessionDuration } from '../../../public/session-domain.js';
+import { useReadingSession } from './useReadingSession.js';
 import {
   downloadDocument, extractDocumentMarkdown, generatePdfInsights, getPdfInsights, readPageText, savePdfMarkdown, storageInfo,
 } from './pdf-client.js';
@@ -207,42 +209,16 @@ export default function PdfReader({ course, state, actions, progressActions, not
   const highlights = course.highlights || [];
   const pageHighlights = highlights.filter((item) => item.page === page);
 
-  // Abrir o PDF conta como tempo de estudo: o leitor abre uma sessão própria,
-  // pausa com a aba oculta e encerra ao fechar. Se já há sessão em curso (foco),
-  // ela continua sendo a dona do tempo e o leitor não abre outra.
-  const activeRef = useRef(state.activeSession);
-  const ownsSession = useRef(false);
-  const ownedId = useRef('');
-  activeRef.current = state.activeSession;
-  useEffect(() => {
-    const active = state.activeSession;
-    if (ownsSession.current && !ownedId.current && active) ownedId.current = active.id;
-  }, [state.activeSession]);
-  useEffect(() => {
-    // Uma sessão pausada deste mesmo PDF é sobra de uma leitura anterior: o
-    // startSession a encerra (gravando o tempo) e abre a nova. Sessões de outro
-    // material, ou em andamento, continuam sendo de quem as abriu.
-    const left = activeRef.current;
-    if (!left || (left.status === 'paused' && left.courseId === course.id)) {
-      ownsSession.current = Boolean(progressActions.startSession({ courseId: course.id, label: `Leitura — ${course.title}` }));
-    }
-    const beat = setInterval(() => { if (ownedId.current && activeRef.current?.id === ownedId.current) progressActions.touchSession(); }, 60000);
-    const visibility = () => {
-      const mine = ownedId.current && activeRef.current?.id === ownedId.current;
-      if (!mine) return;
-      const running = activeRef.current.status === 'active';
-      if (document.hidden && running) progressActions.toggleSessionPause();
-      else if (!document.hidden && !running) progressActions.toggleSessionPause();
-    };
-    document.addEventListener('visibilitychange', visibility);
-    return () => {
-      clearInterval(beat);
-      document.removeEventListener('visibilitychange', visibility);
-      if (ownedId.current && activeRef.current?.id === ownedId.current) progressActions.endSession(Date.now());
-      ownsSession.current = false;
-      ownedId.current = '';
-    };
-  }, [course.id, progressActions]);
+  // Abrir o PDF registra tempo de leitura. A sessão é visível, pausa por
+  // inatividade/aba oculta e só começa depois que o documento carregou.
+  const reading = useReadingSession({
+    course,
+    state,
+    actions: progressActions,
+    enabled: state.preferences?.readingTimer !== false,
+    ready: Boolean(doc) && !loadError,
+    notify,
+  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -472,6 +448,15 @@ export default function PdfReader({ course, state, actions, progressActions, not
       </div>
 
       <div className="pdf-toolbar-actions">
+        {reading.status && <div className="pdf-reading-status" role="group" aria-label="Tempo de leitura">
+          <span className={`pdf-reading-dot ${reading.active?.status === 'paused' ? 'is-paused' : ''}`} aria-hidden="true"/>
+          <span className="pdf-reading-copy">
+            <span>{reading.status}</span>
+            {reading.elapsed > 0 && <strong className="mono">{formatSessionDuration(reading.elapsed)}</strong>}
+          </span>
+          {reading.owned && <button type="button" className="icon-button" onClick={reading.togglePause} aria-label={reading.active?.status === 'active' ? 'Pausar leitura' : 'Retomar leitura'} title={reading.active?.status === 'active' ? 'Pausar leitura' : 'Retomar leitura'}><Icon name={reading.active?.status === 'active' ? 'pause' : 'play'}/></button>}
+          {reading.ignored && <button type="button" className="text-button" onClick={reading.enable}>Ativar registro</button>}
+        </div>}
         {outline.length > 0 && <button type="button" className={`icon-button ${showOutline ? 'is-active' : ''}`} aria-expanded={showOutline} aria-label="Sumário" title="Sumário" onClick={() => setShowOutline((value) => !value)}><Icon name="list"/></button>}
         <button type="button" className={`icon-button ${marker.on ? 'is-active' : ''}`} aria-pressed={marker.on} aria-label="Marca-texto" title="Marca-texto" onClick={() => setMarker((value) => ({ ...value, on: !value.on, erase: false }))}><Icon name="highlighter"/></button>
         <button type="button" className={`icon-button ${showPanel ? 'is-active' : ''}`} aria-expanded={showPanel} aria-label="Painel lateral" title="Painel" onClick={() => setShowPanel((value) => !value)}><Icon name="spark"/></button>
@@ -491,6 +476,21 @@ export default function PdfReader({ course, state, actions, progressActions, not
         </div>
       </div>
     </header>
+
+    {reading.conflict && <div className="pdf-reading-choice-backdrop">
+      <section className="pdf-reading-choice" role="alertdialog" aria-modal="true" aria-labelledby="pdf-reading-choice-title">
+        <span className="dialog-emblem tone-lume"><Icon name="clock"/></span>
+        <h2 id="pdf-reading-choice-title" className="title">Você tem uma sessão pausada</h2>
+        <p className="muted-text">
+          A sessão <strong>{reading.conflict.session.label}</strong> está pausada. O que deseja fazer antes de registrar esta leitura?
+        </p>
+        <div className="dialog-actions inline-actions">
+          <Button onClick={() => reading.resolveConflict('resume')}>Retomar sessão pausada</Button>
+          <Button secondary onClick={() => reading.resolveConflict('switch')}>Encerrar e registrar leitura</Button>
+          <Button ghost onClick={() => reading.resolveConflict('ignore')}>Ler sem registrar</Button>
+        </div>
+      </section>
+    </div>}
 
     <div className="pdf-body">
       {showOutline && <nav className="pdf-outline" aria-label="Sumário do PDF">

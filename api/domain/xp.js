@@ -296,8 +296,8 @@ export async function adjustEvent(db, userId, { eventId, reason }, { now = Date.
   return { added: true, duplicate: false, event: serializeEvent(adjustment) };
 }
 
-// Sessão declarada: o servidor desconta sobreposição com outras sessões já
-// registradas, fecha blocos de 30 minutos e aplica o teto diário. O excedente
+// Sessão registrada: o servidor desconta sobreposição com outras sessões já
+// registradas, fecha blocos de 25 minutos e aplica o teto diário. O excedente
 // do teto é descartado do acumulador, conforme a política.
 export async function recordTimeSession(db, userId, input, { now = Date.now() } = {}) {
   const sessionId = typeof input?.sessionId === 'string' ? input.sessionId.trim() : '';
@@ -377,7 +377,9 @@ export async function recordTimeSession(db, userId, input, { now = Date.now() } 
   const existingBlocks = Math.floor(base / TIME_BLOCK_SECONDS);
   const totalBlocks = Math.floor(totalSeconds / TIME_BLOCK_SECONDS);
   const blocks = totalBlocks - existingBlocks;
-  const newConsumed = base + blocks * TIME_BLOCK_SECONDS;
+  // Guarda também a sobra: 30 min rendem um bloco de 25 e deixam 5 para a
+  // próxima sessão, como no caminho principal da biblioteca.
+  const newConsumed = Math.max(Number(settings.consumed_seconds || 0), totalSeconds);
   const day = localDay(settings.time_zone, new Date(now));
   const today = await db.first(
     `SELECT COALESCE(SUM(xp), 0) AS xp FROM xp_events

@@ -9,9 +9,11 @@ import { materialSteps } from './material-model.js';
 
 export const XP_POLICY_VERSION = 'v2';
 export const LEVEL_XP = 500;
-export const TIME_BLOCK_SECONDS = 30 * 60;
-export const TIME_BLOCK_XP = 25;
-export const DAILY_TIME_XP_CAP = 200;
+export const TIME_BLOCK_MINUTES = 25;
+export const TIME_BLOCK_SECONDS = TIME_BLOCK_MINUTES * 60;
+export const TIME_BLOCK_XP = 30;
+export const TIME_DAILY_MAX_BLOCKS = 4;
+export const DAILY_TIME_XP_CAP = TIME_DAILY_MAX_BLOCKS * TIME_BLOCK_XP;
 // Subtarefa concluída (decisão de 11/11/2026): XP uma única vez por subtarefa,
 // com teto diário próprio, porque o texto da subtarefa é livre.
 export const DAILY_SUBTASK_XP_CAP = 50;
@@ -42,7 +44,7 @@ export const XP_KIND_LABELS = Object.freeze({
   course_bonus: 'Curso completo',
   project_bonus: 'Projeto completo',
   discipline_bonus: 'Disciplina concluída',
-  time_block: 'Bloco de 30 minutos',
+  time_block: `Bloco de ${TIME_BLOCK_MINUTES} minutos`,
   subtask: 'Subtarefa concluída',
   adjustment: 'Ajuste de integridade',
 });

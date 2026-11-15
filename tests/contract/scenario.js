@@ -153,7 +153,7 @@ export async function runContract(target, t) {
       } }],
     } });
     assert.equal(timed.status, 200, JSON.stringify(timed.data));
-    assert.equal((await other.request('GET', '/api/xp')).data.summary.timeXP, 25);
+    assert.equal((await other.request('GET', '/api/xp')).data.summary.timeXP, 30);
   });
 
   await t.test('rotas desconhecidas e métodos', async () => {

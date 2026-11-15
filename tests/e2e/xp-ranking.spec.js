@@ -85,10 +85,10 @@ test('XP é concedido uma vez pelo servidor, com bônus, tempo e extrato', async
     },
     headers: { origin: baseURL },
   });
-  expect((await time.json()).grantedXP).toBe(25);
+  expect((await time.json()).grantedXP).toBe(30);
 
   const overview = await (await page.request.get('/api/xp?timeZone=UTC', { headers: { origin: baseURL } })).json();
-  expect(overview.summary.totalXP).toBe(825);
+  expect(overview.summary.totalXP).toBe(830);
   expect(overview.summary.level).toBe(2);
   expect(overview.summary.coursesCompleted).toBe(1);
   expect(overview.achievements.some((item) => item.title === 'Curso de teste')).toBe(true);

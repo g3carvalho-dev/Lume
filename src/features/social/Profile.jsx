@@ -371,7 +371,7 @@ export default function Profile({ id, handle = '', state, actions, account, noti
           <div className="profile-x-panel-head">
             <span className="mono muted-text">
               {stats.recentStepsTwoWeeks !== null
-                ? `${stats.recentStepsTwoWeeks} ${stats.recentStepsTwoWeeks === 1 ? 'passo registrado' : 'passos registrados'}${stats.recentMinutesTwoWeeks ? ` · ${stats.recentMinutesTwoWeeks} min declarados` : ''} nas últimas 2 semanas`
+                ? `${stats.recentStepsTwoWeeks} ${stats.recentStepsTwoWeeks === 1 ? 'passo registrado' : 'passos registrados'}${stats.recentMinutesTwoWeeks ? ` · ${stats.recentMinutesTwoWeeks} min registrados` : ''} nas últimas 2 semanas`
                 : 'Histórico de passos oculto'}
             </span>
           </div>
@@ -385,7 +385,7 @@ export default function Profile({ id, handle = '', state, actions, account, noti
                     <small>{item.type} · {STATUS_LABEL[item.status] || item.status}</small>
                   </div>
                   <div className="steam-activity-meta">
-                    {item.durationMinutes && <strong>{item.durationMinutes} min declarados</strong>}
+                    {item.durationMinutes && <strong>{item.durationMinutes} min registrados</strong>}
                     <small>
                       {item.lastAt
                         ? `Último registro em ${new Date(item.lastAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`

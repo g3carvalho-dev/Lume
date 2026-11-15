@@ -9,7 +9,7 @@ import {
   ensureXpSettings, getRanking, getXpSnapshot, recordTimeSession, updateXpSettings, adjustEvent, XpError,
 } from '../../api/domain/xp.js';
 import { grantBonus, grantSlide, grantStep } from '../../api/domain/rewards.js';
-import { levelProgress } from '../../public/xp-policy.js';
+import { TIME_BLOCK_XP, levelProgress } from '../../public/xp-policy.js';
 import { earnedTitles } from '../../public/title-policy.js';
 
 test('cargos exigem nível e marcos; construção e especialidade têm critérios próprios', () => {
@@ -223,23 +223,23 @@ test('blocos de tempo são idempotentes, acumulam sobras e respeitam o teto diá
     };
   };
   const first = await recordTimeSession(db, 'time', session('s1', 0), { now: NOW });
-  assert.equal(first.grantedXP, 25);
+  assert.equal(first.grantedXP, TIME_BLOCK_XP);
   const duplicate = await recordTimeSession(db, 'time', session('s1', 0), { now: NOW });
   assert.equal(duplicate.duplicate, true);
-  assert.equal(duplicate.grantedXP, 25);
+  assert.equal(duplicate.grantedXP, TIME_BLOCK_XP);
 
-  let total = 25;
-  for (let index = 2; index <= 8; index += 1) {
+  let total = TIME_BLOCK_XP;
+  for (let index = 2; index <= 4; index += 1) {
     const result = await recordTimeSession(db, 'time', session(`s${index}`, index * 10000), { now: NOW });
-    assert.equal(result.grantedXP, 25);
-    total += 25;
+    assert.equal(result.grantedXP, TIME_BLOCK_XP);
+    total += TIME_BLOCK_XP;
   }
-  assert.equal(total, 200);
-  const capped = await recordTimeSession(db, 'time', session('s9', 90000), { now: NOW });
+  assert.equal(total, 120);
+  const capped = await recordTimeSession(db, 'time', session('s5', 90000), { now: NOW });
   assert.equal(capped.grantedXP, 0);
-  assert.equal(capped.discardedBlocks, 1);
+  assert.equal(capped.discardedBlocks, 2);
   const summary = await getXpSnapshot(db, 'time', { now: NOW });
-  assert.equal(summary.summary.dailyTimeXP, 200);
+  assert.equal(summary.summary.dailyTimeXP, 120);
   assert.equal(summary.summary.carrySeconds, 0);
 });
 
@@ -279,7 +279,7 @@ test('ranking tem três abas, empates compartilhados, opt-in e legado fora', asy
   );
   await event('u1', 'lesson-1', 'lesson', 100);
   await event('u1', 'course-1', 'course_bonus', 500);
-  await event('u1', 'time-1', 'time_block', 25);
+  await event('u1', 'time-1', 'time_block', TIME_BLOCK_XP);
   await event('u2', 'course-2', 'course_bonus', 500);
   await event('u2', 'course-3', 'course_bonus', 500);
 
@@ -299,10 +299,10 @@ test('ranking tem três abas, empates compartilhados, opt-in e legado fora', asy
 
   const effort = await getRanking(db, 'u1', { tab: 'effort', period: 'week', now: NOW, timeZone: 'UTC' });
   assert.equal(effort.entries[0].periodXP, 1000);
-  assert.equal(effort.entries[1].periodXP, 625);
+  assert.equal(effort.entries[1].periodXP, 630);
 
   // Empate nos critérios compartilha a posição.
-  await event('u1', 'adjust-tie', 'adjustment', 375);
+  await event('u1', 'adjust-tie', 'adjustment', 370);
   const tied = await getRanking(db, 'u1', { tab: 'level', now: NOW, timeZone: 'UTC' });
   assert.deepEqual(tied.entries.map((entry) => entry.position), [1, 1]);
 

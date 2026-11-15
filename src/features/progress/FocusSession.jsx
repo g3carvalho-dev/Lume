@@ -4,6 +4,7 @@ import { focusedTask } from '../../../public/tasks-domain.js';
 import { materialType } from '../../../public/domain.js';
 import { materialStanding, subjectOf } from '../../../public/subject-domain.js';
 import { formatMinutes, formatSessionDuration, minutesByDay, sessionElapsed } from '../../../public/session-domain.js';
+import { TIME_BLOCK_MINUTES } from '../../../public/xp-policy.js';
 import Icon from '../../ui/Icon.jsx';
 import { Button } from '../../ui/ui.jsx';
 import { SOUNDSCAPES, createSoundscape } from './soundscape.js';
@@ -18,7 +19,7 @@ const CYCLES = [
 ];
 const RADIUS = 118;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-const BLOCK_MS = 30 * 60 * 1000;
+const BLOCK_MS = TIME_BLOCK_MINUTES * 60 * 1000;
 
 export default function FocusSession({ state, actions, settingsActions, open, notify, account }) {
   const active = state.activeSession;
@@ -51,9 +52,8 @@ export default function FocusSession({ state, actions, settingsActions, open, no
     if (!active) return undefined;
     setNow(Date.now());
     const clock = setInterval(() => setNow(Date.now()), 1000);
-    const beat = setInterval(actions.touchSession, 60000);
-    return () => { clearInterval(clock); clearInterval(beat); };
-  }, [active?.id, active?.status, actions]);
+    return () => clearInterval(clock);
+  }, [active?.id, active?.status]);
 
   useEffect(() => () => audio.current?.close(), []);
 
@@ -119,7 +119,7 @@ export default function FocusSession({ state, actions, settingsActions, open, no
 
   function begin() {
     const label = intention.trim() || focus?.title || (lesson ? lesson.title : course?.title) || 'Sessão de foco';
-    if (!actions.startSession({ courseId: course?.id || '', stepId: lesson?.lessonId || '', label })) return;
+    if (!actions.startSession({ courseId: course?.id || '', stepId: lesson?.lessonId || '', label, origin: 'focus' })) return;
     setLastSummary(null);
     setOffset(0);
     chimed.current = false;
@@ -143,7 +143,7 @@ export default function FocusSession({ state, actions, settingsActions, open, no
     });
     notify(
       account
-        ? `Sessão registrada: ${formatSessionDuration(result.session.durationMs)}. O servidor confirma os blocos de 30 minutos.`
+        ? `Sessão registrada: ${formatSessionDuration(result.session.durationMs)}. O servidor confirma os blocos de ${TIME_BLOCK_MINUTES} minutos.`
         : `Sessão registrada: ${formatSessionDuration(result.session.durationMs)}. Nesta prévia o tempo fica local; entre na conta para o XP de tempo.`,
       { important: true },
     );
@@ -182,7 +182,7 @@ export default function FocusSession({ state, actions, settingsActions, open, no
         <span className="soft-badge tone-mint"><Icon name="check"/>Sessão encerrada</span>
         <strong>{lastSummary.label}</strong>
         <p className="muted-text">
-          Tempo focado: <strong>{formatSessionDuration(lastSummary.durationMs)}</strong> · {lastSummary.blocks} {lastSummary.blocks === 1 ? 'bloco de 30 min elegível' : 'blocos de 30 min elegíveis'}.
+          Tempo focado: <strong>{formatSessionDuration(lastSummary.durationMs)}</strong> · {lastSummary.blocks} {lastSummary.blocks === 1 ? `bloco de ${TIME_BLOCK_MINUTES} min elegível` : `blocos de ${TIME_BLOCK_MINUTES} min elegíveis`}.
         </p>
       </div>
       <div className="focus-summary-actions">
@@ -241,7 +241,7 @@ export default function FocusSession({ state, actions, settingsActions, open, no
           <dl className="focus-stats">
             <div><dt>Ciclos concluídos</dt><dd>{completedCycles}</dd></div>
             <div><dt>Tempo focado</dt><dd className="tone-mint-text">{formatSessionDuration(elapsed)}</dd></div>
-            <div><dt>Blocos de 30 min</dt><dd className="tone-reward-text">{eligibleBlocks}</dd></div>
+            <div><dt>Blocos de {TIME_BLOCK_MINUTES} min</dt><dd className="tone-reward-text">{eligibleBlocks}</dd></div>
           </dl>
         </section>
 
