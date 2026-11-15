@@ -1,6 +1,17 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-32bd4f58",
+    "at": "2026-11-15T00:05:46.000Z",
+    "title": "Início mais limpo e aba Foco no topo",
+    "body": "A tela inicial ficou mais direta, sem botões repetidos, e a Sessão de foco agora tem aba própria na barra superior.",
+    "href": "#hoje",
+    "area": "site",
+    "details": [
+      "O cartão principal mantém apenas a próxima ação e um link discreto para trocar de material; abaixo dele ficam Para hoje e o Radar da semana com o próximo marco e seus dias de estudo."
+    ]
+  },
+  {
     "id": "news-36e576a0",
     "at": "2026-11-14T23:41:25.000Z",
     "title": "Painel Ativos agora recolhível",

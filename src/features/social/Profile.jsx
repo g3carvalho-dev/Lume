@@ -11,32 +11,29 @@ import { buildProfile } from '../../../public/profile-domain.js';
 import { MAX_PROFILE_BIO_LENGTH, studyRhythm } from '../../../public/domain.js';
 import { prepareProfileImageBlob, uploadProfileBlob } from './profile-media.js';
 
-// Perfil inspirado na vitrine da Steam, adaptado para estudos no Lume:
-// - Banner (header) e foto de perfil enviados ao armazenamento de objetos (Cloudflare R2
-//   via /api/profile/media/:slot), guardando apenas a URL /api/media/profiles/... no estado;
-// - Nível + insígnia em destaque + botão Editar perfil;
-// - Colecionador de Estudos (estatísticas + trilhas em destaque);
-// - Atividade recente (últimas 2 semanas + barra de progresso de cada trilha);
-// - Barra lateral com Conquistas/Insígnias e atalhos.
+// Perfil em coluna central inspirada no X, preservando a identidade celestial do Lume:
+// - Banner panorâmico com constelação padrão (ou capa enviada para R2);
+// - Avatar circular sobreposto na borda inferior do banner + ações à direita;
+// - Identidade limpa (@handle, títulos, bio corrida, metadados e contadores inline);
+// - Abas horizontais (Estudando, Atividade, Conquistas, Amigos) com indicador dourado.
 
 const STATUS_LABEL = { active: 'Em andamento', new: 'Começando', paused: 'Pausado', completed: 'Concluído' };
 
-function formatBioLines(bio, fallbackRhythm) {
-  const lines = String(bio || '')
+const BANNER_CONSTELLATION = [
+  [36, 118], [94, 72], [168, 96], [242, 48], [326, 78], [412, 42], [496, 86], [588, 54], [674, 82], [752, 44],
+];
+
+function formatBioLines(bio) {
+  return String(bio || '')
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
     .slice(0, 4);
-  if (lines.length > 0) return lines;
-  return [
-    `Ritmo atual: ${fallbackRhythm}`,
-    'Uma disciplina por vez',
-    'Progresso guardado na conta',
-  ];
 }
 
 export default function Profile({ id, handle = '', state, actions, account, notify, go, xp }) {
   const [editing, setEditing] = useState(false);
+  const [tab, setTab] = useState('estudando');
   const [uploadError, setUploadError] = useState('');
   const [bioDraft, setBioDraft] = useState(() => state.profile?.bio || '');
   const avatarInputRef = useRef(null);
@@ -48,7 +45,6 @@ export default function Profile({ id, handle = '', state, actions, account, noti
   const ownHandle = own.data?.handle || '';
   const ownReady = !account || own.data !== undefined || Boolean(own.error);
   const byHandle = Boolean(handle) && !id;
-  // Pelo @usuário, o servidor também avisa se é a própria conta (resposta `self`).
   const [selfByServer, setSelfByServer] = useState(false);
   useEffect(() => { setSelfByServer(false); }, [handle]);
   const isSelf = byHandle ? Boolean(account && ((ownReady && handle === ownHandle) || selfByServer)) : (!id || Boolean(account && id === account.id));
@@ -57,19 +53,21 @@ export default function Profile({ id, handle = '', state, actions, account, noti
     setBioDraft(state.profile?.bio || '');
   }, [state.profile?.bio]);
 
-  useEffect(() => { setEditing(false); }, [id, handle]);
+  useEffect(() => {
+    setEditing(false);
+    setTab('estudando');
+  }, [id, handle]);
 
   // Aba Amigos: a lista do próprio perfil usa o id da conta; a de outra pessoa, o id ou o @usuário.
   const friendsTarget = isSelf ? account?.id : (id || (handle ? `@${handle}` : ''));
   const friendsPath = friendsTarget && account ? `/api/profile/${encodeURIComponent(friendsTarget)}/friends` : '';
+  const friendsResource = useResource(friendsPath, { enabled: Boolean(friendsPath) });
 
-  // Dados do perfil de outra pessoa: recurso em cache. Quem já foi aberto (ou buscado ao
-  // passar o mouse) aparece na hora e é atualizado em segundo plano.
+  // Dados do perfil de outra pessoa: recurso em cache.
   const path = !isSelf && (id || handle) ? profilePath({ id, handle: byHandle ? handle : '' }) : '';
   const remote = useResource(path, { enabled: Boolean(path) });
   useEffect(() => { if (remote.data?.self) setSelfByServer(true); }, [remote.data]);
   const profile = remote.data?.profile || null;
-  // Perfil que deixou de ser acessível (fechado, removido) não fica no ar só por estar em cache.
   const error = remote.error && (!remote.data || remote.status === 403 || remote.status === 404)
     ? remote.error
     : (remote.data && !remote.data.self && !remote.data.profile ? 'Não foi possível abrir este perfil agora.' : '');
@@ -120,7 +118,7 @@ export default function Profile({ id, handle = '', state, actions, account, noti
     notify('Detalhes do perfil salvos.');
   }
 
-  if (error) return <div className="personal-root">
+  if (error) return <div className="personal-root profile-x-root">
     <Heading eyebrow="Perfis ficam entre amigos e perfis públicos" title="Não foi possível abrir"/>
     <section className="card-surface settings-panel">
       <p className="muted-text">{error}</p>
@@ -128,7 +126,7 @@ export default function Profile({ id, handle = '', state, actions, account, noti
     </section>
   </div>;
 
-  if (!view) return <div className="personal-root">
+  if (!view) return <div className="personal-root profile-x-root">
     <Heading eyebrow="Perfil" title="Perfil"/>
     <Skeleton label="Carregando o perfil…" rows={4}/>
   </div>;
@@ -148,95 +146,24 @@ export default function Profile({ id, handle = '', state, actions, account, noti
   const nothingShared = !studying.length && !queue.length && !completed.length;
   const showcaseCourses = [...studying, ...completed].slice(0, 6);
   const rhythmLabel = studyRhythm(state).title;
-  const bioLines = formatBioLines(customization.bio, rhythmLabel);
+  const bioLines = formatBioLines(customization.bio);
+  const friendsList = friendsResource.data?.friends;
+  const friendsCount = Array.isArray(friendsList) ? friendsList.length : null;
+  const activeHandle = isSelf ? ownHandle : user.handle;
+  const [starX, starY] = BANNER_CONSTELLATION[BANNER_CONSTELLATION.length - 1];
 
-  return <div className="personal-root steam-profile-root">
+  const tabs = [
+    { id: 'estudando', label: 'Estudando' },
+    { id: 'atividade', label: 'Atividade' },
+    { id: 'conquistas', label: 'Conquistas' },
+    ...(friendsPath ? [{ id: 'amigos', label: 'Amigos' }] : []),
+  ];
+
+  return <div className="personal-root profile-x-root">
     {byHandle && isSelf && <SectionTabs route="perfil"/>}
-    {/* Cabeçalho / vitrine superior estilo Steam */}
-    <section
-      className={`steam-hero crest-card ${customization.header ? 'has-custom-header' : ''}`}
-      style={customization.header ? { '--profile-header-image': `url(${customization.header})` } : undefined}
-      aria-labelledby="profile-user-title"
-    >
-      <div className="steam-hero-backdrop" aria-hidden="true"/>
 
-      <div className="steam-hero-inner">
-        {/* Moldura de Avatar */}
-        <div className="steam-avatar-column">
-          <div className="steam-avatar-frame">
-            {customization.avatar
-              ? <img src={customization.avatar} alt={`Foto de perfil de ${user.name}`} className="steam-avatar-img"/>
-              : <span className="steam-avatar-fallback" aria-hidden="true">{String(user.name || '?').slice(0, 1).toUpperCase()}</span>}
-            {isSelf && <button
-              type="button"
-              className="steam-avatar-upload-trigger"
-              onClick={() => avatarInputRef.current?.click()}
-              title="Enviar foto do computador"
-              aria-label="Alterar foto do perfil"
-            >
-              <Icon name="image"/><span>Foto</span>
-            </button>}
-          </div>
-        </div>
-
-        {/* Identidade + Bio em tópicos estilo Steam */}
-        <div className="steam-identity">
-          {!isSelf && <span className="soft-badge tone-mint"><span className="soft-dot" aria-hidden="true"/>{view.viewer === 'public' ? 'Perfil público' : 'Perfil de amigo'}</span>}
-          <h1 id="profile-user-title" className="display steam-persona-name">{user.name}</h1>
-          {(isSelf ? ownHandle : user.handle) && <p className="steam-handle mono">@{isSelf ? ownHandle : user.handle}</p>}
-          {view.titles?.length > 0 && <section className="profile-titles" aria-label="Cargos de estudo">
-            <ul className="soft-badges">{view.titles.map((item) => <li key={item.id} className="soft-badge tone-reward" title={item.criterion}><Icon name="trophy"/><strong>{item.title}</strong><span className="profile-title-criterion">· {item.criterion}</span></li>)}</ul>
-          </section>}
-          {!isSelf && <p className="steam-subname">{view.viewer === 'public' ? 'O que esta pessoa escolheu tornar público.' : 'O que esta pessoa escolheu compartilhar com amigos.'}</p>}
-          <ul className="steam-bio-list" aria-label="Destaques do estudante">
-            {bioLines.map((line, index) => <li key={`${index}-${line}`}>
-              <span className="steam-diamond" aria-hidden="true">♦</span>
-              <span>{line}</span>
-            </li>)}
-          </ul>
-        </div>
-
-        {/* Coluna direita do topo: Nível + Insígnia em destaque + Botões */}
-        <div className="steam-level-panel">
-          {stats.level !== null ? <div className="steam-level-header">
-            <span className="steam-level-word">Nível</span>
-            <span className="steam-level-circle" aria-label={`Nível ${stats.level}`}>{stats.level}</span>
-          </div> : <div className="steam-level-header">
-            <span className="steam-level-word">Nível privado</span>
-          </div>}
-
-          <div className="steam-featured-badge">
-            <span className="steam-featured-icon">
-              <Icon name={featuredBadge?.icon || 'spark'}/>
-            </span>
-            <div className="steam-featured-copy">
-              <strong>{featuredBadge ? featuredBadge.title : 'Primeira conquista a caminho'}</strong>
-              <small>{stats.xp !== null ? `${stats.xp} XP ${stats.xpValidated ? 'confirmados pelo servidor' : 'da prévia local'}` : 'XP oculto no perfil'}</small>
-            </div>
-          </div>
-
-          <div className="steam-hero-actions">
-            {isSelf && <Button secondary onClick={() => setEditing((prev) => !prev)} aria-expanded={editing}>
-              <Icon name="edit"/>{editing ? 'Fechar edição' : 'Editar perfil'}
-            </Button>}
-            {!isSelf && view.viewer === 'public' && account && <AddFriendButton person={user} notify={notify} onChanged={remote.refresh}/>}
-            {!isSelf && view.viewer !== 'public' && <Button secondary onClick={() => go('amigos')}>
-              <Icon name="users"/>Amigos
-            </Button>}
-            {isSelf && <Button ghost onClick={() => go('configuracoes')}>
-              <Icon name="settings"/>Privacidade
-            </Button>}
-          </div>
-        </div>
-      </div>
-
-      {/* Painel expansível de personalização (Upload de foto, header e bio) */}
-      {isSelf && editing && <motion.div
-        className="steam-customizer"
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.22 }}
-      >
+    <article className={`profile-x-card ${isSelf && editing ? 'is-editing' : ''}`} aria-labelledby="profile-user-title">
+      {isSelf && <>
         <input
           ref={avatarInputRef}
           type="file"
@@ -253,201 +180,260 @@ export default function Profile({ id, handle = '', state, actions, account, noti
           aria-label="Selecionar imagem de capa (header) do computador"
           onChange={(event) => handleImageUpload('header', event)}
         />
-
-        <div className="steam-customizer-grid">
-          <div className="steam-upload-box">
-            <span className="eyebrow">Foto do perfil</span>
-            <p className="muted-text">Envie uma imagem do seu computador (quadrada recomendada).</p>
-            <div className="action-row">
-              <Button secondary onClick={() => avatarInputRef.current?.click()}><Icon name="image"/>Enviar foto</Button>
-              {customization.avatar && <button type="button" className="text-button" onClick={() => clearImage('avatar')}>Remover foto</button>}
-            </div>
-          </div>
-
-          <div className="steam-upload-box">
-            <span className="eyebrow">Capa do cabeçalho (Header)</span>
-            <p className="muted-text">Imagem panorâmica para o fundo do topo do perfil.</p>
-            <div className="action-row">
-              <Button secondary onClick={() => headerInputRef.current?.click()}><Icon name="image"/>Enviar header</Button>
-              {customization.header && <button type="button" className="text-button" onClick={() => clearImage('header')}>Restaurar padrão</button>}
-            </div>
-          </div>
-
-          <form className="steam-bio-form" onSubmit={saveProfileText}>
-            <label className="field" htmlFor="profile-bio-input">
-              Apresentação e metas (até 4 linhas com ♦ no perfil)
-              <textarea
-                id="profile-bio-input"
-                rows={3}
-                maxLength={MAX_PROFILE_BIO_LENGTH}
-                value={bioDraft}
-                onChange={(event) => setBioDraft(event.target.value)}
-                placeholder={'Ex.: Estudando Direito Processual e Python\nMeta: 3 sessões por semana\nFoco atual: concluir projetos práticos'}
-              />
-            </label>
-            <div className="action-row">
-              <Button type="submit"><Icon name="check"/>Salvar apresentação</Button>
-            </div>
-          </form>
-        </div>
-        {uploadError && <p className="form-error" role="alert">{uploadError}</p>}
-      </motion.div>}
-    </section>
-
-    {nothingShared && <section className="card-surface settings-panel">
-      <p className="muted-text">Esta pessoa ainda não compartilhou nada do estudo com amigos.</p>
-    </section>}
-
-    {/* Corpo em 2 colunas estilo Steam: Esquerda (Vitrines + Atividade Recente), Direita (Status + Conquistas + Links) */}
-    <div className="steam-body-grid">
-      <div className="steam-main-column">
-        {/* Vitrine 1: Colecionador de Estudos */}
-        <section className="steam-showcase" aria-labelledby="showcase-collector-title">
-          <header className="steam-showcase-header">
-            <h2 id="showcase-collector-title" className="steam-showcase-title">Colecionador de estudos</h2>
-            <span className="steam-showcase-sub">o que está compartilhado</span>
-          </header>
-
-          <div className="steam-showcase-body">
-            <div className="steam-collector-stats">
-              <div className="steam-stat-cell">
-                <strong><AnimatedNumber value={stats.activeCourses ?? 0}/></strong>
-                <span>Materiais na biblioteca</span>
-              </div>
-              {stats.doneLessons !== null && <div className="steam-stat-cell">
-                <strong><AnimatedNumber value={stats.doneLessons}/></strong>
-                <span>Aulas concluídas (de {stats.lessons})</span>
-              </div>}
-              {stats.completedCourses !== null && <div className="steam-stat-cell">
-                <strong><AnimatedNumber value={stats.completedCourses}/></strong>
-                <span>Materiais completos</span>
-              </div>}
-            </div>
-
-            <div className="steam-featured-shelf">
-              <span className="steam-sublabel">Trilhas em destaque</span>
-              {showcaseCourses.length > 0 ? <div className="steam-capsule-grid">
-                {showcaseCourses.map((item, index) => <motion.article key={item.id} className="steam-capsule" {...stagger(index)}>
-                  <Cover art={item.art} className="steam-capsule-cover">
-                    <span className={`course-status status-${item.status}`}>{STATUS_LABEL[item.status] || item.status}</span>
-                  </Cover>
-                  <div className="steam-capsule-info">
-                    <strong>{item.title}</strong>
-                    <small>{item.type}{item.progress ? ` · ${item.progress.percent}%` : ''}</small>
-                  </div>
-                </motion.article>)}
-              </div> : <p className="inline-note"><Icon name="info"/><span>Nada em andamento compartilhado.</span></p>}
-            </div>
-          </div>
-        </section>
-
-        {/* Vitrine 2: Atividade Recente */}
-        <section className="steam-showcase" aria-labelledby="showcase-activity-title">
-          <header className="steam-showcase-header">
-            <h2 id="showcase-activity-title" className="steam-showcase-title">Atividade recente</h2>
-            <span className="steam-showcase-sub">
-              {stats.recentStepsTwoWeeks !== null
-                ? `${stats.recentStepsTwoWeeks} ${stats.recentStepsTwoWeeks === 1 ? 'passo registrado' : 'passos registrados'}${stats.recentMinutesTwoWeeks ? ` · ${stats.recentMinutesTwoWeeks} min declarados` : ''} nas últimas 2 semanas`
-                : 'Histórico de passos oculto'}
-            </span>
-          </header>
-
-          <div className="steam-showcase-body">
-            {recentActivity.length > 0 ? <div className="steam-activity-list">
-              {recentActivity.map((item) => <article key={item.id} className="steam-activity-card">
-                <div className="steam-activity-top">
-                  <Cover art={item.art} className="steam-activity-thumb"/>
-                  <div className="steam-activity-heading">
-                    <h3 className="title">{item.title}</h3>
-                    <small>{item.type} · {STATUS_LABEL[item.status] || item.status}</small>
-                  </div>
-                  <div className="steam-activity-meta">
-                    {item.durationMinutes && <strong>{item.durationMinutes} min declarados</strong>}
-                    <small>
-                      {item.lastAt
-                        ? `Último registro em ${new Date(item.lastAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`
-                        : 'Progresso na biblioteca'}
-                    </small>
-                  </div>
-                </div>
-
-                {item.progress && <div className="steam-activity-progress">
-                  <div className="steam-activity-progress-head">
-                    <span><Icon name="trophy"/>Etapas concluídas</span>
-                    <strong>{item.progress.done} de {item.progress.total} · {item.progress.percent}%</strong>
-                  </div>
-                  <Progress value={item.progress.done} max={item.progress.total || 1} tone={item.status === 'completed' ? 'mint' : 'lume'} label={`Progresso de ${item.title}`}/>
-                  {item.lastLabel && <small className="steam-activity-step">Último passo: {item.lastLabel}</small>}
-                </div>}
-              </article>)}
-            </div> : <p className="inline-note"><Icon name="clock"/><span>Nenhuma atividade recente compartilhada nas últimas semanas.</span></p>}
-          </div>
-        </section>
+      </>}
+      {/* Banner panorâmico com constelação celestial ou capa enviada */}
+      <div
+        className={`profile-x-banner ${customization.header ? 'has-custom-header' : ''}`}
+        style={customization.header ? { '--profile-header-image': `url(${customization.header})` } : undefined}
+      >
+        {!customization.header && <svg className="profile-x-constellation" viewBox="0 0 800 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <polyline points={BANNER_CONSTELLATION.map((point) => point.join(',')).join(' ')} className="profile-x-constellation-line"/>
+          {BANNER_CONSTELLATION.slice(0, -1).map(([cx, cy]) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="2.6" className="profile-x-constellation-dot"/>)}
+          <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5Z" className="profile-x-constellation-star" transform={`translate(${starX - 10} ${starY - 10}) scale(0.85)`}/>
+        </svg>}
+        <div className="profile-x-banner-fade" aria-hidden="true"/>
+        {isSelf && <button
+          type="button"
+          className="profile-x-banner-trigger"
+          onClick={() => headerInputRef.current?.click()}
+          aria-label="Alterar imagem de capa do perfil"
+        >
+          <Icon name="image"/><span>Alterar capa</span>
+        </button>}
       </div>
 
-      {/* Coluna lateral direita estilo Steam */}
-      <div className="steam-side-column">
-      <aside className="steam-sidebar" aria-label="Resumo e insígnias do perfil">
-        <div className="steam-status-box">
-          <span className="steam-online-label">
+      {/* Avatar sobreposto + ações à direita */}
+      <div className="profile-x-identity-bar">
+        <div className="profile-x-avatar-frame">
+          {customization.avatar
+            ? <img src={customization.avatar} alt={`Foto de perfil de ${user.name}`} className="profile-x-avatar-img"/>
+            : <span className="profile-x-avatar-fallback" aria-hidden="true">{String(user.name || '?').slice(0, 1).toUpperCase()}</span>}
+          {isSelf && <button
+            type="button"
+            className="profile-x-avatar-trigger"
+            onClick={() => avatarInputRef.current?.click()}
+            title="Enviar foto do computador"
+            aria-label="Alterar foto do perfil"
+          >
+            <Icon name="image"/><span>Foto</span>
+          </button>}
+        </div>
+
+        <div className="profile-x-actions">
+          {isSelf && <Button ghost onClick={() => go('configuracoes')}>
+            <Icon name="settings"/>Privacidade
+          </Button>}
+          {isSelf && <Button secondary onClick={() => setEditing((prev) => !prev)} aria-expanded={editing}>
+            <Icon name="edit"/>{editing ? 'Fechar edição' : 'Editar perfil'}
+          </Button>}
+          {!isSelf && view.viewer === 'public' && account && <AddFriendButton person={user} notify={notify} onChanged={remote.refresh}/>}
+          {!isSelf && view.viewer !== 'public' && <Button secondary onClick={() => go('amigos')}>
+            <Icon name="users"/>Amigos
+          </Button>}
+        </div>
+      </div>
+
+      {/* Bloco de identidade estilo X */}
+      <header className="profile-x-header">
+        <div className="profile-x-title-row">
+          <h1 id="profile-user-title" className="display profile-x-name">{user.name}</h1>
+          {stats.level !== null
+            ? <span className="soft-badge tone-reward mono" aria-label={`Nível ${stats.level}`}><Icon name="spark"/>Nível {stats.level}</span>
+            : <span className="soft-badge mono">Nível privado</span>}
+          {!isSelf && <span className="soft-badge tone-mint"><span className="soft-dot" aria-hidden="true"/>{view.viewer === 'public' ? 'Perfil público' : 'Perfil de amigo'}</span>}
+        </div>
+
+        {activeHandle && <p className="profile-x-handle mono">@{activeHandle}</p>}
+
+        {view.titles?.length > 0 && <ul className="soft-badges profile-x-titles" aria-label="Cargos de estudo">
+          {view.titles.map((item) => <li key={item.id} className="soft-badge tone-reward" title={item.criterion}>
+            <Icon name="trophy"/><strong>{item.title}</strong>
+          </li>)}
+        </ul>}
+
+        <div className="profile-x-bio">
+          {bioLines.length > 0
+            ? bioLines.map((line, index) => <p key={`${index}-${line}`}>{line}</p>)
+            : <p className="muted-text">Ritmo atual: {rhythmLabel} · Uma disciplina por vez</p>}
+        </div>
+
+        <div className="profile-x-details">
+          <span>
+            <Icon name="spark"/>
+            {featuredBadge ? featuredBadge.title : 'Primeira conquista a caminho'}
+          </span>
+          <span className="mono">
+            {stats.xp !== null
+              ? `${stats.xp} XP ${stats.xpValidated ? 'confirmados' : 'na prévia'}`
+              : 'XP oculto'}
+          </span>
+          <span>
             <span className="companion-dot" aria-hidden="true"/>
             {isSelf && state.activeSession
               ? `Estudando agora · ${state.activeSession.label}`
               : studying.length > 0 ? 'Estudando' : 'Disponível no Lume'}
           </span>
-          {!isSelf && <small className="muted-text">Mostra só se está estudando agora, sem o tempo.</small>}
         </div>
 
-        {/* Conquistas / Insígnias */}
-        <section className="steam-side-section" aria-labelledby="sidebar-badges-title">
-          <div className="steam-side-head">
-            <h2 id="sidebar-badges-title" className="steam-side-title">Conquistas</h2>
-            {stats.unlockedAchievements !== null && <span className="steam-side-count">{stats.unlockedAchievements}/{stats.totalAchievements}</span>}
-          </div>
-          {badges.length > 0 ? <>
-            <div className="steam-badge-row">
-              {badges.map((badge) => <div
-                key={badge.id}
-                className={`steam-badge-slot ${badge.unlocked ? 'is-unlocked' : 'is-locked'}`}
-                title={`${badge.title} — ${badge.text} (${badge.current}/${badge.target})`}
-              >
-                <Icon name={badge.icon}/>
-              </div>)}
-            </div>
-            {isSelf && <button type="button" className="text-button accent" onClick={() => go('conquistas')}>
-              Ver conquistas<Icon name="arrow"/>
-            </button>}
-          </> : <p className="quiet-note">Conquistas e XP ocultos neste perfil.</p>}
-        </section>
-
-        {/* Contadores e links estilo menu lateral da Steam */}
-        <nav className="steam-side-links" aria-label="Atalhos do perfil">
-          <div className="steam-side-link-item">
-            <span>Estudando agora</span>
-            <strong>{studying.length}</strong>
-          </div>
-          <div className="steam-side-link-item">
+        <div className="profile-x-counts">
+          {friendsPath && <button type="button" className="profile-x-count-link" onClick={() => setTab('amigos')}>
+            <strong className="mono">{friendsCount ?? '—'}</strong>
+            <span>{friendsCount === 1 ? 'Amigo' : 'Amigos'}</span>
+          </button>}
+          <span className="profile-x-count-item">
+            <strong className="mono"><AnimatedNumber value={stats.activeCourses ?? 0}/></strong>
+            <span>{stats.activeCourses === 1 ? 'Material' : 'Materiais'}</span>
+          </span>
+          {stats.doneLessons !== null && <span className="profile-x-count-item">
+            <strong className="mono"><AnimatedNumber value={stats.doneLessons}/></strong>
             <span>Aulas concluídas</span>
-            <strong>{stats.doneLessons ?? '—'}</strong>
+          </span>}
+          {stats.completedCourses !== null && <span className="profile-x-count-item">
+            <strong className="mono"><AnimatedNumber value={stats.completedCourses}/></strong>
+            <span>Completos</span>
+          </span>}
+        </div>
+      </header>
+
+      {/* Painel expansível de personalização (bio e remoção de mídias, se houver) */}
+      {isSelf && editing && <motion.section
+        className="profile-x-customizer"
+        aria-label="Editar perfil"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+      >
+        <form className="profile-x-bio-form" onSubmit={saveProfileText}>
+          <label className="field" htmlFor="profile-bio-input">
+            Apresentação e metas
+            <textarea
+              id="profile-bio-input"
+              rows={3}
+              maxLength={MAX_PROFILE_BIO_LENGTH}
+              value={bioDraft}
+              onChange={(event) => setBioDraft(event.target.value)}
+              placeholder={'Ex.: Estudando Direito Processual e Python\nMeta: 3 sessões por semana'}
+            />
+          </label>
+          <div className="action-row">
+            <Button type="submit"><Icon name="check"/>Salvar apresentação</Button>
+            {customization.avatar && <button type="button" className="text-button" onClick={() => clearImage('avatar')}>Remover foto</button>}
+            {customization.header && <button type="button" className="text-button" onClick={() => clearImage('header')}>Restaurar padrão</button>}
           </div>
-          <div className="steam-side-link-item">
-            <span>Materiais completos</span>
-            <strong>{stats.completedCourses ?? '—'}</strong>
+        </form>
+        {uploadError && <p className="form-error" role="alert">{uploadError}</p>}
+      </motion.section>}
+
+      {/* Abas horizontais estilo X */}
+      <nav className="profile-x-tabs" role="tablist" aria-label="Seções do perfil">
+        {tabs.map((item) => <button
+          key={item.id}
+          type="button"
+          role="tab"
+          aria-selected={tab === item.id}
+          className={`profile-x-tab ${tab === item.id ? 'is-active' : ''}`}
+          onClick={() => setTab(item.id)}
+        >
+          <span>{item.label}</span>
+        </button>)}
+      </nav>
+
+      {/* Conteúdo das abas */}
+      <div className="profile-x-feed" role="tabpanel">
+        {tab === 'estudando' && <div className="profile-x-tab-panel">
+          {nothingShared
+            ? <p className="profile-x-empty muted-text">Esta pessoa ainda não compartilhou nada do estudo com amigos.</p>
+            : <>
+              {showcaseCourses.length > 0
+                ? <div className="profile-x-showcase-list">
+                  {showcaseCourses.map((item, index) => <motion.article key={item.id} className="profile-x-feed-item" {...stagger(index)}>
+                    <Cover art={item.art} className="profile-x-cover"/>
+                    <div className="profile-x-feed-body">
+                      <div className="profile-x-feed-top">
+                        <span className={`course-status status-${item.status}`}>{STATUS_LABEL[item.status] || item.status}</span>
+                        <span className="mono profile-x-feed-meta">{item.type}{item.progress ? ` · ${item.progress.percent}%` : ''}</span>
+                      </div>
+                      <h2 className="title profile-x-feed-title">{item.title}</h2>
+                      {item.progress && <div className="profile-x-feed-progress">
+                        <Progress value={item.progress.done} max={item.progress.total || 1} tone={item.status === 'completed' ? 'mint' : 'lume'} label={`Progresso de ${item.title}`}/>
+                        <span className="mono profile-x-feed-meta">{item.progress.done} de {item.progress.total} etapas</span>
+                      </div>}
+                    </div>
+                  </motion.article>)}
+                </div>
+                : <p className="profile-x-empty inline-note"><Icon name="info"/><span>Nada em andamento compartilhado.</span></p>}
+
+              <div className="profile-x-milestone">
+                <span className="profile-x-milestone-icon"><Icon name={featuredBadge?.icon || 'spark'}/></span>
+                <div className="profile-x-milestone-copy">
+                  <strong>{featuredBadge ? featuredBadge.title : 'Primeira conquista a caminho'}</strong>
+                  <small className="mono">{stats.xp !== null ? `${stats.xp} XP ${stats.xpValidated ? 'confirmados pelo servidor' : 'da prévia local'}` : 'XP oculto no perfil'}</small>
+                </div>
+                {queue.length > 0 && <span className="soft-badge mono">{queue.length} {queue.length === 1 ? 'passo na fila' : 'passos na fila'}</span>}
+              </div>
+            </>}
+        </div>}
+
+        {tab === 'atividade' && <div className="profile-x-tab-panel">
+          <div className="profile-x-panel-head">
+            <span className="mono muted-text">
+              {stats.recentStepsTwoWeeks !== null
+                ? `${stats.recentStepsTwoWeeks} ${stats.recentStepsTwoWeeks === 1 ? 'passo registrado' : 'passos registrados'}${stats.recentMinutesTwoWeeks ? ` · ${stats.recentMinutesTwoWeeks} min declarados` : ''} nas últimas 2 semanas`
+                : 'Histórico de passos oculto'}
+            </span>
           </div>
-          <div className="steam-side-link-item">
-            <span>Passos na fila</span>
-            <strong>{queue.length}</strong>
+          {recentActivity.length > 0 ? <div className="profile-x-showcase-list">
+            {recentActivity.map((item) => <article key={item.id} className="profile-x-feed-item">
+              <Cover art={item.art} className="profile-x-cover"/>
+              <div className="profile-x-feed-body">
+                <div className="profile-x-feed-top">
+                  <span className={`course-status status-${item.status}`}>{STATUS_LABEL[item.status] || item.status}</span>
+                  <span className="mono profile-x-feed-meta">
+                    {item.lastAt
+                      ? new Date(item.lastAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+                      : 'Na biblioteca'}
+                    {item.durationMinutes ? ` · ${item.durationMinutes} min` : ''}
+                  </span>
+                </div>
+                <h2 className="title profile-x-feed-title">{item.title}</h2>
+                {item.progress && <div className="profile-x-feed-progress">
+                  <Progress value={item.progress.done} max={item.progress.total || 1} tone={item.status === 'completed' ? 'mint' : 'lume'} label={`Progresso de ${item.title}`}/>
+                  <span className="mono profile-x-feed-meta">{item.progress.done} de {item.progress.total} · {item.progress.percent}%</span>
+                </div>}
+                {item.lastLabel && <small className="profile-x-last-step">Último passo: {item.lastLabel}</small>}
+              </div>
+            </article>)}
+          </div> : <p className="profile-x-empty inline-note"><Icon name="clock"/><span>Nenhuma atividade recente compartilhada nas últimas semanas.</span></p>}
+        </div>}
+
+        {tab === 'conquistas' && <div className="profile-x-tab-panel">
+          <div className="profile-x-panel-head">
+            {stats.unlockedAchievements !== null && <span className="mono muted-text">{stats.unlockedAchievements} de {stats.totalAchievements} desbloqueadas</span>}
+            {isSelf && <button type="button" className="text-button accent" onClick={() => go('conquistas')}>
+              Ver todas<Icon name="arrow"/>
+            </button>}
           </div>
-        </nav>
-      </aside>
-        {friendsPath && <ProfileFriends path={friendsPath} isSelf={isSelf} name={user.name} go={go}/>}
+          {badges.length > 0 ? <div className="profile-x-badge-grid">
+            {badges.map((badge) => <div key={badge.id} className={`profile-x-badge-item ${badge.unlocked ? 'is-unlocked' : 'is-locked'}`}>
+              <span className="profile-x-badge-icon"><Icon name={badge.icon}/></span>
+              <div>
+                <strong>{badge.title}</strong>
+                <small>{badge.text}</small>
+                <span className="mono">{badge.current}/{badge.target}</span>
+              </div>
+            </div>)}
+          </div> : <p className="profile-x-empty quiet-note">Conquistas e XP ocultos neste perfil.</p>}
+        </div>}
+
+        {tab === 'amigos' && friendsPath && <div className="profile-x-tab-panel">
+          <ProfileFriends resource={friendsResource} isSelf={isSelf} name={user.name} go={go}/>
+        </div>}
       </div>
-    </div>
+    </article>
   </div>;
 }
 
-// Pedido de amizade a partir do perfil de quem ainda não é amigo. Se a pessoa já enviou
-// um pedido a você, enviar o seu aceita a amizade (regra do servidor, sendRequest).
+// Pedido de amizade a partir do perfil de quem ainda não é amigo.
 function AddFriendButton({ person, notify, onChanged }) {
   const requests = useResource('/api/friends/requests');
   const [busy, setBusy] = useState(false);
@@ -477,18 +463,13 @@ function AddFriendButton({ person, notify, onChanged }) {
   </>;
 }
 
-// Amigos na coluna lateral do perfil: só aparecem amigos que têm perfil público (regra do servidor).
-function ProfileFriends({ path, isSelf, name, go }) {
-  const resource = useResource(path);
+// Amigos no perfil: só aparecem amigos que têm perfil público (regra do servidor).
+function ProfileFriends({ resource, isSelf, name, go }) {
   const friends = resource.data?.friends;
-  return <section className="card-surface profile-friends-card" aria-labelledby="profile-friends-title">
-    <div className="steam-side-head">
-      <h2 id="profile-friends-title" className="steam-side-title">Amigos</h2>
-      {friends && <span className="steam-side-count">{friends.length}</span>}
-    </div>
+  return <div className="profile-x-friends">
     {!resource.data && !resource.error && <Skeleton label="Carregando amigos…" rows={2}/>}
     {resource.error && !resource.data && <p className="form-error" role="alert">{resource.error}</p>}
-    {friends?.length === 0 && <p className="quiet-note">{isSelf ? 'Nenhum amigo com perfil público para mostrar.' : `${name} não tem amigos com perfil público para mostrar.`}</p>}
+    {friends?.length === 0 && <p className="profile-x-empty quiet-note">{isSelf ? 'Nenhum amigo com perfil público para mostrar.' : `${name} não tem amigos com perfil público para mostrar.`}</p>}
     {friends?.length > 0 && <ul className="profile-friend-list">
       {friends.map((friend) => <li key={friend.id}>
         <button type="button" className="social-friend-profile" {...warmProfileProps(friend)} onClick={() => go(friend.handle ? `perfil?u=${friend.handle}` : `perfil?id=${encodeURIComponent(friend.id)}`)} aria-label={`Ver perfil de ${friend.name}`}>
@@ -497,6 +478,6 @@ function ProfileFriends({ path, isSelf, name, go }) {
         </button>
       </li>)}
     </ul>}
-    {isSelf && <p className="quiet-note">Só aparecem amigos com perfil público.</p>}
-  </section>;
+    {isSelf && <p className="profile-x-friends-note quiet-note">Só aparecem amigos com perfil público.</p>}
+  </div>;
 }
