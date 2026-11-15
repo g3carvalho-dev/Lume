@@ -17,6 +17,7 @@ export default function AttachPdf({ state, actions, close, notify, open, go, acc
   const [chosen, setChosen] = useState(Boolean(preset));
   const [newSubject, setNewSubject] = useState('');
   const [status, setStatus] = useState('idle');
+  const [dragging, setDragging] = useState(false);
   const [error, setError] = useState('');
   const [storage, setStorage] = useState(null);
   useEffect(() => {
@@ -36,8 +37,7 @@ export default function AttachPdf({ state, actions, close, notify, open, go, acc
     <Button className="full-width" onClick={() => { close(); go('login'); }}>Entrar ou criar conta<Icon name="arrow"/></Button>
   </div>;
 
-  async function choose(event) {
-    const picked = event.target.files?.[0] || null;
+  async function pick(picked) {
     setError('');
     setInfo(null);
     setFile(picked);
@@ -58,6 +58,18 @@ export default function AttachPdf({ state, actions, close, notify, open, go, acc
     } finally {
       setStatus('idle');
     }
+  }
+
+  function choose(event) {
+    pick(event.target.files?.[0] || null);
+  }
+
+  function drop(event) {
+    event.preventDefault();
+    setDragging(false);
+    if (busy) return;
+    const picked = event.dataTransfer?.files?.[0] || null;
+    if (picked) pick(picked);
   }
 
   async function submit(event) {
@@ -92,9 +104,36 @@ export default function AttachPdf({ state, actions, close, notify, open, go, acc
     <h2 id="dialog-title" className="headline">Anexar PDF</h2>
     <p className="muted-text">Apostilas, livros e resumos em PDF viram material da biblioteca, com leitor próprio e retomada na página em que você parou.</p>
     <form className="form-stack" onSubmit={submit}>
-      <label className="field">Arquivo PDF
-        <input type="file" accept="application/pdf,.pdf" onChange={choose} disabled={busy}/>
-      </label>
+      <div className="field">
+        <span id="attach-pdf-label">Arquivo PDF</span>
+        <label
+          className={`pdf-file-picker${dragging ? ' dragging' : ''}${file ? ' has-file' : ''}${busy ? ' disabled' : ''}`}
+          onDragOver={(event) => { event.preventDefault(); if (!busy) setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={drop}
+        >
+          <input
+            type="file"
+            className="sr-only"
+            accept="application/pdf,.pdf"
+            aria-labelledby="attach-pdf-label"
+            onChange={choose}
+            disabled={busy}
+          />
+          <span className="pdf-file-picker-icon" aria-hidden="true">
+            <Icon name={file ? 'file' : 'upload'}/>
+          </span>
+          <span className="pdf-file-picker-body">
+            <strong className="pdf-file-picker-name">{file ? file.name : 'Escolher arquivo PDF'}</strong>
+            <span className="pdf-file-picker-hint">
+              {file ? formatBytes(file.size) : `Arraste aqui ou clique para selecionar · até ${formatBytes(limit)}`}
+            </span>
+          </span>
+          <span className="button secondary pdf-file-picker-btn" aria-hidden="true">
+            {file ? 'Trocar' : 'Selecionar'}
+          </span>
+        </label>
+      </div>
       {status === 'reading' && <p className="quiet-note" role="status">Lendo o PDF no seu navegador…</p>}
       {info && <p className="inline-note"><Icon name="book"/><span>{info.pages} {info.pages === 1 ? 'página' : 'páginas'} · {formatBytes(file.size)}{info.outline.length ? ` · sumário com ${info.outline.length} itens` : ' · sem sumário no arquivo'}</span></p>}
       <label className="field">Título

@@ -325,9 +325,72 @@ input[type='checkbox'][switch]:focus-visible {
   font-size: 0.72rem;
   color: var(--text-subtle);
 }
+.user-dropdown {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 15.5rem;
+}
+.user-dropdown-header {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.35rem 0.55rem 0.6rem;
+  margin-bottom: 0.2rem;
+  border-bottom: 1px solid var(--border);
+}
+.user-dropdown-header strong {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.user-dropdown-header small {
+  font-size: 0.76rem;
+  color: var(--text-subtle);
+  overflow-wrap: anywhere;
+}
 .user-dropdown-level {
   color: var(--reward);
   font-family: var(--font-mono);
+}
+.user-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  text-decoration: none;
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.user-dropdown-item:hover,
+.user-dropdown-item:focus-visible {
+  background: var(--lume-soft);
+  color: var(--lume);
+}
+.user-dropdown-item.active {
+  font-weight: 600;
+}
+.user-dropdown-item.danger {
+  color: var(--danger);
+}
+.user-dropdown-item.danger:hover {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.user-dropdown-item .icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+.user-dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0.2rem 0;
 }
 
 .avatar {

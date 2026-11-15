@@ -803,6 +803,7 @@ dialog#dialog:has(.pdf-reader) > div {
   line-height: 1;
   text-align: initial;
   transform-origin: 0 0;
+  z-index: 0;
   --scale-round-x: 1px;
   --scale-round-y: 1px;
   --min-font-size: 1;
@@ -815,9 +816,11 @@ dialog#dialog:has(.pdf-reader) > div {
   white-space: pre;
   cursor: text;
   transform-origin: 0% 0%;
+  user-select: text;
 }
 .pdf-page .textLayer > :not(.markedContent),
 .pdf-page .textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
   --font-height: 0;
   font-size: calc(var(--text-scale-factor) * var(--font-height));
   --scale-x: 1;
@@ -831,11 +834,19 @@ dialog#dialog:has(.pdf-reader) > div {
   background: color-mix(in srgb, var(--lume) 35%, transparent);
   color: transparent;
 }
+.pdf-page .textLayer br::selection {
+  background: transparent;
+}
 .pdf-page .textLayer .endOfContent {
   display: block;
   position: absolute;
   inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
   user-select: none;
+}
+.pdf-page .textLayer.selecting .endOfContent {
+  top: 0;
 }
 
 /* --- Marca-texto --- */
@@ -1024,4 +1035,92 @@ dialog#dialog:has(.pdf-reader) > div {
 .subject-card.subject-new:only-child {
   grid-column: 1 / -1;
   max-width: 40rem;
+}
+
+/* Controle de upload no diálogo "Anexar PDF". */
+.pdf-file-picker {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 4rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-strong);
+  background: var(--inner);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) ease, background var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+.pdf-file-picker:hover:not(.disabled) {
+  border-color: var(--lume);
+  background: var(--surface-2);
+}
+.pdf-file-picker.dragging {
+  border-color: var(--lume);
+  border-style: solid;
+  background: var(--lume-soft);
+}
+.pdf-file-picker.has-file {
+  border-style: solid;
+  border-color: var(--border-strong);
+}
+.pdf-file-picker:has(input:focus-visible) {
+  border-color: var(--lume);
+  box-shadow: 0 0 0 3px var(--lume-soft);
+}
+.pdf-file-picker.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.pdf-file-picker-icon {
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--lume);
+  flex-shrink: 0;
+}
+.pdf-file-picker.has-file .pdf-file-picker-icon {
+  color: var(--mint);
+}
+.pdf-file-picker-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.pdf-file-picker-name {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pdf-file-picker-hint {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pdf-file-picker-btn {
+  min-height: 2.25rem;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+}
+@media (max-width: 480px) {
+  .pdf-file-picker {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .pdf-file-picker-btn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
 }

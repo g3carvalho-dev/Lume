@@ -1,6 +1,40 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-a472af07",
+    "at": "2026-11-15T00:13:58.000Z",
+    "title": "Novo visual do perfil",
+    "body": "O perfil agora tem cabeçalho panorâmico com constelação, avatar sobreposto e abas diretas para estudos, atividade, conquistas e amigos.",
+    "href": "#perfil",
+    "area": "site",
+    "details": [
+      "Troca o layout antigo por uma coluna central inspirada no X dentro da identidade Norte do Lume.",
+      "Restaura os estilos do menu suspenso da conta em shell.css."
+    ]
+  },
+  {
+    "id": "news-32bd4f58",
+    "at": "2026-11-15T00:05:46.000Z",
+    "title": "Início mais limpo e aba Foco no topo",
+    "body": "A tela inicial ficou mais direta, sem botões repetidos, e a Sessão de foco agora tem aba própria na barra superior.",
+    "href": "#hoje",
+    "area": "site",
+    "details": [
+      "O cartão principal mantém apenas a próxima ação e um link discreto para trocar de material; abaixo dele ficam Para hoje e o Radar da semana com o próximo marco e seus dias de estudo."
+    ]
+  },
+  {
+    "id": "news-36e576a0",
+    "at": "2026-11-14T23:41:25.000Z",
+    "title": "Painel Ativos agora recolhível",
+    "body": "A coluna de amigos ativos no Início agora pode ser ocultada ou reaberta sem deslocar o cabeçalho nem outras telas.",
+    "href": "#hoje",
+    "area": "site",
+    "details": [
+      "Em telas largas, o painel fica fixo na borda direita em altura total fora da transição de página."
+    ]
+  },
+  {
     "id": "news-6d5392f9",
     "at": "2026-11-14T20:35:33.000Z",
     "title": "Fotos dos amigos online",

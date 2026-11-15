@@ -15,7 +15,7 @@ test('sessão declarada persiste ao recarregar, pausa, retoma e encerra sem conc
   await page.goto('/#hoje');
   await expect(page.getByRole('heading', { name: 'Início', exact: true })).toBeVisible();
 
-  await page.locator('section.next-action').getByRole('button', { name: 'Sessão de foco' }).click();
+  await page.getByRole('navigation', { name: 'Navegação' }).getByRole('link', { name: 'Foco', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sessão de foco', exact: true })).toBeVisible();
   await expect(page.getByText(/confirma os blocos completos de 30 minutos/i)).toBeVisible();
   await page.getByRole('button', { name: 'Iniciar foco' }).click();
