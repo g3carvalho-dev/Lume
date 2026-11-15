@@ -1,6 +1,30 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-37ddfdda",
+    "at": "2026-11-15T22:21:36.000Z",
+    "title": "Grupos de conversa entre amigos",
+    "body": "Crie grupos com 3 a 20 amigos, converse, adicione ou remova pessoas e saia quando quiser.",
+    "href": "#mensagens",
+    "area": "site",
+    "details": [
+      "Quem cria o grupo é a dona; se ela sair, o grupo passa à pessoa mais antiga.",
+      "O botão de nova conversa fica ao lado de Conversas.",
+      "Dá para bloquear na mesma hora e enviar uma cópia das mensagens para a análise."
+    ]
+  },
+  {
+    "id": "news-7b73fcbd",
+    "at": "2026-11-15T22:21:29.000Z",
+    "title": "GIFs por categoria",
+    "body": "O seletor de GIFs agora mostra categorias com capa, favoritos e uma grade organizada, e os GIFs ficam mais nítidos nas publicações.",
+    "href": "#amigos",
+    "area": "site",
+    "details": [
+      "Marque a estrela de um GIF para guardá-lo em Favoritos neste navegador."
+    ]
+  },
+  {
     "id": "news-2683dc8d",
     "at": "2026-11-15T21:50:59.000Z",
     "title": "Social com emojis, respostas e GIFs",
