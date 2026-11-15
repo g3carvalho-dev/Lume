@@ -375,6 +375,7 @@
   align-items: center;
   gap: var(--space-3);
 }
+.cfg-storage-item-main.is-media { grid-template-columns: minmax(0, 1fr) auto; }
 .cfg-storage-item-info { display: grid; gap: 0.15rem; min-width: 0; }
 .cfg-storage-item-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .cfg-storage-item-info span { font-size: 0.82rem; color: var(--text-subtle); }
@@ -445,6 +446,7 @@
 
 @media (max-width: 720px) {
   .cfg-storage-item-main,
+  .cfg-storage-item-main.is-media,
   .cfg-quota-row { grid-template-columns: minmax(0, 1fr); }
 }
 
