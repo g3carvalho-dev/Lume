@@ -1,6 +1,6 @@
 # Lume — Estado Atual e Pendências de Implementação
 
-Atualizado em 13/11/2026. Este documento consolida **o que já existe e foi verificado** no código e **o que ainda falta implementar ou validar em produção**. Para as regras de domínio e de produto, consulte [Regras de Negócio Consolidadas](REGRAS_DE_NEGOCIO.md).
+Atualizado em 15/11/2026. Este documento consolida **o que já existe e foi verificado** no código e **o que ainda falta implementar ou validar em produção**. Para as regras de domínio e de produto, consulte [Regras de Negócio Consolidadas](REGRAS_DE_NEGOCIO.md).
 
 ---
 
@@ -11,7 +11,8 @@ Atualizado em 13/11/2026. Este documento consolida **o que já existe e foi veri
 | **Contas e sessão** | Cadastro, login, saída, cookie `HttpOnly` (`SameSite=Strict`), limite de tentativas e recuperação de senha via Resend (`api/domain/email.js`) | `api/domain/auth.js`, `src/features/account/Auth.jsx` |
 | **Onboarding v2** | Três jornadas retomáveis, escolha de meta diária, ambiente sonoro (`off`, `rain`, `pink`, `white`), primeiro material ou PDF e convite de amigos | `src/features/account/Onboarding.jsx`, `public/domain.js` |
 | **Persistência da Biblioteca v3** | Leitura em `GET /api/library` e gravação transacional por entidade em `POST /api/library/actions` com revisão otimista e idempotência (`0012_library.sql`) | `api/domain/library-store.js`, `api/domain/library-actions.js`, `src/features/library/useLibraryPersistence.js` |
-| **Materiais, PDFs, Slides e Disciplinas** | Cursos, livros, provas, projetos, slides com cobertura mínima de 80%, disciplinas (`study_subjects`) e PDFs com upload para R2/`data/media` e leitor `pdf.js` embutido (`0015_subjects_pdf.sql`) | `public/material-model.js`, `public/pdf-domain.js`, `public/subject-domain.js`, `public/slides-domain.js` |
+| **Materiais, PDFs, Slides e Disciplinas** | Cursos, livros, provas, projetos, slides com cobertura mínima de 80%, disciplinas (`study_subjects`) e PDFs com upload para R2/`data/media` e leitor `pdf.js` embutido (`0015_subjects_pdf.sql`); imagens e PDFs novos são otimizados no navegador, com rasterização opcional de digitalizações | `public/material-model.js`, `public/pdf-domain.js`, `public/compression-domain.js`, `src/lib/image-compress.js`, `src/features/library/pdf-compress.js`, `public/subject-domain.js`, `public/slides-domain.js` |
+| **Armazenamento e otimização retroativa** | Tela de armazenamento com uso por origem, exclusão de anexos e “Otimizar” para PDFs da Biblioteca e anexos do Social existentes; substituição no R2 com cota e tamanho atualizados; imagens recomprimidas sob demanda e digitalizações só com confirmação | `src/features/settings/StoragePanel.jsx`, `api/domain/library-files.js` (`replacePdf`), `api/domain/social-feed.js` (`replaceSocialAttachment`), `api/routes/library.js`, `api/routes/storage.js` |
 | **Importação e Extensão MV3** | Importação por link público, texto, página copiada ou captura da extensão (`extension/`); reimportação preserva IDs (`adoptExistingIds`); leitor dedicado do Gran | `public/import-domain.js`, `public/providers/`, `api/domain/import-server.js`, `extension/` |
 | **Início (`#hoje`) e Próxima Ação** | Próxima ação unificada (`nextAction`/`studyPlan`), tarefa em foco (`focusTaskId`), ritmo da semana e atalhos para estudo e sessão de foco | `src/features/library/Study.jsx`, `public/study-plan.js` |
 | **Sessão de Foco (`#foco`)** | Cronômetro declarado com pausa/retomada, ciclos, modo Zen de anotações rápidas, escudo de foco e gerador de som ambiente Web Audio | `src/features/progress/FocusSession.jsx`, `src/features/progress/soundscape.js`, `public/session-domain.js` |
@@ -34,6 +35,8 @@ Atualizado em 13/11/2026. Este documento consolida **o que já existe e foi veri
 
 1. **Arquivos da biblioteca e mídia de perfil:**
    - Validar os fluxos reais de avatares, capas, imagens de slides e PDFs da biblioteca no bucket R2 `lume-media` (`env.MEDIA`), bem como o `Content-Type` JavaScript para o worker `pdf.worker.*.mjs`. A verificação de anexos do Social em produção não substitui a conferência dessas rotas próprias.
+   - Conferir em produção a compressão de imagens e PDFs novos, inclusive a rasterização de digitalizações: entrada de até 30 MB, resultado dentro da cota de 10 MB, leitura correta e nenhum XP gerado.
+   - Conferir a otimização retroativa pelo Armazenamento: substituição de PDF da Biblioteca e de anexo do Social no R2, tamanho e cota atualizados, leitura do PDF preservada e nenhum XP gerado.
 2. **Entrega real de e-mail transacional (Resend):**
    - Confirmar a verificação do domínio `lumeacademy.site` no painel do Resend e testar o recebimento real do e-mail de recuperação de senha em produção.
 3. **Orçamento de CPU do Cloudflare Workers Free (`BCRYPT_ROUNDS=6`):**

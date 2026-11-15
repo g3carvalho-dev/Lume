@@ -3,7 +3,6 @@ export const SOCIAL_POST_LIMIT = 2000;
 export const SOCIAL_COMMENT_LIMIT = 1000;
 export const SOCIAL_IMAGE_BYTES = 2 * 1024 * 1024;
 export const SOCIAL_PDF_BYTES = 10 * 1024 * 1024;
-export const SOCIAL_STORAGE_BYTES = 100 * 1024 * 1024;
 export const SOCIAL_PAGE_SIZE = 20;
 
 export function socialText(value) {

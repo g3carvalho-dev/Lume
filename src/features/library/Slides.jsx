@@ -6,6 +6,8 @@ import {
 } from '../../../public/slides-domain.js';
 import Icon from '../../ui/Icon.jsx';
 import { Button, Progress } from '../../ui/ui.jsx';
+import { compressImage } from '../../lib/image-compress.js';
+import { COMPRESSION } from '../../../public/compression-domain.js';
 
 function SlideForm({ initial = { title: '', body: '' }, onSubmit, onCancel, submitLabel }) {
   const [title, setTitle] = useState(initial.title || '');
@@ -43,19 +45,20 @@ function SlideImageControl({ courseId, slide, actions, notify }) {
     event.target.value = '';
     if (!file) return;
     if (!file.type.startsWith('image/')) { notify('Escolha uma imagem PNG, JPG, WebP ou GIF.'); return; }
-    if (file.size > 12 * 1024 * 1024) { notify('A imagem é grande demais (máximo 12 MB).'); return; }
+    if (file.size > COMPRESSION.imageSourceBytes) { notify('A imagem é grande demais (máximo 12 MB).'); return; }
     setBusy(true);
     try {
+      const optimized = await compressImage(file, { maxBytes: 2 * 1024 * 1024, maxWidth: 1920, maxHeight: 1920 });
       const response = await fetch(`/api/slides/media/${encodeURIComponent(courseId)}/${encodeURIComponent(slide.id)}`, {
         method: 'PUT',
         credentials: 'same-origin',
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
-        body: file,
+        headers: { 'Content-Type': optimized.blob.type || file.type || 'application/octet-stream' },
+        body: optimized.blob,
       });
       const data = await response.json().catch(() => null);
       if (!response.ok || !data?.url) throw new Error(data?.error || 'Não foi possível enviar a imagem.');
       if (!actions.setSlideImage(courseId, slide.id, data.url)) return;
-      notify('Imagem do slide enviada.');
+      notify(optimized.changed ? 'Imagem do slide enviada e otimizada.' : 'Imagem do slide enviada.');
     } catch (exception) {
       notify(exception.message || 'Não foi possível enviar a imagem do slide.');
     } finally {
