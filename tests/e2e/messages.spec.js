@@ -75,14 +75,16 @@ test('mensagem direta entre amizades, não lida, bloqueio e desbloqueio', { tag:
 
   // Bloqueio interrompe a composição nos dois lados e preserva o histórico.
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: 'Bloquear' }).click();
+  await page.getByRole('button', { name: 'Mais ações da conversa' }).click();
+  await page.getByRole('menuitem', { name: 'Bloquear', exact: true }).click();
   await expect(page.getByText('Desbloqueie para voltar a enviar mensagens.')).toBeVisible();
   await expect(page.getByLabel('Mensagem', { exact: true })).toHaveCount(0);
   await guestPage.reload();
   await expect(guestPage.getByText('Esta pessoa bloqueou novas mensagens.')).toBeVisible();
   await expect(guestPage.getByLabel('Mensagem', { exact: true })).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Desbloquear' }).click();
+  await page.getByRole('button', { name: 'Mais ações da conversa' }).click();
+  await page.getByRole('menuitem', { name: 'Desbloquear', exact: true }).click();
   await expect(page.getByLabel('Mensagem', { exact: true })).toBeVisible();
   await guestPage.reload();
   await guestPage.getByRole('button', { name: /Ana Mensagens/ }).first().click();

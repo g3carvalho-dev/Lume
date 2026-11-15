@@ -4,13 +4,18 @@ import {
   blockContact, getThread, listBlocks, listConversations, markThreadRead, messagePreferences,
   sendMessage, unblockContact, unreadSummary, updateMessagePreferences, MESSAGE_WINDOW_LIMIT,
 } from '../domain/messages.js';
+import {
+  addGroupMembers, createGroup, deleteGroup, getGroupThread, listGroups, markGroupRead, removeGroupMember,
+  renameGroup, sendGroupMessage, unreadGroupMessages,
+} from '../domain/groups.js';
+import { createReport, listReports, reviewReport } from '../domain/reports.js';
 import { acceptInvite, createInvite, listFriends, listProfileFriends, readFriendProfile, removeFriend, touchUserPresence } from '../domain/friends.js';
 import { cancelRequest, getHandle, listRequests, userIdByHandle, respondRequest, searchByHandle, sendRequest, setHandle } from '../domain/friend-requests.js';
 import {
   cancelCollaborationInvite, createCollaborationInvite, listCollaborationInvites, respondCollaborationInvite,
 } from '../domain/collaboration.js';
 import { listNotifications, markNotificationsSeen } from '../domain/notifications.js';
-import { LIMITS } from '../config.js';
+import { LIMITS, isCreator } from '../config.js';
 import { announce } from '../realtime.js';
 import { json } from '../http.js';
 import { AppError } from '../errors.js';
@@ -22,7 +27,7 @@ const COLLABORATION = { auth: 'Entre na sua conta para convidar alguém para col
 
 export function socialRoutes(router) {
   router
-    .add('GET', '/api/notifications', NOTIFICATIONS, async ({ db, user }) => json(await listNotifications(db, user.id)))
+    .add('GET', '/api/notifications', NOTIFICATIONS, async ({ db, user, config }) => json(await listNotifications(db, user.id, Date.now(), { creator: isCreator(user, config) })))
     .add('POST', '/api/notifications/seen', NOTIFICATIONS, async ({ db, user }) => json(await markNotificationsSeen(db, user.id)));
   router
     .add('GET', '/api/friends', FRIENDS, async ({ db, user }) => {
@@ -92,10 +97,11 @@ export function socialRoutes(router) {
   });
 
   router
-    .add('GET', '/api/messages', MESSAGES, async ({ db, user }) => json(await listConversations(db, user.id)))
+    .add('GET', '/api/messages', MESSAGES, async ({ db, user }) => json({ ...await listConversations(db, user.id), groups: await listGroups(db, user.id) }))
     .add('GET', '/api/messages/unread', MESSAGES, async ({ db, user }) => {
       await touchUserPresence(db, user.id);
-      return json(await unreadSummary(db, user.id));
+      const summary = await unreadSummary(db, user.id);
+      return json({ ...summary, unread: summary.unread + await unreadGroupMessages(db, user.id) });
     })
     .add('GET', '/api/messages/settings', MESSAGES, async ({ db, user }) => json(await messagePreferences(db, user.id)))
     .add(['PATCH', 'POST'], '/api/messages/settings', MESSAGES, async (ctx) =>
@@ -115,6 +121,67 @@ export function socialRoutes(router) {
     .add('GET', '/api/blocks', MESSAGES, async ({ db, user }) => json(await listBlocks(db, user.id)))
     .add('POST', '/api/blocks/:targetId', MESSAGES, async ({ db, user, params }) => json(await blockContact(db, user.id, params.targetId)))
     .add('DELETE', '/api/blocks/:targetId', MESSAGES, async ({ db, user, params }) => json(await unblockContact(db, user.id, params.targetId)));
+
+  // Grupos de conversa entre amigos.
+  const GROUPS = { auth: 'Entre na sua conta para conversar em grupo.', origin: true };
+  const tellMembers = (ctx, ids) => Promise.all(ids.filter((id) => id !== ctx.user.id).map((id) => announce(ctx.realtime, id, { type: 'message', from: ctx.user.id }, ctx.log)));
+  router
+    .add('POST', '/api/groups', {
+      ...GROUPS,
+      rateLimit: { key: (ctx) => `groups|${ctx.user.id}`, limit: 20, message: 'Muitos grupos criados em pouco tempo. Aguarde um instante.', code: 'rate_limited' },
+    }, async (ctx) => {
+      const created = await createGroup(ctx.db, ctx.user.id, await ctx.json(LIMITS.small));
+      await tellMembers(ctx, created.memberIds);
+      return json({ id: created.id }, 201);
+    })
+    .add('GET', '/api/groups/:groupId', GROUPS, async ({ db, user, params }) => json(await getGroupThread(db, user.id, params.groupId)))
+    .add('POST', '/api/groups/:groupId/read', GROUPS, async ({ db, user, params }) => json(await markGroupRead(db, user.id, params.groupId)))
+    .add('POST', '/api/groups/:groupId/messages', {
+      ...GROUPS,
+      rateLimit: { key: (ctx) => `messages|${ctx.user.id}`, limit: MESSAGE_WINDOW_LIMIT, message: 'Muitas mensagens em pouco tempo. Aguarde um instante.', code: 'rate_limited' },
+    }, async (ctx) => {
+      const sent = await sendGroupMessage(ctx.db, ctx.user.id, ctx.params.groupId, await ctx.json(LIMITS.small));
+      await tellMembers(ctx, sent.memberIds);
+      return json({ message: sent.message }, 201);
+    })
+    .add('PATCH', '/api/groups/:groupId', GROUPS, async (ctx) => {
+      const renamed = await renameGroup(ctx.db, ctx.user.id, ctx.params.groupId, (await ctx.json(LIMITS.tiny)).name);
+      await tellMembers(ctx, renamed.memberIds);
+      return json({ id: renamed.id, name: renamed.name });
+    })
+    .add('POST', '/api/groups/:groupId/members', GROUPS, async (ctx) => {
+      const added = await addGroupMembers(ctx.db, ctx.user.id, ctx.params.groupId, await ctx.json(LIMITS.small));
+      await tellMembers(ctx, added.memberIds);
+      return json({ id: added.id, added: added.added });
+    })
+    .add('DELETE', '/api/groups/:groupId/members/:memberId', GROUPS, async (ctx) => {
+      const left = await removeGroupMember(ctx.db, ctx.user.id, ctx.params.groupId, ctx.params.memberId);
+      await tellMembers(ctx, left.memberIds);
+      return json({ id: left.id, deleted: left.deleted });
+    })
+    .add('DELETE', '/api/groups/:groupId', GROUPS, async (ctx) => {
+      const gone = await deleteGroup(ctx.db, ctx.user.id, ctx.params.groupId);
+      await tellMembers(ctx, gone.memberIds);
+      return json({ deleted: true });
+    });
+
+  // Denúncias: qualquer pessoa com conta envia; só a conta criadora lê e analisa.
+  const creatorOnly = (ctx) => {
+    if (!isCreator(ctx.user, ctx.config)) throw new AppError('Acesso restrito à criadora do Lume.', 'forbidden', 403);
+  };
+  router
+    .add('POST', '/api/reports', {
+      auth: 'Entre na sua conta para denunciar.', origin: true,
+      rateLimit: { key: (ctx) => `reports|${ctx.user.id}`, limit: 10, message: 'Muitas denúncias em pouco tempo. Aguarde alguns minutos.', code: 'rate_limited' },
+    }, async (ctx) => json(await createReport(ctx.db, ctx.user.id, await ctx.json(LIMITS.small)), 201))
+    .add('GET', '/api/reports', { auth: 'Entre na sua conta.', origin: true }, async (ctx) => {
+      creatorOnly(ctx);
+      return json(await listReports(ctx.db, { status: ctx.url.searchParams.get('status') || 'open' }));
+    })
+    .add('PATCH', '/api/reports/:reportId', { auth: 'Entre na sua conta.', origin: true }, async (ctx) => {
+      creatorOnly(ctx);
+      return json(await reviewReport(ctx.db, ctx.user.id, ctx.params.reportId, (await ctx.json(LIMITS.tiny)).status));
+    });
 
   router
     .add('GET', '/api/collaboration/invites', COLLABORATION, async ({ db, user }) => json(await listCollaborationInvites(db, user.id)))

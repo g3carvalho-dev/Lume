@@ -83,7 +83,7 @@ Toda mudança visível para quem usa (site, aplicativo de desktop ou extensão) 
 ## Contexto obrigatório do produto
 
 - Lume é uma plataforma social de estudos: biblioteca, continuidade de materiais, amigos, mensagens diretas, compartilhamento de aprendizados, colaboração, conquistas e placares de estudo.
-- Comunidades, servidores, canais e grupos estão fora do escopo desta etapa. O social se limita a amigos, mensagens diretas entre amizades aceitas e colaboração em projetos; não reintroduza grupos por causa de documentação antiga.
+- Comunidades, servidores, canais públicos e ranking de grupos estão fora do escopo. O social se limita a amigos, mensagens diretas entre amizades aceitas, **grupos de conversa entre amigos** (decisão da responsável em 15/11/2026: 3 a 20 pessoas, só amizades de quem cria, sem bloqueio; `api/domain/groups.js`) e colaboração em projetos. **Denúncias** (`api/domain/reports.js`, tela `#denuncias`) vão só para a conta criadora (`LUME_CREATOR_EMAIL`); quem denuncia nunca é revelada à pessoa denunciada.
 - Cadastro e login com e-mail e senha são requisitos do Lume, assim como recuperação de acesso e saída da conta. A prévia local é temporária; não descreva como decisão de que o produto não terá login ou senha.
 - A gamificação deve reconhecer avanço real: estudo efetivo, aula concluída, leitura concluída, curso concluído e entrega de projeto. Não premiar cliques ou movimentação na interface.
 - Abrir uma janela, entrar no site, cadastrar um material, preparar a mesa, abrir uma aula, conectar uma conta, pausar ou enviar mensagens não gera XP.

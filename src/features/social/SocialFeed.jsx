@@ -10,6 +10,7 @@ import { compressImage } from '../../lib/image-compress.js';
 import { analyzePdf, estimatePdfRaster, optimizePdfLossless, pdfFileFrom, rasterizePdf } from '../library/pdf-compress.js';
 import { warmProfileProps } from './prefetch.js';
 import EmojiButton from './EmojiPicker.jsx';
+import ReportDialog from './ReportDialog.jsx';
 
 const LABELS = { post: ['message', 'Entre amigos'], question: ['help', 'Dúvida rápida'], material: ['file', 'Material compartilhado'], image: ['image', 'Foto / Print'], achievement: ['trophy', 'Conquista'] };
 
@@ -352,11 +353,12 @@ function Comments({ post, refresh }) {
   </div>;
 }
 
-function PostCard({ post, refresh, go }) {
+function PostCard({ post, refresh, go, notify }) {
   const [showComments, setShowComments] = useState(post.comments > 0);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [error, setError] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
   const menuRoot = useRef(null);
@@ -397,10 +399,15 @@ function PostCard({ post, refresh, go }) {
         <SocialAvatar person={post.author}/><span><strong>{post.author.name}</strong><PostTime at={post.at}/></span>
       </button>
       {post.kind !== 'post' && <span className={`social-post-kind ${post.kind === 'achievement' ? 'is-reward' : ''}`}><Icon name={icon}/>{label}</span>}
-      {post.canDelete && <span className="sf-menu" ref={menuRoot}>
+      <span className="sf-menu" ref={menuRoot}>
         <button type="button" className="icon-button" aria-label="Mais ações da publicação" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(value => !value)} disabled={busy}><Icon name="more"/></button>
-        {menu && <div className="sf-menu-list" role="menu"><button type="button" role="menuitem" className="sf-menu-item is-danger" onClick={() => { setMenu(false); setConfirming(true); }}><Icon name="trash"/>Excluir publicação</button></div>}
-      </span>}
+        {menu && <div className="sf-menu-list" role="menu">
+          {post.canDelete
+            ? <button type="button" role="menuitem" className="sf-menu-item is-danger" onClick={() => { setMenu(false); setConfirming(true); }}><Icon name="trash"/>Excluir publicação</button>
+            : <button type="button" role="menuitem" className="sf-menu-item is-danger" onClick={() => { setMenu(false); setReporting(true); }}><Icon name="flag"/>Denunciar publicação</button>}
+        </div>}
+      </span>
+      {reporting && <ReportDialog target={post.author} context="post" subjectId={post.id} onClose={() => setReporting(false)} onDone={() => notify('Denúncia enviada. A equipe do Lume vai analisar.')}/>}
     </header>
     {post.body && <p className="social-post-body">{post.body}</p>}
     {post.gif && <img className="sf-post-gif" src={post.gif} alt="GIF da publicação" loading="lazy"/>}
@@ -419,13 +426,13 @@ function PostCard({ post, refresh, go }) {
   </article>;
 }
 
-function FeedPage({ cursor, last, onMore, go }) {
+function FeedPage({ cursor, last, onMore, go, notify }) {
   const resource = useResource(`/api/social/feed${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`, { interval: 45000 });
   const refresh = async () => { invalidateResources('/api/social/posts/'); return resource.refresh(); };
   return <div className="social-feed-page">
     {resource.loading && !resource.data && <Skeleton rows={3} label="Carregando publicações…"/>}
     {resource.error && <div className="form-error form-error-block" role="alert">{resource.error}<Button secondary onClick={resource.refresh}>Tentar novamente</Button></div>}
-    {resource.data?.posts.map(post => <PostCard key={post.id} post={post} refresh={refresh} go={go}/>)}
+    {resource.data?.posts.map(post => <PostCard key={post.id} post={post} refresh={refresh} go={go} notify={notify}/>)}
     {!cursor && resource.data?.posts.length === 0 && !resource.error && <section className="card-surface social-feed-empty"><span className="social-empty-icon"><Icon name="message"/></span><h2 className="title">As próximas conversas começam aqui.</h2><p>Compartilhe uma dúvida, um resumo ou uma conquista. As publicações aparecem só para você e seus amigos.</p></section>}
     {last && resource.data?.nextCursor && <Button secondary className="social-load-more" onClick={() => onMore(resource.data.nextCursor)}>Ver mais publicações<Icon name="chevron-down"/></Button>}
   </div>;
@@ -439,6 +446,6 @@ export default function SocialFeed({ account, avatar, xp, notify, go }) {
   }
   return <div className="social-feed-column">
     <Composer account={account} avatar={avatar} xp={xp} onPosted={posted}/>
-    <section className="social-feed" aria-label="Publicações entre amigos">{cursors.map((cursor, index) => <FeedPage key={cursor} cursor={cursor} last={index === cursors.length - 1} onMore={next => setCursors(items => [...items, next])} go={go}/>)}</section>
+    <section className="social-feed" aria-label="Publicações entre amigos">{cursors.map((cursor, index) => <FeedPage key={cursor} cursor={cursor} last={index === cursors.length - 1} onMore={next => setCursors(items => [...items, next])} go={go} notify={notify}/>)}</section>
   </div>;
 }

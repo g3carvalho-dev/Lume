@@ -3,6 +3,7 @@
 // marco "visto até" é gravado. Contatos bloqueados não notificam.
 import { AppError } from '../errors.js';
 import { sanitizeProfileImage } from '../../public/domain.js';
+import { REPORT_REASONS } from '../../public/report-domain.js';
 import { LUME_NEWS, NOTIFICATION_LIMIT, NOTIFICATION_WINDOW_DAYS, notificationFeed } from '../../public/notifications-domain.js';
 
 const NOT_BLOCKED = (column) => `NOT EXISTS (SELECT 1 FROM contact_blocks b WHERE b.user_id = ? AND b.blocked_id = ${column})`;
@@ -11,11 +12,11 @@ function person(row) {
   return { id: row.person_id, name: row.name, avatar: sanitizeProfileImage(row.avatar) };
 }
 
-export async function listNotifications(db, userId, now = Date.now()) {
+export async function listNotifications(db, userId, now = Date.now(), { creator = false } = {}) {
   if (!userId) throw new AppError('Entre na sua conta para ver suas notificações.', 'unauthenticated', 401);
   const floor = new Date(now - NOTIFICATION_WINDOW_DAYS * 86400000).toISOString();
   const avatar = `json_extract(d.data, '$.profile.avatar') AS avatar`;
-  const [friends, invites, comments, reactions, read, account] = await Promise.all([
+  const [friends, invites, comments, reactions, read, account, reports] = await Promise.all([
     db.all(
       `SELECT f.friend_id AS person_id, u.name, ${avatar}, f.created_at AS at
          FROM friendships f JOIN users u ON u.id = f.friend_id LEFT JOIN account_documents d ON d.user_id = f.friend_id
@@ -49,12 +50,15 @@ export async function listNotifications(db, userId, now = Date.now()) {
     ),
     db.first('SELECT seen_at FROM notification_reads WHERE user_id = ?', [userId]),
     db.first('SELECT created_at FROM users WHERE id = ?', [userId]),
+    // Denúncias abertas só chegam à conta criadora.
+    creator ? db.all("SELECT id, reason, created_at AS at FROM reports WHERE status = 'open' AND created_at >= ? ORDER BY created_at DESC LIMIT ?", [floor, NOTIFICATION_LIMIT]) : [],
   ]);
   const items = [
     ...friends.map((row) => ({ id: `friend-${row.person_id}`, kind: 'friend', at: row.at, person: person(row), title: `${row.name} agora é seu amigo`, href: `#perfil?id=${encodeURIComponent(row.person_id)}` })),
     ...invites.map((row) => ({ id: `collab-${row.id}`, kind: 'collaboration', at: row.at, person: person(row), title: `${row.name} convidou você para colaborar`, body: `${row.step_title} · ${row.course_title}`, href: '#amigos' })),
     ...comments.map((row) => ({ id: `comment-${row.id}`, kind: 'comment', at: row.at, person: person(row), title: `${row.name} comentou sua publicação`, body: row.body.slice(0, 120), href: '#amigos' })),
     ...reactions.map((row) => ({ id: `reaction-${row.post_id}-${row.person_id}`, kind: 'reaction', at: row.at, person: person(row), title: `${row.name} reagiu à sua publicação`, href: '#amigos' })),
+    ...reports.map((row) => ({ id: `report-${row.id}`, kind: 'report', at: row.at, title: 'Nova denúncia para analisar', body: REPORT_REASONS[row.reason] || '', href: '#denuncias' })),
     ...LUME_NEWS.map((news) => ({ id: news.id, at: news.at, title: news.title, body: news.body, area: news.area, kind: 'news', href: `#novidades?id=${encodeURIComponent(news.id)}` })),
   ];
   return notificationFeed(items, { seenAt: read?.seen_at || null, since: account?.created_at || null, now });
