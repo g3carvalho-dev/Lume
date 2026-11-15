@@ -22,6 +22,18 @@ test('começar uma sessão não gera XP e conta tempo declarado', () => {
   assert.deepEqual(state.progress, []);
 });
 
+test('origem distingue leitura automática de foco e sobrevive ao encerramento', () => {
+  let state = startSession(createInitialState(), { courseId: 'pdf', label: 'Leitura — Apostila', origin: 'reading' }, T0);
+  assert.equal(state.activeSession.origin, 'reading');
+  state = endSession(state, T0 + 10 * MINUTE).state;
+  assert.equal(state.studySessions[0].origin, 'reading');
+
+  state = startSession(state, { courseId: 'design', label: 'Foco', origin: 'focus' }, T0 + 20 * MINUTE);
+  assert.equal(state.activeSession.origin, 'focus');
+  state = endSession(state, T0 + 30 * MINUTE).state;
+  assert.equal(state.studySessions.at(-1).origin, 'focus');
+});
+
 test('pausar congela o tempo e retomar continua de onde parou', () => {
   let state = startSession(createInitialState(), { label: 'Estudo' }, T0);
   state = pauseSession(state, T0 + 10 * MINUTE);
@@ -107,7 +119,7 @@ test('sessão e histórico de sessões sobrevivem à restauração', () => {
   assert.deepEqual(sanitized.studySessions, []);
 });
 
-test('ritmo semanal soma minutos declarados por dia local, incluindo a sessão ativa', () => {
+test('ritmo semanal soma minutos registrados por dia local, incluindo a sessão ativa', () => {
   const now = new Date(2026, 9, 31, 18, 0).getTime();
   const day = (offset, hour) => new Date(2026, 9, 31 - offset, hour, 0).getTime();
   let state = createInitialState();
@@ -148,4 +160,22 @@ test('sessão esquecida aberta vira registro com o tempo acumulado até o últim
   assert.equal(closed.studySessions[0].endedAt, new Date(T0 + 40 * MINUTE).toISOString());
   assert.equal(closeStaleSession(state, T0 + 41 * MINUTE), state);
   assert.equal(closeStaleSession(startSession(createInitialState(), {}, T0), T0 + 60 * MINUTE).studySessions.length, 0);
+});
+
+test('isSessionLive: só sessão ativa com batimento recente conta como estudando', async () => {
+  const { isSessionLive } = await import('../../public/session-domain.js');
+  const base = { status: 'active', lastTickAt: new Date(T0).toISOString() };
+  assert.equal(isSessionLive(base, T0 + 60 * 1000), true);
+  assert.equal(isSessionLive(base, T0 + 10 * 60 * 1000), false);
+  assert.equal(isSessionLive({ ...base, status: 'paused' }, T0 + 1000), false);
+  assert.equal(isSessionLive(null), false);
+});
+
+test('perfil: enquadramento da capa é limitado e tem padrão', async () => {
+  const { normalizeProfileCard } = await import('../../public/domain.js');
+  const frame = (value) => { const { headerX, headerY, headerZoom } = normalizeProfileCard(value); return [headerX, headerY, headerZoom]; };
+  assert.deepEqual(frame({}), [50, 50, 1]);
+  assert.deepEqual(frame({ headerX: -20, headerY: 400, headerZoom: 9 }), [0, 100, 3]);
+  assert.deepEqual(frame({ headerX: 'abc', headerY: 20.04, headerZoom: 0.1 }), [50, 20, 1]);
+  assert.equal('headerHeight' in normalizeProfileCard({ headerHeight: 300 }), false);
 });

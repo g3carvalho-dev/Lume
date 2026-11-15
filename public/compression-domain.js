@@ -17,6 +17,8 @@ export const COMPRESSION = Object.freeze({
   maxRenderPixels: 2200,
   losslessMinGain: 0.03,
   losslessMinBytes: 8 * 1024,
+  imageMinGain: 0.1,
+  imageMinBytes: 8 * 1024,
   rasterMinGain: 0.2,
   rasterQualities: Object.freeze([0.82, 0.72, 0.62, 0.52]),
   imageQualities: Object.freeze([0.9, 0.82, 0.72, 0.62]),
@@ -68,6 +70,10 @@ export function isUsefulLossless(before, after) {
 
 export function isUsefulRaster(before, after) {
   return useful(before, after, COMPRESSION.rasterMinGain, COMPRESSION.losslessMinBytes);
+}
+
+export function isUsefulImage(before, after) {
+  return useful(before, after, COMPRESSION.imageMinGain, COMPRESSION.imageMinBytes);
 }
 
 export function rasterScale(pageWidth, pageHeight, {

@@ -31,11 +31,11 @@ function cleanId(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(value) ? value : '';
 }
 
-function cleanBody(value) {
+export function cleanBody(value) {
   return String(value ?? '').replace(/\r\n/g, '\n').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ').trim().slice(0, MAX_MESSAGE_LENGTH);
 }
 
-function cleanReference(value) {
+export function cleanReference(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const type = ['course', 'lesson', 'article', 'book', 'exercise', 'project', 'slide'].includes(value.type) ? value.type : 'course';
   const id = cleanId(value.id);
@@ -44,7 +44,7 @@ function cleanReference(value) {
   return { type, id, title };
 }
 
-function serializeReference(value) {
+export function serializeReference(value) {
   if (!value) return null;
   try {
     const parsed = JSON.parse(value);

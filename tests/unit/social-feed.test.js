@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { applyMigrations, sqliteAdapter } from '../../api/adapters/sqlite.js';
-import { createSocialPost, listSocialPosts, deleteSocialPost, reactToSocialPost, createSocialComment, listSocialComments, deleteSocialComment, readSocialAttachment } from '../../api/domain/social-feed.js';
+import { searchGifs, gifCategories, GIF_CATEGORIES } from '../../api/domain/gifs.js';
+import { reactToSocialComment, createSocialPost, listSocialPosts, deleteSocialPost, reactToSocialPost, createSocialComment, listSocialComments, deleteSocialComment, readSocialAttachment } from '../../api/domain/social-feed.js';
 import { PDF_PLANS } from '../../public/pdf-domain.js';
 
 function fixture(t) {
@@ -102,4 +103,78 @@ test('paginação do feed não repete publicações com a mesma data', async t =
   assert.equal(new Set([...first.posts, ...second.posts].map(p => p.id)).size, 23);
   assert.equal(second.nextCursor, null);
   await assert.rejects(() => listSocialPosts(db, 'bia', { cursor: 'inválido' }), { code: 'invalid_cursor' });
+});
+
+test('reações com vários emojis, só da lista, por pessoa e publicação', async t => {
+  const { db, bucket } = fixture(t);
+  await createSocialPost(db, bucket, 'ana', { id: 'post', body: 'Oi' });
+  await reactToSocialPost(db, 'bia', 'post', true, 1000, '🥹');
+  await reactToSocialPost(db, 'bia', 'post', true, 2000, '✨');
+  await reactToSocialPost(db, 'ana', 'post', true, 3000, '✨');
+  await reactToSocialPost(db, 'ana', 'post', true, 4000, '✨');
+  await assert.rejects(() => reactToSocialPost(db, 'bia', 'post', true, Date.now(), '🦖'), { code: 'invalid_emoji' });
+  const post = (await listSocialPosts(db, 'bia')).posts[0];
+  assert.equal(post.reactions, 3);
+  assert.deepEqual(post.reactionSummary.map((item) => [item.emoji, item.count, item.mine]), [['🥹', 1, true], ['✨', 2, true]]);
+  await reactToSocialPost(db, 'bia', 'post', false, Date.now(), '🥹');
+  assert.equal((await listSocialPosts(db, 'bia')).posts[0].reactionSummary.length, 1);
+});
+
+test('respostas ficam num nível, com reações; excluir o principal leva as respostas', async t => {
+  const { db, bucket } = fixture(t);
+  await createSocialPost(db, bucket, 'ana', { id: 'post', body: 'Dúvida' });
+  await createSocialComment(db, 'bia', 'post', { id: 'root', body: 'Principal' }, 1000);
+  await createSocialComment(db, 'ana', 'post', { id: 'reply', body: 'Resposta', parentId: 'root' }, 2000);
+  await createSocialComment(db, 'bia', 'post', { id: 'deep', body: 'Resposta da resposta', parentId: 'reply' }, 3000);
+  await assert.rejects(() => createSocialComment(db, 'bia', 'post', { id: 'lost', body: 'x', parentId: 'nada' }), { code: 'comment_not_found' });
+  await reactToSocialComment(db, 'ana', 'post', 'root', true, Date.now(), '🙌');
+  const { comments } = await listSocialComments(db, 'bia', 'post');
+  assert.deepEqual(comments.map((item) => [item.id, item.parentId]), [['root', null], ['reply', 'root'], ['deep', 'root']]);
+  assert.deepEqual(comments[0].reactionSummary, [{ emoji: '🙌', count: 1, mine: false }]);
+  assert.equal((await listSocialPosts(db, 'bia')).posts[0].comments, 3);
+  await deleteSocialComment(db, 'bia', 'post', 'root');
+  assert.equal((await listSocialComments(db, 'bia', 'post')).comments.length, 0);
+});
+
+test('GIF só de endereços do provedor, em publicação e comentário', async t => {
+  const { db, bucket } = fixture(t);
+  const gif = 'https://media2.giphy.com/media/abc123/giphy.gif';
+  await assert.rejects(() => createSocialPost(db, bucket, 'ana', { id: 'bad', gifUrl: 'https://evil.example/x.gif' }), { code: 'invalid_gif' });
+  await createSocialPost(db, bucket, 'ana', { id: 'post', gifUrl: gif });
+  await createSocialComment(db, 'bia', 'post', { id: 'c', gifUrl: gif });
+  await assert.rejects(() => createSocialComment(db, 'bia', 'post', { id: 'd', gifUrl: 'http://media.giphy.com/x.gif' }), { code: 'invalid_gif' });
+  assert.equal((await listSocialPosts(db, 'bia')).posts[0].gif, gif);
+  assert.equal((await listSocialComments(db, 'ana', 'post')).comments[0].gif, gif);
+});
+
+test('busca de GIFs usa a chave do servidor e descarta endereços fora do provedor', async () => {
+  assert.deepEqual(await searchGifs({}, 'gato'), { available: false, gifs: [] });
+  let called = '';
+  const fake = async (url) => {
+    called = String(url);
+    return { ok: true, json: async () => ({ data: [
+      { id: '1', title: 'gato', images: { fixed_width: { url: 'https://media1.giphy.com/media/1/200w.gif' }, fixed_width_small: { url: 'https://media1.giphy.com/media/1/100w.gif' } } },
+      { id: '2', title: 'fora', images: { fixed_width: { url: 'https://evil.example/2.gif' } } },
+    ] }) };
+  };
+  const result = await searchGifs({ LUME_GIF_API_KEY: 'segredo' }, 'gato', fake);
+  assert.equal(result.gifs.length, 1);
+  assert.match(called, /\/search\?/);
+  assert.equal(JSON.stringify(result).includes('segredo'), false);
+});
+
+test('categorias de GIF trazem uma capa e reaproveitam o cache', async () => {
+  assert.deepEqual(await gifCategories({}), { available: false, categories: [] });
+  let calls = 0;
+  const fake = async () => { calls += 1; return { ok: true, json: async () => ({ data: [{ id: 'x', title: 't', images: { fixed_width: { url: 'https://media1.giphy.com/media/x/200w.gif' }, fixed_width_small: { url: 'https://media1.giphy.com/media/x/100w.gif' } } }] }) }; };
+  const cache = new Map();
+  const first = await gifCategories({ LUME_GIF_API_KEY: 'k' }, fake, { cache, now: 1000 });
+  assert.equal(first.categories.length, GIF_CATEGORIES.length);
+  assert.ok(first.categories.every((item) => item.preview.startsWith('https://media1.giphy.com/')));
+  assert.equal(calls, GIF_CATEGORIES.length);
+  await gifCategories({ LUME_GIF_API_KEY: 'k' }, fake, { cache, now: 2000 });
+  assert.equal(calls, GIF_CATEGORIES.length);
+  const failing = async () => { throw new Error('rede'); };
+  const degraded = await gifCategories({ LUME_GIF_API_KEY: 'k' }, failing, { cache: new Map(), now: 1000 });
+  assert.equal(degraded.categories[0].preview, '');
 });

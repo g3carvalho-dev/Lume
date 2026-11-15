@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { materialSteps, stepUnits } from '../../public/material-model.js';
-import { seedAccount, readAccount } from './library-helpers.js';
+import { seedAccount, readAccount, addMaterial } from './library-helpers.js';
 import { createInitialState, STORAGE_KEY } from '../../public/domain.js';
 
 function seeded() {
@@ -83,7 +83,7 @@ test('criar slides, abrir no programa e concluir uma vez com cobertura do deck',
 test('criar material manualmente com tipo e etapas próprias', async ({ page }) => {
   await seedAccount(page, { ...createInitialState(), onboarded: true });
   await page.goto('/#biblioteca');
-  await page.getByRole('button', { name: 'Criar manualmente' }).click();
+  await addMaterial(page, 'Criar manualmente');
   await page.getByLabel('Título', { exact: true }).fill('Processo Penal');
   await page.getByLabel('Tipo de material').selectOption('article');
   await page.getByLabel(/Etapas, uma por linha/).fill('Ler a introdução\nFazer um resumo');

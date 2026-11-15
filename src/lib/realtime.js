@@ -53,6 +53,7 @@ export function openChannel() {
       setLive(true);
       // O que chegou enquanto o canal estava fora é buscado agora.
       invalidateResources('/api/messages');
+      invalidateResources('/api/groups/');
       beatTimer = setInterval(() => {
         if (current.readyState !== WebSocket.OPEN) return;
         current.send('ping');
@@ -63,7 +64,7 @@ export function openChannel() {
       if (event.data === 'pong') { clearTimeout(pongTimer); return; }
       try {
         const type = JSON.parse(event.data)?.type;
-        if (type === 'message') invalidateResources('/api/messages');
+        if (type === 'message') { invalidateResources('/api/messages'); invalidateResources('/api/groups/'); }
         if (type === 'friend_request') invalidateResources('/api/friends');
       } catch { /* aviso ilegível: a consulta periódica cobre */ }
     };

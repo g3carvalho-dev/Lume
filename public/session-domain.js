@@ -1,16 +1,19 @@
-// Sessão de estudo declarada pela pessoa.
+// Sessão de estudo registrada pela pessoa ou iniciada pelo leitor de PDF.
 //
-// O que isto é: um marcador de tempo que a própria pessoa inicia, pausa e
-// encerra, ligado a um material. Serve para continuidade e para a presença
-// ("estou estudando agora").
+// O que isto é: um marcador de tempo ligado a um material, iniciado pela pessoa
+// no foco ou automaticamente pela leitura de PDF. Serve para continuidade e para
+// a presença ("estou estudando agora").
 //
-// O que isto não é: observação de atividade ou prova de estudo. A sessão é um
-// registro declarado. O XP de tempo só é concedido pelo servidor, em blocos de
-// 30 minutos, depois que a sessão é encerrada e o intervalo é validado.
+// O que isto não é: observação de atividade ou prova de estudo. A leitura pausa
+// por inatividade e a sessão é um registro, não uma medição de compreensão. O XP
+// de tempo só é concedido pelo servidor, em blocos de 25 minutos, depois que a
+// sessão é encerrada e o intervalo é validado.
 
 export const MAX_SESSION_MS = 12 * 60 * 60 * 1000;
 export const STALE_SESSION_MS = 5 * 60 * 1000;
+export const READING_IDLE_MS = 5 * 60 * 1000;
 export const MAX_STORED_SESSIONS = 200;
+const SESSION_ORIGINS = new Set(['declared', 'focus', 'reading', 'companion']);
 
 function iso(value) {
   return new Date(value).toISOString();
@@ -31,6 +34,7 @@ export function normalizeActiveSession(value) {
     courseId: typeof value.courseId === 'string' ? value.courseId : '',
     stepId: typeof value.stepId === 'string' ? value.stepId : '',
     label: typeof value.label === 'string' ? value.label.slice(0, 160) : 'Sessão de estudo',
+    origin: cleanOrigin(value.origin, value.label),
     status: value.status === 'paused' ? 'paused' : 'active',
     startedAt: new Date(startedAt).toISOString(),
     lastTickAt: new Date(lastTickAt).toISOString(),
@@ -51,7 +55,7 @@ export function normalizeStudySessions(value) {
       startedAt: new Date(entry.startedAt).toISOString(),
       endedAt: new Date(entry.endedAt).toISOString(),
       durationMs: clampDuration(entry.durationMs),
-      origin: entry.origin === 'companion' ? 'companion' : 'declared',
+      origin: cleanOrigin(entry.origin, entry.label),
     }));
 }
 
@@ -73,17 +77,19 @@ export function formatSessionDuration(milliseconds) {
   return `${minutes}:${String(rest).padStart(2, '0')}`;
 }
 
-export function startSession(state, { courseId = '', stepId = '', label = '' } = {}, now = Date.now()) {
+export function startSession(state, { courseId = '', stepId = '', label = '', origin = 'declared' } = {}, now = Date.now()) {
   const closed = state.activeSession ? endSession(state, now) : null;
   const base = closed ? closed.state : state;
   const startedAt = iso(now);
+  const cleanSessionLabel = cleanLabel(label) || 'Sessão de estudo';
   return {
     ...base,
     activeSession: {
       id: `sess_${now}_${Math.random().toString(36).slice(2, 8)}`,
       courseId: cleanId(courseId),
       stepId: cleanId(stepId),
-      label: cleanLabel(label) || 'Sessão de estudo',
+      label: cleanSessionLabel,
+      origin: cleanOrigin(origin, cleanSessionLabel),
       status: 'active',
       startedAt,
       lastTickAt: startedAt,
@@ -124,7 +130,7 @@ export function endSession(state, now = Date.now()) {
     startedAt: session.startedAt,
     endedAt: iso(now),
     durationMs,
-    origin: 'declared',
+    origin: cleanOrigin(session.origin, session.label),
   };
   return {
     state: {
@@ -163,6 +169,14 @@ export function reconcileSession(state, now = Date.now(), { staleMs = STALE_SESS
   };
 }
 
+// A pessoa só aparece "Estudando" com sessão ativa e batimento recente — a mesma
+// regra que os amigos veem. Sessão pausada ou esquecida não é estudo em curso.
+export function isSessionLive(session, now = Date.now(), { staleMs = STALE_SESSION_MS } = {}) {
+  if (!session || session.status !== 'active') return false;
+  const tick = Date.parse(session.lastTickAt);
+  return Number.isFinite(tick) && now - tick <= staleMs;
+}
+
 // Ao carregar, uma sessão ativa sem batimento há muito tempo (app fechado ou
 // computador dormindo com o leitor aberto) é encerrada com o que já tinha
 // acumulado até o último batimento. Sem isso o tempo ficava numa sessão pausada
@@ -183,7 +197,7 @@ export function closeStaleSession(state, now = Date.now(), { staleMs = STALE_SES
     startedAt: session.startedAt,
     endedAt: iso(lastTick),
     durationMs,
-    origin: 'declared',
+    origin: cleanOrigin(session.origin, session.label),
   };
   return { ...base, studySessions: [...normalizeStudySessions(state.studySessions), closed].slice(-MAX_STORED_SESSIONS) };
 }
@@ -194,6 +208,12 @@ function cleanId(value) {
 
 function cleanLabel(value) {
   return String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+}
+
+function cleanOrigin(value, label) {
+  if (SESSION_ORIGINS.has(value)) return value;
+  // Registros antigos de leitura automática não tinham `origin`.
+  return /^Leitura\s*[—–-]/.test(cleanLabel(label)) ? 'reading' : 'declared';
 }
 
 // Data civil local (AAAA-MM-DD) de um instante. As métricas de ritmo contam

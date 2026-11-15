@@ -140,6 +140,10 @@ export default function Shell({ route, model, children, hideTabs = false, onHelp
                 <Icon name="settings"/>
                 <span>Configurações</span>
               </a>
+              {model.account?.isCreator && <a className={`user-dropdown-item ${route === 'denuncias' ? 'active' : ''}`} href="#denuncias" onClick={() => hidePopover(accountPopoverRef)}>
+                <Icon name="flag"/>
+                <span>Denúncias</span>
+              </a>}
               <div className="user-dropdown-divider"/>
               <button
                 type="button"

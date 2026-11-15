@@ -31,7 +31,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'node server.js', url: `${E2E_ORIGIN}/api/me`,
-    env: { PORT: E2E_PORT, LUME_DATA_DIR: `data/e2e-${Date.now()}`, BCRYPT_ROUNDS: '4', LUME_ATTEMPT_LIMIT: '1000' },
+    env: { PORT: E2E_PORT, LUME_DATA_DIR: `data/e2e-${Date.now()}`, BCRYPT_ROUNDS: '4', LUME_ATTEMPT_LIMIT: '1000', LUME_CREATOR_EMAIL: 'criadora-e2e@example.test' },
     reuseExistingServer: false,
   },
 });

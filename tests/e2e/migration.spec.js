@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { materialSteps, stepUnits } from '../../public/material-model.js';
 import { createInitialState, completeMission } from '../../public/domain.js';
-import { seedAccount, readAccount } from './library-helpers.js';
+import { seedAccount, readAccount, addMaterial } from './library-helpers.js';
 
 // A biblioteca real começa vazia. Estes cenários de dados antigos precisam de
 // trilhas próprias para conferir busca, pausa e restauração.
@@ -41,15 +41,16 @@ test('prévia, dados legados, busca, filtros, teclado, curso e progresso', { tag
   await expect(search).toBeFocused();
   await page.getByRole('button', { name: 'Limpar busca' }).click();
   await expect(search).toBeFocused();
-  await page.getByRole('button', { name: /^Concluídos \(/ }).click();
+  await page.getByRole('button', { name: 'Filtros', exact: true }).click();
+  await page.getByRole('group', { name: 'Filtrar cursos por situação' }).getByRole('button', { name: /^Concluídos/ }).click();
   await expect(page.getByRole('heading', { name: 'Nenhum material neste filtro.' })).toBeVisible();
-  await page.getByRole('button', { name: /^Todos \(/ }).click();
-  await page.getByRole('button', { name: 'Adicionar curso', exact: true }).click();
+  await page.getByRole('group', { name: 'Filtrar cursos por situação' }).getByRole('button', { name: /^Todos/ }).click();
+  await addMaterial(page, 'Adicionar curso');
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Adicionar curso', exact: true })).toBeFocused();
-  await page.getByRole('button', { name: 'Adicionar curso', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Adicionar material', exact: true })).toBeFocused();
+  await addMaterial(page, 'Adicionar curso');
   await page.getByRole('tab', { name: 'Colar a grade' }).click();
   await page.getByLabel('Nome do curso (opcional)').fill('Leitura React');
   await page.getByLabel('Grade do curso').fill('Disciplina: Componentes\nMódulo: Fundamentos\nAula 1 — Props e estado\nAula 2 — Efeitos');
@@ -117,7 +118,7 @@ test('cadastro, saída, login, sincronização e recuperação na API local', as
   await expect(page.getByRole('heading', { name: 'Início', exact: true })).toBeVisible();
   await expect(page.locator('#main > div')).toHaveCSS('opacity', '1');
   await page.getByRole('link', { name: 'Biblioteca', exact: true }).click();
-  await page.getByRole('button', { name: 'Adicionar curso', exact: true }).click();
+  await addMaterial(page, 'Adicionar curso');
   await page.getByRole('tab', { name: 'Colar a grade' }).click();
   await page.getByLabel('Nome do curso (opcional)').fill('Curso da minha conta');
   await page.getByLabel('Grade do curso').fill('Aula 1 — Primeira aula');

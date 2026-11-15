@@ -269,7 +269,7 @@ export async function readFriendProfile(db, viewerId, friendId) {
   if (!friendId) throw new FriendsError('Perfil não encontrado.', 'not_found', 404);
   const { readStoredLibrary } = await import('./library-store.js');
   // Cada consulta ao D1 é uma ida e volta à rede: as independentes rodam juntas.
-  const [linked, target, row, handle, validated, blockedRow] = await Promise.all([
+  const [linked, target, row, handle, validated, blockedRow, presenceRow, accountDoc, companion] = await Promise.all([
     db.first('SELECT 1 AS linked FROM friendships WHERE user_id = ? AND friend_id = ?', [viewerId, friendId]),
     db.first('SELECT id, name FROM users WHERE id = ?', [friendId]),
     readStoredLibrary(db, friendId),
@@ -279,6 +279,9 @@ export async function readFriendProfile(db, viewerId, friendId) {
       'SELECT 1 AS ok FROM contact_blocks WHERE (user_id = ? AND blocked_id = ?) OR (user_id = ? AND blocked_id = ?)',
       [viewerId, friendId, friendId, viewerId],
     ),
+    db.first('SELECT last_seen_at FROM user_presence WHERE user_id = ?', [friendId]),
+    db.first('SELECT data FROM account_documents WHERE user_id = ?', [friendId]),
+    db.first('SELECT app, category, updated_at FROM companion_presence WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1', [friendId]),
   ]);
   if (!target) throw new FriendsError('Perfil não encontrado.', 'not_found', 404);
   let state = createInitialState();
@@ -294,6 +297,13 @@ export async function readFriendProfile(db, viewerId, friendId) {
     user: { id: target.id, name: target.name, handle: handle?.handle || null },
     viewer: linked ? 'friend' : 'public',
     updatedAt: row?.updatedAt ?? null,
+    // Mesma regra de presença para todo perfil que abre: Estudando (com o tema, se a pessoa compartilha a biblioteca), Online ou Offline.
+    presence: await buildFriendActivity(
+      db,
+      { id: friendId, last_seen_at: presenceRow?.last_seen_at ?? null, account_doc: accountDoc?.data ?? null },
+      companion || null,
+      Date.now(),
+    ),
     ...buildProfile(state, { validated }),
   };
 }

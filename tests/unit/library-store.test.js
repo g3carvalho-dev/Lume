@@ -253,10 +253,10 @@ test('tempo acumula sobras e falha de XP reverte a sessão junto com a bibliotec
   sqlite.exec('DROP TRIGGER fail_time');
   await applyLibraryActions(db, 'u1', operation, { now });
   await applyLibraryActions(db, 'u1', operation, { now });
-  assert.equal((await db.first('SELECT SUM(xp) AS xp FROM xp_events')).xp, 25);
+  assert.equal((await db.first('SELECT SUM(xp) AS xp FROM xp_events')).xp, 30);
   const latest = await readLibrary(db, 'u1');
   await applyLibraryActions(db, 'u1', { id: 'overlap', revision: latest.revision, actions: [{ type: 'session.put', value: session('overlap', now - 3600000, now - 1800000) }] }, { now });
-  assert.equal((await db.first('SELECT SUM(xp) AS xp FROM xp_events')).xp, 25);
+  assert.equal((await db.first('SELECT SUM(xp) AS xp FROM xp_events')).xp, 30);
 });
 
 test('batch de sessões respeita o teto diário e ignora intervalos futuros', async (t) => {
@@ -269,7 +269,7 @@ test('batch de sessões respeita o teto diário e ignora intervalos futuros', as
     endedAt: new Date(now - 43200000 + index * 43200000).toISOString(), durationMs: 43200000, origin: 'declared',
   } }));
   await applyLibraryActions(db, 'u1', { id: 'long', revision: current.revision, actions }, { now });
-  assert.equal((await db.first('SELECT SUM(xp) AS xp FROM xp_events')).xp, 200);
+  assert.equal((await db.first('SELECT SUM(xp) AS xp FROM xp_events')).xp, 120);
   assert.equal((await db.all('SELECT * FROM xp_time_sessions')).length, 2);
 });
 

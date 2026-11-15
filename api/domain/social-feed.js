@@ -3,6 +3,7 @@
 import { AppError } from '../errors.js';
 import { sanitizeProfileImage } from '../../public/domain.js';
 import { socialText, socialFileName, SOCIAL_POST_LIMIT, SOCIAL_COMMENT_LIMIT, SOCIAL_PDF_BYTES, SOCIAL_PAGE_SIZE } from '../../public/social-domain.js';
+import { DEFAULT_REACTION, isAllowedEmoji, isGifUrl } from '../../public/social-emoji.js';
 import { detectImageType } from './media.js';
 import { isPdf, storagePlan } from './library-files.js';
 import { formatBytes } from '../../public/pdf-domain.js';
@@ -50,8 +51,27 @@ function author(row) {
   return { id: row.user_id, name: row.name, handle: row.handle || null, avatar: sanitizeProfileImage(row.avatar) };
 }
 
-function commentView(row, userId, ownerId) {
-  return { id: row.id, body: row.body, at: row.created_at, author: author(row), canDelete: row.user_id === userId || ownerId === userId };
+function emojiOf(value) {
+  const emoji = value || DEFAULT_REACTION;
+  if (!isAllowedEmoji(emoji)) throw new SocialError('Escolha um emoji da lista.', 'invalid_emoji');
+  return emoji;
+}
+
+function gifOf(value) {
+  if (!value) return null;
+  if (!isGifUrl(value)) throw new SocialError('GIF inválido.', 'invalid_gif');
+  return value;
+}
+
+function summary(rows) {
+  return rows.map((row) => ({ emoji: row.emoji, count: Number(row.n), mine: Number(row.mine) > 0 }));
+}
+
+function commentView(row, userId, ownerId, reactions = []) {
+  return {
+    id: row.id, body: row.body, at: row.created_at, author: author(row), canDelete: row.user_id === userId || ownerId === userId,
+    parentId: row.parent_id || null, gif: row.gif_url || null, reactionSummary: reactions,
+  };
 }
 
 const AUTHOR_JOIN = `JOIN users u ON u.id = p.user_id LEFT JOIN account_documents d ON d.user_id = p.user_id`;
@@ -62,10 +82,13 @@ const POST_SELECT = `p.*, u.name, json_extract(d.data, '$.profile.avatar') AS av
   a.material_title AS achievement_title, a.criterion AS achievement_criterion`;
 
 async function postView(db, row, userId) {
-  const reacted = await db.first('SELECT 1 AS yes FROM social_reactions WHERE post_id=? AND user_id=?', [row.id, userId]);
+  const reactionSummary = summary(await db.all(
+    'SELECT emoji, COUNT(*) AS n, SUM(user_id = ?) AS mine FROM social_reactions WHERE post_id=? GROUP BY emoji ORDER BY MIN(created_at), emoji',
+    [userId, row.id]));
   return {
     id: row.id, body: row.body, kind: row.kind, at: row.created_at, author: author(row), canDelete: row.user_id === userId,
-    reactions: Number(row.reactions), reacted: Boolean(reacted), comments: Number(row.comments),
+    reactions: Number(row.reactions), reacted: reactionSummary.some((item) => item.mine), reactionSummary,
+    comments: Number(row.comments), gif: row.gif_url || null,
     achievement: row.achievement_title ? { title: row.achievement_title, criterion: row.achievement_criterion } : null,
     attachment: row.attachment_key ? { name: row.attachment_name, type: row.attachment_type, size: row.attachment_size, url: `/api/social/posts/${row.id}/attachment` } : null,
   };
@@ -103,6 +126,8 @@ export async function createSocialPost(db, bucket, userId, input = {}, file = nu
   let kind = input.kind === 'question' ? 'question' : 'post';
   let achievementId = null;
   let attachment = null;
+  const gif = gifOf(input.gifUrl);
+  if (gif && (file || input.achievementId)) throw new SocialError('Escolha um GIF, uma conquista ou um arquivo por publicação.', 'one_attachment');
   if (input.achievementId) {
     if (file) throw new SocialError('Escolha uma conquista ou um arquivo por publicação.', 'one_attachment');
     const earned = await db.first('SELECT id FROM user_achievements WHERE id=? AND user_id=? AND revoked_at IS NULL', [idOf(input.achievementId), userId]);
@@ -119,14 +144,14 @@ export async function createSocialPost(db, bucket, userId, input = {}, file = nu
     attachment = { ...attachment, type: attachment.type || attachment.contentType, name: socialFileName(file.name), size: bytes.byteLength };
     attachment.key = `social/${idOf(userId)}/${id}.${attachment.ext}`;
   }
-  if (!body && !attachment && !achievementId) throw new SocialError('Escreva algo ou escolha um anexo.', 'empty_post');
+  if (!body && !attachment && !achievementId && !gif) throw new SocialError('Escreva algo ou escolha um anexo.', 'empty_post');
   // Reserva atômica de cota unificada (Biblioteca + Social); o post só entra no feed depois que o objeto existe.
   let reserved;
   if (attachment) {
     const plan = await storagePlan(db, userId, config);
     reserved = await db.run(`INSERT INTO social_posts
-      (id,user_id,body,kind,achievement_id,attachment_key,attachment_name,attachment_type,attachment_size,ready,created_at)
-      SELECT ?,?,?,?,?,?,?,?,?,0,? WHERE
+      (id,user_id,body,kind,achievement_id,attachment_key,attachment_name,attachment_type,attachment_size,ready,created_at,gif_url)
+      SELECT ?,?,?,?,?,?,?,?,?,0,?,NULL WHERE
         (SELECT COALESCE(SUM(attachment_size),0) FROM social_posts WHERE user_id=?)
         + (SELECT COALESCE(SUM(size),0) FROM library_files WHERE user_id=?)
         + ? <= ?
@@ -135,10 +160,10 @@ export async function createSocialPost(db, bucket, userId, input = {}, file = nu
     if (!reserved) throw new SocialError(`O armazenamento da conta (${formatBytes(plan.accountBytes)}) não comporta este anexo. Exclua arquivos antigos para liberar espaço.`, 'post_not_reserved', 409);
   } else {
     reserved = await db.run(`INSERT INTO social_posts
-      (id,user_id,body,kind,achievement_id,attachment_key,attachment_name,attachment_type,attachment_size,ready,created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,0,?)
+      (id,user_id,body,kind,achievement_id,attachment_key,attachment_name,attachment_type,attachment_size,ready,created_at,gif_url)
+      VALUES (?,?,?,?,?,?,?,?,?,0,?,?)
       ON CONFLICT(id) DO NOTHING`,
-    [id, userId, body, kind, achievementId, null, null, null, 0, new Date(now).toISOString()]);
+    [id, userId, body, kind, achievementId, null, null, null, 0, new Date(now).toISOString(), gif]);
     if (!reserved) throw new SocialError('A publicação já está em envio. Aguarde um instante.', 'post_not_reserved', 409);
   }
   try {
@@ -230,36 +255,77 @@ export async function readSocialAttachment(db, bucket, userId, postId) {
   return { object, name: post.attachment_name, type: post.attachment_type };
 }
 
-export async function reactToSocialPost(db, userId, postId, liked, now = Date.now()) {
+export async function reactToSocialPost(db, userId, postId, liked, now = Date.now(), emoji = DEFAULT_REACTION) {
   const post = await visiblePost(db, userId, postId);
-  if (liked) await db.run('INSERT OR IGNORE INTO social_reactions (post_id,user_id,created_at) VALUES (?,?,?)', [post.id, userId, new Date(now).toISOString()]);
-  else await db.run('DELETE FROM social_reactions WHERE post_id=? AND user_id=?', [post.id, userId]);
-  return { reacted: liked };
+  const chosen = emojiOf(emoji);
+  if (liked) await db.run('INSERT OR IGNORE INTO social_reactions (post_id,user_id,emoji,created_at) VALUES (?,?,?,?)', [post.id, userId, chosen, new Date(now).toISOString()]);
+  else await db.run('DELETE FROM social_reactions WHERE post_id=? AND user_id=? AND emoji=?', [post.id, userId, chosen]);
+  return { reacted: liked, emoji: chosen };
 }
 
+export async function reactToSocialComment(db, userId, postId, commentId, liked, now = Date.now(), emoji = DEFAULT_REACTION) {
+  const post = await visiblePost(db, userId, postId);
+  const chosen = emojiOf(emoji);
+  const comment = await db.first('SELECT id FROM social_comments WHERE id=? AND post_id=?', [idOf(commentId), post.id]);
+  if (!comment) throw new SocialError('Comentário não encontrado.', 'comment_not_found', 404);
+  if (liked) await db.run('INSERT OR IGNORE INTO social_comment_reactions (comment_id,user_id,emoji,created_at) VALUES (?,?,?,?)', [comment.id, userId, chosen, new Date(now).toISOString()]);
+  else await db.run('DELETE FROM social_comment_reactions WHERE comment_id=? AND user_id=? AND emoji=?', [comment.id, userId, chosen]);
+  return { reacted: liked, emoji: chosen };
+}
+
+// Paginação por comentários principais; as respostas dos principais da página
+// vêm junto, em ordem cronológica. O cliente agrupa por parentId.
 export async function listSocialComments(db, userId, postId, { cursor = '' } = {}) {
   const post = await visiblePost(db, userId, postId);
   const after = cursorOf(cursor);
-  const rows = await db.all(`SELECT c.*, u.name, json_extract(d.data, '$.profile.avatar') AS avatar FROM social_comments c
-    JOIN users u ON u.id=c.user_id LEFT JOIN account_documents d ON d.user_id=c.user_id
-    WHERE c.post_id=? AND NOT EXISTS (SELECT 1 FROM contact_blocks b WHERE
-      (b.user_id=? AND b.blocked_id=c.user_id) OR (b.user_id=c.user_id AND b.blocked_id=?))
+  const hidden = `NOT EXISTS (SELECT 1 FROM contact_blocks b WHERE
+      (b.user_id=? AND b.blocked_id=c.user_id) OR (b.user_id=c.user_id AND b.blocked_id=?))`;
+  const select = `SELECT c.*, u.name, json_extract(d.data, '$.profile.avatar') AS avatar FROM social_comments c
+    JOIN users u ON u.id=c.user_id LEFT JOIN account_documents d ON d.user_id=c.user_id`;
+  const rows = await db.all(`${select}
+    WHERE c.post_id=? AND c.parent_id IS NULL AND ${hidden}
     ${after ? 'AND (c.created_at > ? OR (c.created_at = ? AND c.id > ?))' : ''}
     ORDER BY c.created_at, c.id LIMIT 51`, [post.id, userId, userId, ...(after ? [after.at, after.at, after.id] : [])]);
-  const selected = rows.slice(0, 50);
-  const last = selected.at(-1);
-  return { comments: selected.map(row => commentView(row, userId, post.user_id)), nextCursor: rows.length > 50 ? `${last.created_at}|${last.id}` : null };
+  const roots = rows.slice(0, 50);
+  const replies = roots.length
+    ? await db.all(`${select}
+      WHERE c.post_id=? AND c.parent_id IN (${roots.map(() => '?').join(',')}) AND ${hidden}
+      ORDER BY c.created_at, c.id`, [post.id, ...roots.map((row) => row.id), userId, userId])
+    : [];
+  const all = [...roots, ...replies];
+  const counts = new Map();
+  if (all.length) {
+    const found = await db.all(`SELECT r.comment_id, r.emoji, COUNT(*) AS n, SUM(r.user_id = ?) AS mine
+      FROM social_comment_reactions r JOIN social_comments c ON c.id = r.comment_id
+      WHERE c.post_id = ? GROUP BY r.comment_id, r.emoji ORDER BY MIN(r.created_at), r.emoji`, [userId, post.id]);
+    for (const row of found) counts.set(row.comment_id, [...(counts.get(row.comment_id) || []), row]);
+  }
+  const last = roots.at(-1);
+  return {
+    comments: all.map((row) => commentView(row, userId, post.user_id, summary(counts.get(row.id) || []))),
+    nextCursor: rows.length > 50 ? `${last.created_at}|${last.id}` : null,
+  };
 }
 
 export async function createSocialComment(db, userId, postId, input = {}, now = Date.now()) {
-  await visiblePost(db, userId, postId);
+  const post = await visiblePost(db, userId, postId);
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new SocialError('Comentário inválido.', 'invalid_comment');
   const body = textOf(input.body, SOCIAL_COMMENT_LIMIT);
-  if (!body) throw new SocialError('Escreva um comentário.', 'empty_comment');
+  const gif = gifOf(input.gifUrl);
+  if (!body && !gif) throw new SocialError('Escreva um comentário.', 'empty_comment');
   const id = idOf(input.id);
   const existing = await db.first('SELECT post_id,user_id FROM social_comments WHERE id=?', [id]);
-  if (existing && (existing.user_id !== userId || existing.post_id !== postId)) throw new SocialError('Identificador já usado.', 'id_conflict', 409);
-  await db.run('INSERT OR IGNORE INTO social_comments (id,post_id,user_id,body,created_at) VALUES (?,?,?,?,?)', [id, postId, userId, body, new Date(now).toISOString()]);
+  if (existing && (existing.user_id !== userId || existing.post_id !== post.id)) throw new SocialError('Identificador já usado.', 'id_conflict', 409);
+  // Respostas têm um só nível: responder a uma resposta fica junto do comentário principal.
+  let parentId = null;
+  if (input.parentId) {
+    const parent = await db.first('SELECT id, parent_id, user_id FROM social_comments WHERE id=? AND post_id=?', [idOf(input.parentId), post.id]);
+    if (!parent) throw new SocialError('Comentário não encontrado.', 'comment_not_found', 404);
+    const blocked = await db.first('SELECT 1 AS yes FROM contact_blocks WHERE (user_id=? AND blocked_id=?) OR (user_id=? AND blocked_id=?)', [userId, parent.user_id, parent.user_id, userId]);
+    if (blocked) throw new SocialError('Comentário não encontrado.', 'comment_not_found', 404);
+    parentId = parent.parent_id || parent.id;
+  }
+  await db.run('INSERT OR IGNORE INTO social_comments (id,post_id,user_id,body,created_at,parent_id,gif_url) VALUES (?,?,?,?,?,?,?)', [id, post.id, userId, body, new Date(now).toISOString(), parentId, gif]);
   return { id };
 }
 
@@ -268,6 +334,8 @@ export async function deleteSocialComment(db, userId, postId, commentId) {
   const comment = await db.first('SELECT user_id FROM social_comments WHERE id=? AND post_id=?', [idOf(commentId), postId]);
   if (!comment) throw new SocialError('Comentário não encontrado.', 'comment_not_found', 404);
   if (comment.user_id !== userId && post.user_id !== userId) throw new SocialError('Você não pode excluir este comentário.', 'not_owner', 403);
+  await db.run('DELETE FROM social_comment_reactions WHERE comment_id IN (SELECT id FROM social_comments WHERE id=? OR parent_id=?)', [commentId, commentId]);
+  await db.run('DELETE FROM social_comments WHERE parent_id=? AND post_id=?', [commentId, postId]);
   await db.run('DELETE FROM social_comments WHERE id=? AND post_id=?', [commentId, postId]);
   return { removed: true };
 }

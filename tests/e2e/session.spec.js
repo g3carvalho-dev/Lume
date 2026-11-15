@@ -4,7 +4,7 @@ import { seedAccount, readAccount } from './library-helpers.js';
 import { createInitialState, STORAGE_KEY } from '../../public/domain.js';
 
 // Sessão declarada: relógio de continuidade iniciado pela pessoa. O servidor
-// confirma blocos de 30 minutos; a sessão não comprova estudo.
+// confirma blocos de 25 minutos; a sessão não comprova estudo.
 
 test('sessão declarada persiste ao recarregar, pausa, retoma e encerra sem conceder XP local', async ({ page }) => {
   const seeded = createInitialState();
@@ -17,7 +17,6 @@ test('sessão declarada persiste ao recarregar, pausa, retoma e encerra sem conc
 
   await page.getByRole('navigation', { name: 'Navegação' }).getByRole('link', { name: 'Foco', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sessão de foco', exact: true })).toBeVisible();
-  await expect(page.getByText(/confirma os blocos completos de 30 minutos/i)).toBeVisible();
   await page.getByRole('button', { name: 'Iniciar foco' }).click();
   await expect(page.getByText('Em foco', { exact: true })).toBeVisible();
   await expect(page.getByText('Abrir o material e conhecer o curso').first()).toBeVisible();
@@ -34,18 +33,17 @@ test('sessão declarada persiste ao recarregar, pausa, retoma e encerra sem conc
   await page.getByRole('button', { name: 'Retomar' }).click();
   await expect(page.getByRole('button', { name: 'Pausar' })).toBeVisible();
 
-  // Anotações rápidas e Escudo de foco absoluto persistem nas preferências.
+  // Anotações rápidas e Escudo de foco persistem nas preferências.
   await page.getByLabel('Anotações rápidas da sessão').fill('Revisar heurísticas de usabilidade');
-  await page.getByRole('button', { name: 'Salvar nota' }).click();
-  await page.getByRole('switch', { name: /Escudo de foco absoluto/ }).click();
+  await page.getByRole('switch', { name: /Escudo de foco/ }).click();
 
-  await page.getByRole('button', { name: 'Finalizar com resumo' }).click();
+  await page.getByRole('button', { name: 'Finalizar', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Iniciar foco' })).toBeVisible();
 
 
   const state = await readAccount(page);
   expect(state.studySessions).toHaveLength(1);
-  expect(state.studySessions[0].origin).toBe('declared');
+  expect(state.studySessions[0].origin).toBe('focus');
   expect(state.activeSession).toBeNull();
   expect(state.progress).toHaveLength(0);
   expect(state.preferences.focusNotes).toBe('Revisar heurísticas de usabilidade');

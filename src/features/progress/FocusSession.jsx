@@ -4,6 +4,7 @@ import { focusedTask } from '../../../public/tasks-domain.js';
 import { materialType } from '../../../public/domain.js';
 import { materialStanding, subjectOf } from '../../../public/subject-domain.js';
 import { formatMinutes, formatSessionDuration, minutesByDay, sessionElapsed } from '../../../public/session-domain.js';
+import { TIME_BLOCK_MINUTES } from '../../../public/xp-policy.js';
 import Icon from '../../ui/Icon.jsx';
 import { Button } from '../../ui/ui.jsx';
 import { SOUNDSCAPES, createSoundscape } from './soundscape.js';
@@ -18,7 +19,7 @@ const CYCLES = [
 ];
 const RADIUS = 118;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-const BLOCK_MS = 30 * 60 * 1000;
+const BLOCK_MS = TIME_BLOCK_MINUTES * 60 * 1000;
 
 export default function FocusSession({ state, actions, settingsActions, open, notify, account }) {
   const active = state.activeSession;
@@ -32,7 +33,6 @@ export default function FocusSession({ state, actions, settingsActions, open, no
   const [offset, setOffset] = useState(0);
   const [sound, setSound] = useState(() => state.preferences?.soundscape || 'off');
   const [volume, setVolume] = useState(45);
-  const [zenNotesOpen, setZenNotesOpen] = useState(true);
   const [notes, setNotes] = useState(() => state.preferences?.focusNotes || '');
   const [notesDirty, setNotesDirty] = useState(false);
   const [lastSummary, setLastSummary] = useState(null);
@@ -51,9 +51,8 @@ export default function FocusSession({ state, actions, settingsActions, open, no
     if (!active) return undefined;
     setNow(Date.now());
     const clock = setInterval(() => setNow(Date.now()), 1000);
-    const beat = setInterval(actions.touchSession, 60000);
-    return () => { clearInterval(clock); clearInterval(beat); };
-  }, [active?.id, active?.status, actions]);
+    return () => clearInterval(clock);
+  }, [active?.id, active?.status]);
 
   useEffect(() => () => audio.current?.close(), []);
 
@@ -66,7 +65,6 @@ export default function FocusSession({ state, actions, settingsActions, open, no
   const finished = Boolean(active) && remaining === 0;
   const progress = active ? Math.min(1, inCycle / cycleMs) : 0;
   const completedCycles = Math.floor(elapsed / cycleMs);
-  const eligibleBlocks = Math.floor(elapsed / BLOCK_MS);
   const today = minutesByDay(state, 1)[0];
   const goal = state.plan?.availability?.[new Date().getDay()] || state.preferences?.dailyMinutes || 0;
 
@@ -119,7 +117,7 @@ export default function FocusSession({ state, actions, settingsActions, open, no
 
   function begin() {
     const label = intention.trim() || focus?.title || (lesson ? lesson.title : course?.title) || 'Sessão de foco';
-    if (!actions.startSession({ courseId: course?.id || '', stepId: lesson?.lessonId || '', label })) return;
+    if (!actions.startSession({ courseId: course?.id || '', stepId: lesson?.lessonId || '', label, origin: 'focus' })) return;
     setLastSummary(null);
     setOffset(0);
     chimed.current = false;
@@ -143,7 +141,7 @@ export default function FocusSession({ state, actions, settingsActions, open, no
     });
     notify(
       account
-        ? `Sessão registrada: ${formatSessionDuration(result.session.durationMs)}. O servidor confirma os blocos de 30 minutos.`
+        ? `Sessão registrada: ${formatSessionDuration(result.session.durationMs)}. O servidor confirma os blocos de ${TIME_BLOCK_MINUTES} minutos.`
         : `Sessão registrada: ${formatSessionDuration(result.session.durationMs)}. Nesta prévia o tempo fica local; entre na conta para o XP de tempo.`,
       { important: true },
     );
@@ -167,9 +165,7 @@ export default function FocusSession({ state, actions, settingsActions, open, no
             <span className="soft-dot" aria-hidden="true"/>
             {active ? (active.status === 'active' ? 'Em foco' : 'Pausada') : 'Pronta para começar'}
           </span>
-          {shieldEnabled && active && <span className="soft-badge tone-lume"><Icon name="shield"/>Escudo ativo</span>}
         </div>
-        <p className="lead">Escolha um ciclo, vincule o material e comece.</p>
       </div>
       <div className="focus-goal">
         <span><small className="metric-label">Hoje</small><strong>{formatMinutes(today.minutes)}{goal ? ` / ${formatMinutes(goal)}` : ''}</strong></span>
@@ -182,7 +178,7 @@ export default function FocusSession({ state, actions, settingsActions, open, no
         <span className="soft-badge tone-mint"><Icon name="check"/>Sessão encerrada</span>
         <strong>{lastSummary.label}</strong>
         <p className="muted-text">
-          Tempo focado: <strong>{formatSessionDuration(lastSummary.durationMs)}</strong> · {lastSummary.blocks} {lastSummary.blocks === 1 ? 'bloco de 30 min elegível' : 'blocos de 30 min elegíveis'}.
+          Tempo focado: <strong>{formatSessionDuration(lastSummary.durationMs)}</strong> · {lastSummary.blocks} {lastSummary.blocks === 1 ? `bloco de ${TIME_BLOCK_MINUTES} min elegível` : `blocos de ${TIME_BLOCK_MINUTES} min elegíveis`}.
         </p>
       </div>
       <div className="focus-summary-actions">
@@ -197,14 +193,13 @@ export default function FocusSession({ state, actions, settingsActions, open, no
           <div className="focus-cycles">
             <div className="focus-cycles-head">
               <span id="focus-cycle-title" className="metric-label">Ciclos sugeridos</span>
-              <span className="tone-mint-text"><Icon name="bolt"/>Ritmo flexível</span>
             </div>
             <div className="cycle-grid" role="group" aria-label="Duração do ciclo">
               {CYCLES.map((item) => <button key={item.minutes} type="button" className="cycle-pill" aria-pressed={!manual && cycle === item.minutes} onClick={() => chooseCycle(item.minutes)}>
                 <strong>{item.minutes < 60 ? `${item.minutes} min` : '1h'}</strong><small>{item.title}</small>
               </button>)}
               <button type="button" className="cycle-pill" aria-pressed={manual} aria-expanded={manual} onClick={() => setManual(!manual)}>
-                <strong><Icon name="settings"/>Manual</strong><small>Ajuste livre</small>
+                <strong><Icon name="tune"/>Manual</strong><small>Personalizar</small>
               </button>
             </div>
             {manual && <div className="cycle-custom">
@@ -227,7 +222,7 @@ export default function FocusSession({ state, actions, settingsActions, open, no
             <div className="focus-dial-center">
               <span className="soft-badge tone-mint"><Icon name="timer"/>Ciclo {completedCycles + 1}</span>
               <strong className="focus-digits" role="timer" aria-label={active ? `Faltam ${digits} no ciclo` : `Ciclo de ${cycle} minutos`}>{digits}</strong>
-              <small>{finished ? 'Ciclo concluído. Pausa sugerida de 5 min.' : <>Pausa sugerida de <span className="tone-mint-text">5 min</span> após este ciclo</>}</small>
+              <small>{finished ? 'Ciclo concluído' : null} Pausa sugerida: <span className="tone-mint-text">5 min</span></small>
             </div>
           </div>
 
@@ -235,30 +230,42 @@ export default function FocusSession({ state, actions, settingsActions, open, no
             {!active && <Button className="large" onClick={begin}><Icon name="play"/>Iniciar foco</Button>}
             {active && <Button className="large" secondary={active.status !== 'active'} onClick={actions.toggleSessionPause}><Icon name={active.status === 'active' ? 'pause' : 'play'}/>{active.status === 'active' ? 'Pausar' : 'Retomar'}</Button>}
             {active && <Button secondary onClick={restartCycle}><Icon name="restart"/>{finished ? 'Novo ciclo' : 'Reiniciar'}</Button>}
-            {active && <Button secondary onClick={finish}><Icon name="check"/>Finalizar com resumo</Button>}
+            {active && <Button secondary onClick={finish}><Icon name="check"/>Finalizar</Button>}
           </div>
-
-          <dl className="focus-stats">
-            <div><dt>Ciclos concluídos</dt><dd>{completedCycles}</dd></div>
-            <div><dt>Tempo focado</dt><dd className="tone-mint-text">{formatSessionDuration(elapsed)}</dd></div>
-            <div><dt>Blocos de 30 min</dt><dd className="tone-reward-text">{eligibleBlocks}</dd></div>
-          </dl>
         </section>
-
       </div>
 
       <div className="focus-side">
+        <section className="card-surface focus-panel" aria-labelledby="focus-sound-title">
+          <div className="card-heading">
+            <div>
+              <span className="card-icon tone-mint"><Icon name="headphones"/></span>
+              <h2 id="focus-sound-title" className="title">Som ambiente</h2>
+            </div>
+          </div>
+          <div className="sound-grid" role="group" aria-label="Som de fundo">
+            {SOUNDSCAPES.map((item) => <button key={item.id} type="button" className="sound-chip" aria-pressed={sound === item.id} onClick={() => chooseSound(item.id)}>
+              <Icon name={item.icon}/><span><strong>{item.title}</strong></span>
+            </button>)}
+          </div>
+          <label className="volume-row"><Icon name="mute"/><span className="sr-only">Volume</span><input type="range" min={0} max={100} value={volume} onChange={(event) => changeVolume(Number(event.target.value))}/><Icon name="volume"/></label>
+          <label className="focus-shield-row">
+            <span><strong>Escudo de foco</strong></span>
+            <input type="checkbox" role="switch" switch="" checked={shieldEnabled} title="Silencia avisos não essenciais enquanto a sessão estiver ativa." onChange={(event) => toggleShield(event.target.checked)}/>
+          </label>
+        </section>
+
         <section className="card-surface focus-panel" aria-labelledby="focus-material-title">
           <div className="card-heading">
             <div>
               <span className="card-icon"><Icon name="book"/></span>
-              <h2 id="focus-material-title" className="title">Material de apoio vinculado</h2>
+              <h2 id="focus-material-title" className="title">Material da sessão</h2>
             </div>
           </div>
           {active
-            ? <p className="muted-text">Sessão em andamento: <strong>{active.label}</strong>. Para trocar o material, finalize esta sessão antes.</p>
-            : <label className="field">Material ou trilha
-              <select value={courseId} onChange={(event) => setCourseId(event.target.value)}>
+            ? <p className="muted-text">Sessão em andamento: <strong>{active.label}</strong></p>
+            : <label className="field"><span className="sr-only">Material ou trilha</span>
+              <select aria-label="Material ou trilha" value={courseId} onChange={(event) => setCourseId(event.target.value)}>
                 <option value="">Estudo livre, sem material</option>
                 {state.courses.map((item) => <option key={item.id} value={item.id}>{item.title}{subjectOf(state, item) ? ` · ${subjectOf(state, item).title}` : ''}</option>)}
               </select>
@@ -269,10 +276,10 @@ export default function FocusSession({ state, actions, settingsActions, open, no
               <strong>{lesson && !course.pdf ? lesson.title : course.title}</strong>
               <small>{materialType(course.type).title} · {course.pdf ? materialStanding(state, course).label : lesson ? `Próximo passo de ${course.title}` : 'Material da biblioteca'}</small>
             </span>
-            <button type="button" className="icon-button" onClick={openMaterial} aria-label={`Abrir ${course.title}`} title="Abrir material"><Icon name="external"/></button>
+            <button type="button" className="text-button accent" onClick={openMaterial} aria-label={`Abrir ${course.title}`}>Abrir<Icon name="external"/></button>
           </div>}
-          {!active && <label className="field">Intenção desta sessão
-            <input value={intention} maxLength={160} onChange={(event) => setIntention(event.target.value)} placeholder="Ex.: ler os artigos 102 e 103 e anotar três dúvidas"/>
+          {!active && <label className="field"><span className="sr-only">Intenção desta sessão</span>
+            <input aria-label="Intenção desta sessão" value={intention} maxLength={160} onChange={(event) => setIntention(event.target.value)} placeholder="Intenção desta sessão (opcional)"/>
           </label>}
         </section>
 
@@ -282,54 +289,17 @@ export default function FocusSession({ state, actions, settingsActions, open, no
               <span className="card-icon tone-lume"><Icon name="notes"/></span>
               <h2 id="focus-notes-title" className="title">Anotações rápidas</h2>
             </div>
-            <button type="button" className="text-button" aria-expanded={zenNotesOpen} onClick={() => setZenNotesOpen(o => !o)}>
-              {zenNotesOpen ? 'Recolher' : 'Abrir'}
-            </button>
           </div>
-          {zenNotesOpen && <>
-            <label className="sr-only" htmlFor="zen-focus-notes">Anotações rápidas da sessão</label>
-            <textarea
-              id="zen-focus-notes"
-              rows={4}
-              maxLength={4000}
-              value={notes}
-              placeholder="Anote dúvidas, trechos importantes ou um lembrete para a próxima sessão…"
-              onChange={(event) => { setNotes(event.target.value); setNotesDirty(true); }}
-              onBlur={() => { if (notesDirty) saveNotes(); }}
-            />
-            <div className="zen-notes-foot">
-              <small>{notesDirty ? 'Alterações pendentes — salvas ao sair do campo' : notes ? 'Salvo nas suas preferências' : 'Espaço livre para rascunhos'}</small>
-              <div className="zen-notes-actions">
-                {notes && <button type="button" className="text-button" onClick={() => { setNotes(''); saveNotes(''); }}>Limpar</button>}
-                {notesDirty && <button type="button" className="chip-button" onClick={() => saveNotes()}>Salvar nota</button>}
-              </div>
-            </div>
-          </>}
-        </section>
-
-        <section className="card-surface focus-panel" aria-labelledby="focus-sound-title">
-          <div className="card-heading">
-            <div>
-              <span className="card-icon tone-mint"><Icon name="shield"/></span>
-              <h2 id="focus-sound-title" className="title">Escudo e conforto sonoro</h2>
-            </div>
-            <span className="metric-label">Opcional</span>
-          </div>
-
-          <label className="focus-shield-row">
-            <span>
-              <strong>Escudo de foco absoluto</strong>
-              <small>Silencia avisos não essenciais enquanto a sessão estiver ativa.</small>
-            </span>
-            <input type="checkbox" role="switch" switch="" checked={shieldEnabled} onChange={(event) => toggleShield(event.target.checked)}/>
-          </label>
-
-          <div className="sound-grid" role="group" aria-label="Som de fundo">
-            {SOUNDSCAPES.map((item) => <button key={item.id} type="button" className="sound-chip" aria-pressed={sound === item.id} onClick={() => chooseSound(item.id)}>
-              <Icon name={item.icon}/><span><strong>{item.title}</strong><small>{item.hint}</small></span>
-            </button>)}
-          </div>
-          <label className="volume-row"><Icon name="mute"/><span className="sr-only">Volume</span><input type="range" min={0} max={100} value={volume} onChange={(event) => changeVolume(Number(event.target.value))}/><Icon name="volume"/></label>
+          <label className="sr-only" htmlFor="zen-focus-notes">Anotações rápidas da sessão</label>
+          <textarea
+            id="zen-focus-notes"
+            rows={4}
+            maxLength={4000}
+            value={notes}
+            placeholder="Escreva uma nota…"
+            onChange={(event) => { setNotes(event.target.value); setNotesDirty(true); }}
+            onBlur={() => { if (notesDirty) saveNotes(); }}
+          />
         </section>
       </div>
     </div>

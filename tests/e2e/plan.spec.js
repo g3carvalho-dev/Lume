@@ -73,22 +73,23 @@ test('tarefa vinculada conclui a aula uma vez; subtarefa vale 10 XP uma vez e re
   await seedAccount(page, seeded());
 
   await page.goto('/#tarefas');
+  await page.getByRole('button', { name: 'Nova tarefa', exact: true }).click();
   await page.getByLabel('Tarefa', { exact: true }).fill('Revisar Aula 1 com questões');
   await page.getByLabel('Curso ou prova (opcional)').selectOption({ label: 'Direito Constitucional — OAB' });
   await page.getByLabel('Aula ou etapa (opcional)').selectOption({ label: 'Aula 1 — Teoria geral' });
   await page.getByRole('button', { name: 'Adicionar tarefa' }).click();
   await expect(page.locator('.todo-item').first()).toContainText('Aula 1 — Teoria geral');
 
-  await page.getByText('Dividir em subtarefas').click();
+  await page.getByRole('button', { name: 'Adicionar subtarefa' }).click();
   await page.getByLabel('Nova subtarefa de Revisar Aula 1 com questões').fill('Resolver 10 questões');
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Resolver 10 questões' }).check();
-  await expect(page.getByText('Subtarefas 1/1')).toBeVisible();
+  await expect(page.getByText('1 de 1 subtarefa concluída')).toBeVisible();
   const beforeReload = await readAccount(page);
   expect(beforeReload.tasks[0].subtasks[0].done).toBe(true);
 
   await page.reload();
-  await expect(page.getByText('Subtarefas 1/1')).toBeVisible();
+  await expect(page.getByText('1 de 1 subtarefa concluída')).toBeVisible();
   const saved = await readAccount(page);
   expect(saved.tasks[0].lessonId).toBe(materialSteps(saved.courses[0])[0].id);
   expect(saved.tasks[0].subtasks).toEqual([expect.objectContaining({ title: 'Resolver 10 questões', done: true })]);

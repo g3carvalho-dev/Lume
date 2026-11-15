@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { hasPreparation, courseProgress, courseStatus, materialType } from '../../../public/domain.js';
 import { materialSteps } from '../../../public/material-model.js';
@@ -12,23 +12,34 @@ import { materialStanding, subjectOf, subjectsOverview } from '../../../public/s
 
 const statuses = { all: 'Todos', active: 'Em andamento', new: 'Para começar', paused: 'Em pausa', completed: 'Concluídos' };
 
-// Menu "…" no canto do cartão. Fica ao lado do cartão (e não dentro dele) porque
-// um botão não pode conter outro botão.
-function CourseMenu({ course, open }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+// Fecha um painel flutuante ao clicar fora ou apertar Esc.
+function useDismiss(active, close) {
   const root = useRef(null);
   useEffect(() => {
-    if (!menuOpen) return undefined;
-    const outside = (event) => { if (!root.current?.contains(event.target)) setMenuOpen(false); };
-    const escape = (event) => { if (event.key === 'Escape') setMenuOpen(false); };
+    if (!active) return undefined;
+    const outside = (event) => { if (!root.current?.contains(event.target)) close(); };
+    const escape = (event) => { if (event.key === 'Escape') close(); };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
-  }, [menuOpen]);
-  return <div className="course-menu" ref={root}>
-    <button type="button" className="course-menu-button" aria-label={`Mais ações de ${course.title}`} aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><Icon name="more"/></button>
-    {menuOpen && <div className="course-menu-list" role="menu">
-      <button type="button" role="menuitem" className="course-menu-item danger" onClick={() => { setMenuOpen(false); open({ type: 'delete', id: course.id }); }}><Icon name="close"/>Excluir curso</button>
+  }, [active, close]);
+  return root;
+}
+
+// Um só botão de entrada para os três jeitos de adicionar material.
+function AddMenu({ open }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const close = useCallback(() => setMenuOpen(false), []);
+  const root = useDismiss(menuOpen, close);
+  // O foco volta ao botão antes do diálogo abrir: o item do menu deixa de existir
+  // e o diálogo devolve o foco a quem o tinha ao abrir.
+  const choose = (dialog) => { root.current?.querySelector('button[aria-haspopup]')?.focus(); setMenuOpen(false); open(dialog); };
+  return <div className="add-menu" ref={root}>
+    <Button aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><Icon name="plus"/>Adicionar material<Icon name="chevron" className="add-menu-caret"/></Button>
+    {menuOpen && <div className="add-menu-list" role="menu">
+      <button type="button" role="menuitem" className="add-menu-item" onClick={() => choose({ type: 'new' })}><Icon name="layers"/>Adicionar curso</button>
+      <button type="button" role="menuitem" className="add-menu-item" onClick={() => choose({ type: 'pdf-attach' })}><Icon name="book"/>Anexar PDF</button>
+      <button type="button" role="menuitem" className="add-menu-item" onClick={() => choose({ type: 'manual' })}><Icon name="edit"/>Criar manualmente</button>
     </div>}
   </div>;
 }
@@ -50,8 +61,8 @@ function CourseCard({ course, state, open, compact = false, icon = 'file' }) {
     <span className="reading-icon"><Icon name={icon}/></span>
     <span className="reading-copy"><strong>{course.title}</strong><small>{shownScope}{subject ? ` · ${subject.title}` : ''}{reading?.done ? ` · ${course.pdf.pages} p.` : ''}</small></span>
     <span className="reading-progress"><Progress value={percent} tone="mint" label={`Progresso de ${course.title}`}/><strong>{percent}%</strong></span>
-    <span className="reading-cta">{status === 'completed' ? 'Revisar' : 'Ler'}</span>
-  </button><CourseMenu course={course} open={open}/></div>;
+    <Icon name="chevron" className="reading-chevron"/>
+  </button></div>;
 
   return <div className="course-card-wrap">
     <motion.button
@@ -85,31 +96,87 @@ function CourseCard({ course, state, open, compact = false, icon = 'file' }) {
         </div>
       </div>
     </motion.button>
-    <CourseMenu course={course} open={open}/>
   </div>;
 }
 
 const kinds = { all: 'Todas as frentes', courses: 'Cursos e trilhas', pdfs: 'PDFs e leituras' };
+
+// Busca e um único botão de filtros: tipo, disciplina e situação ficam no painel.
+function LibraryFilters({ state, search, setSearch, kind, setKind, filter, setFilter, subjectFilter, setSubjectFilter }) {
+  const [panel, setPanel] = useState(false);
+  const close = useCallback(() => setPanel(false), []);
+  const root = useDismiss(panel, close);
+  const active = (kind !== 'all') + (filter !== 'all') + Boolean(subjectFilter);
+  return <div className="library-toolbar">
+    <label className="search-field">
+      <Icon name="search"/>
+      <input
+        type="search"
+        id="course-search"
+        placeholder="Buscar na biblioteca…"
+        aria-label="Buscar um curso pelo nome"
+        value={search}
+        onChange={event => setSearch(event.target.value)}
+      />
+      {search && <button type="button" className="icon-button" onClick={() => { setSearch(''); document.getElementById('course-search').focus(); }} aria-label="Limpar busca"><Icon name="close"/></button>}
+    </label>
+    <div className="library-filter-menu" ref={root}>
+      <button type="button" className={`filter-trigger ${active ? 'has-active' : ''}`} aria-haspopup="dialog" aria-expanded={panel} aria-label={active ? `Filtros, ${active} ativos` : 'Filtros'} onClick={() => setPanel((value) => !value)}>
+        <Icon name="tune"/>{active > 0 && <span className="filter-trigger-count">{active}</span>}
+      </button>
+      {panel && <div className="library-filter-panel" role="dialog" aria-label="Filtros da biblioteca">
+        <div className="filter-group">
+          <span className="metric-label">Tipo</span>
+          <div className="kind-tabs" role="group" aria-label="Mostrar cursos ou PDFs">
+            {Object.entries(kinds).map(([id, title]) => <button key={id} type="button" className="kind-tab" aria-pressed={kind === id} onClick={() => setKind(id)}>
+              <span>{title}</span>
+              <span className="kind-count">{id === 'all' ? state.courses.length : state.courses.filter((course) => (id === 'pdfs') === Boolean(course.pdf)).length}</span>
+            </button>)}
+          </div>
+        </div>
+        {(state.subjects || []).length > 0 && <label className="filter-group subject-filter">
+          <span className="metric-label">Disciplina</span>
+          <select value={subjectFilter} onChange={(event) => setSubjectFilter(event.target.value)} aria-label="Filtrar por disciplina">
+            <option value="">Todas as disciplinas</option>
+            {state.subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.title}</option>)}
+            <option value="none">Sem disciplina</option>
+          </select>
+        </label>}
+        <div className="filter-group">
+          <span className="metric-label">Situação</span>
+          <div className="kind-tabs" role="group" aria-label="Filtrar cursos por situação">
+            {Object.entries(statuses).map(([id, title]) => <button key={id} type="button" className="kind-tab" aria-pressed={filter === id} onClick={() => setFilter(id)}>
+              <span>{title}</span>
+              <span className="kind-count">{id === 'all' ? state.courses.length : state.courses.filter(course => courseStatus(state, course) === id).length}</span>
+            </button>)}
+          </div>
+        </div>
+        {active > 0 && <button type="button" className="text-button accent" onClick={() => { setKind('all'); setFilter('all'); setSubjectFilter(''); }}>Limpar filtros</button>}
+      </div>}
+    </div>
+  </div>;
+}
 
 export function Library({ state, open, actions }) {
   const [filter, setFilter] = useState('all');
   const [kind, setKind] = useState('all');
   const [search, setSearch] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('');
-  const [showStatusFilters, setShowStatusFilters] = useState(true);
+  const [showFinished, setShowFinished] = useState(false);
 
   const query = search.toLocaleLowerCase('pt-BR');
   const courses = state.courses.filter(course => (filter === 'all' || courseStatus(state, course) === filter)
     && (kind === 'all' || (kind === 'pdfs') === Boolean(course.pdf))
     && (!subjectFilter || (subjectFilter === 'none' ? !course.subjectId : course.subjectId === subjectFilter))
     && course.title.toLocaleLowerCase('pt-BR').includes(query));
-  // Concluídos saem de Cursos e Leituras e ficam só em "Trilhas concluídas".
+  // Concluídos saem de Cursos e Leituras e ficam recolhidos em "Concluídos".
   const done = (course) => courseStatus(state, course) === 'completed';
   const trails = courses.filter((course) => !course.pdf && !done(course));
   const readings = courses.filter((course) => course.pdf && !done(course));
   const finished = courses.filter(done);
   const subjects = subjectsOverview(state).filter((item) => item.subject && (!query || item.subject.title.toLocaleLowerCase('pt-BR').includes(query)));
-  // "Continuar agora" segue a disciplina escolhida (regra em study-plan.js).
+  const filtering = Boolean(query) || filter !== 'all' || kind !== 'all' || Boolean(subjectFilter);
+  // "Continuar de onde parei" segue a disciplina escolhida (regra em study-plan.js).
   const resume = resumeMaterial(state);
   const action = resume?.action || null;
   const selected = resume?.course || null;
@@ -123,70 +190,18 @@ export function Library({ state, open, actions }) {
     <Heading
       eyebrow="materiais e disciplinas"
       title="Biblioteca"
-      actions={<>
-        <Button secondary onClick={() => open({ type: 'manual' })}><Icon name="edit"/>Criar manualmente</Button>
-        <Button secondary onClick={() => open({ type: 'pdf-attach' })}><Icon name="book"/>Anexar PDF</Button>
-        <Button onClick={() => open({ type: 'new' })}><Icon name="plus"/>Adicionar curso</Button>
-      </>}
+      actions={<AddMenu open={open}/>}
     >
       Seus cursos, livros, PDFs e disciplinas organizados com o ponto exato de retomada.
     </Heading>
 
-    {state.courses.length > 0 && <div className="library-toolbar">
-      <label className="search-field">
-        <Icon name="search"/>
-        <input
-          type="search"
-          id="course-search"
-          placeholder="Buscar na biblioteca por título, disciplina ou assunto…"
-          aria-label="Buscar um curso pelo nome"
-          value={search}
-          onChange={event => setSearch(event.target.value)}
-        />
-        {search && <button className="icon-button" onClick={() => { setSearch(''); document.getElementById('course-search').focus(); }} aria-label="Limpar busca"><Icon name="close"/></button>}
-      </label>
-
-      <div className="library-filters">
-        <div className="kind-tabs" role="group" aria-label="Mostrar cursos ou PDFs">
-          {Object.entries(kinds).map(([id, title]) => <button key={id} type="button" className="kind-tab" aria-pressed={kind === id} onClick={() => setKind(id)}>
-            <Icon name={id === 'pdfs' ? 'file' : id === 'courses' ? 'layers' : 'book'}/><span>{title}</span>
-            <span className="kind-count">{id === 'all' ? state.courses.length : state.courses.filter((course) => (id === 'pdfs') === Boolean(course.pdf)).length}</span>
-          </button>)}
-        </div>
-
-        <div className="library-quick-right">
-          {(state.subjects || []).length > 0 && <label className="subject-filter">
-            <span className="sr-only">Filtrar por disciplina</span>
-            <select value={subjectFilter} onChange={(event) => setSubjectFilter(event.target.value)} aria-label="Filtrar por disciplina">
-              <option value="">Todas as disciplinas</option>
-              {state.subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.title}</option>)}
-              <option value="none">Sem disciplina</option>
-            </select>
-          </label>}
-          <button
-            type="button"
-            className={`kind-tab ${showStatusFilters || filter !== 'all' ? 'is-open' : ''}`}
-            aria-expanded={showStatusFilters}
-            onClick={() => setShowStatusFilters(v => !v)}
-          >
-            <Icon name="tune"/><span>Filtro{filter !== 'all' ? `: ${statuses[filter]}` : ''}</span>
-          </button>
-        </div>
-      </div>
-
-      {(showStatusFilters || filter !== 'all') && <div className="filter-tabs" role="group" aria-label="Filtrar cursos por situação">
-        {Object.entries(statuses).map(([id, title]) => <button className="filter-btn" key={id} aria-pressed={filter === id} onClick={() => setFilter(id)}>
-          {filter === id && <motion.span className="selection-highlight" layoutId="library-filter" transition={{ duration: .26, ease }}/>}
-          <span>{title} ({id === 'all' ? state.courses.length : state.courses.filter(course => courseStatus(state, course) === id).length})</span>
-        </button>)}
-      </div>}
-    </div>}
+    {state.courses.length > 0 && <LibraryFilters state={state} search={search} setSearch={setSearch} kind={kind} setKind={setKind} filter={filter} setFilter={setFilter} subjectFilter={subjectFilter} setSubjectFilter={setSubjectFilter}/>}
 
     {state.courses.length === 0
       ? <FirstStudyArea actions={actions} open={open}/>
       : <>
       {resume?.subjectDone && <section className="library-resume" aria-labelledby="library-resume-title">
-        <div className="library-section-label"><span><Icon name="play"/>Continuar agora</span></div>
+        <div className="library-section-label"><span><Icon name="play"/>Continuar de onde parei</span></div>
         <div className="card-surface resume-card">
           <div className="resume-copy">
             <div className="resume-meta"><span className="soft-badge tone-mint">{resume.subjectDone.title}</span></div>
@@ -200,45 +215,42 @@ export function Library({ state, open, actions }) {
       </section>}
       {selected && <section className="library-resume" aria-labelledby="library-resume-title">
         <div className="library-section-label">
-          <span><Icon name="play"/>Continuar agora</span>
-          {next && <span className="soft-badge tone-mint"><span className="soft-dot" aria-hidden="true"/>{selected.reading || state.activeSession?.courseId === selected.id ? 'Em andamento' : 'Próximo passo'}</span>}
+          <span><Icon name="play"/>Continuar de onde parei</span>
         </div>
         <div className="card-surface resume-card">
           <div className="resume-copy">
             <div className="resume-meta">
-              {selectedSubject && <span className="soft-badge tone-mint">{selectedSubject.title}</span>}
+              {selectedSubject && <span className="resume-subject">{selectedSubject.title}</span>}
               <span>{materialType(selected.type).title}{isImportedCourse(selected) ? ` · ${sourceLabel(selected.source)}` : ''}</span>
             </div>
-            <h2 id="library-resume-title" className="title">{selected.title}</h2>
+            <h2 id="library-resume-title" className="title"><button type="button" className="resume-title-link" onClick={() => open({ type: 'course', id: selected.id })}>{selected.title}</button></h2>
             {next?.step && !selected.pdf && <p className="muted-text">Próximo passo: {next.step.title}</p>}
             {selected.pdf && <p className="muted-text">{selectedStanding.label}</p>}
             <div className="resume-progress"><Progress value={selectedPercent} tone="mint" label={`Progresso de ${selected.title}`}/><strong>{selectedPercent}%</strong></div>
           </div>
           <div className="resume-actions">
-            <Button ghost onClick={() => open({ type: 'course', id: selected.id })}>Detalhes</Button>
-            {selectedDeck?.total > 0 && <Button secondary onClick={() => open({ type: 'slides', id: selected.id })}><Icon name="book"/>Abrir apresentação · <small>{slidePositionLabel(selectedDeck)}</small></Button>}
             {selected.pdf
               ? <Button onClick={() => open({ type: 'pdf', id: selected.id })}><Icon name="book"/>{selected.reading ? `Continuar na p. ${selected.reading.page}` : 'Abrir no leitor'}</Button>
               : <Button onClick={() => open({ type: 'session', id: selected.id })}><Icon name="play"/>Continuar meu próximo passo</Button>}
           </div>
         </div>
+        {selectedDeck?.total > 0 && <button type="button" className="text-button accent resume-deck" onClick={() => open({ type: 'slides', id: selected.id })}><Icon name="book"/>Abrir apresentação · {slidePositionLabel(selectedDeck)}</button>}
         {isImportedCourse(selected) && <ImportedInspector course={selected} state={state}/>}
       </section>}
 
-      <div role="status" className="search-result-count">{courses.length} {courses.length === 1 ? 'trilha encontrada' : 'trilhas encontradas'}</div>
+      {filtering && <div role="status" className="search-result-count">{courses.length} {courses.length === 1 ? 'material encontrado' : 'materiais encontrados'}</div>}
 
       {subjects.length > 0 && kind === 'all' && <section className="library-section" aria-labelledby="library-subjects-title">
         <div className="library-section-head">
           <span className="card-icon tone-mint"><Icon name="school"/></span>
           <div><h2 id="library-subjects-title" className="title">Disciplinas</h2><p className="card-subtitle">Materiais agrupados e por onde retomar.</p></div>
-          <a className="text-link" href="#disciplinas">Organizar<Icon name="arrow"/></a>
+          <a className="text-link" href="#disciplinas">Organizar</a>
         </div>
         <div className="subject-card-grid">{subjects.map((item) => <a key={item.subject.id} className={`card-surface subject-tile color-${item.subject.color || 'lume'}`} href={`#disciplinas?id=${encodeURIComponent(item.subject.id)}`}>
-          <span className="subject-tile-meta"><span className="soft-badge tone-mint">{item.total} {item.total === 1 ? 'material' : 'materiais'}</span>{item.materials.some((material) => material.course.pdf) && <span className="soft-badge"><Icon name="file"/>{item.materials.filter((material) => material.course.pdf).length} PDFs</span>}<strong className="subject-tile-percent">{item.percent}%</strong></span>
+          <span className="subject-tile-meta"><span className="subject-tile-count">{item.total} {item.total === 1 ? 'material' : 'materiais'}{item.materials.some((material) => material.course.pdf) ? ` · ${item.materials.filter((material) => material.course.pdf).length} PDFs` : ''}</span><strong className="subject-tile-percent">{item.percent}%</strong></span>
           <strong className="subject-tile-title">{item.subject.title}</strong>
-          <small className="muted-text">{item.resume ? `Retomar: ${item.resume.course.title}` : item.total ? 'Tudo concluído por aqui' : 'Nenhum material ainda'}</small>
           <Progress value={item.percent} tone="mint" label={`Progresso em ${item.subject.title}`}/>
-          <span className="subject-tile-open"><span>Caderno</span><span className="subject-open-arrow">Abrir<Icon name="chevron"/></span></span>
+          <span className="subject-tile-open"><Icon name="arrow"/></span>
         </a>)}</div>
       </section>}
 
@@ -246,7 +258,6 @@ export function Library({ state, open, actions }) {
         <div className="library-section-head">
           <span className="card-icon"><Icon name="layers"/></span>
           <div><h2 id="library-courses-title" className="title">Cursos e trilhas</h2><p className="card-subtitle">Aulas, etapas e projetos com o ponto de retomada.</p></div>
-          <span className="metric-label">{trails.length} {trails.length === 1 ? 'item' : 'itens'}</span>
         </div>
         <div className="course-grid" id="library-results">{trails.map(course => <CourseCard key={course.id} course={course} state={state} open={open}/>)}</div>
       </section>}
@@ -255,18 +266,18 @@ export function Library({ state, open, actions }) {
         <div className="library-section-head">
           <span className="card-icon"><Icon name="file"/></span>
           <div><h2 id="library-readings-title" className="title">Materiais e leituras</h2><p className="card-subtitle">PDFs anexados, com a página onde você parou.</p></div>
-          <span className="metric-label">{readings.length} {readings.length === 1 ? 'leitura' : 'leituras'}</span>
         </div>
         <div className="reading-list">{readings.map(course => <CourseCard key={course.id} course={course} state={state} open={open} compact/>)}</div>
       </section>}
 
-      {finished.length > 0 && <section className="library-section" aria-labelledby="library-finished-title">
-        <div className="library-section-head">
-          <span className="card-icon tone-mint"><Icon name="trophy"/></span>
-          <div><h2 id="library-finished-title" className="title">Trilhas concluídas</h2><p className="card-subtitle">Cursos e leituras que você levou até o fim.</p></div>
-          <span className="metric-label">{finished.length} {finished.length === 1 ? 'concluída' : 'concluídas'}</span>
-        </div>
-        <div className="reading-list">{finished.map(course => <CourseCard key={course.id} course={course} state={state} open={open} compact icon="check"/>)}</div>
+      {finished.length > 0 && <section className="library-section library-finished" aria-labelledby="library-finished-title">
+        <button type="button" className="finished-toggle" aria-expanded={showFinished} onClick={() => setShowFinished((value) => !value)}>
+          <Icon name="chevron" className="finished-caret"/>
+          <span className="card-icon tone-mint"><Icon name="check"/></span>
+          <h2 id="library-finished-title" className="title">Concluídos</h2>
+          <span className="metric-label">{finished.length} {finished.length === 1 ? 'material' : 'materiais'}</span>
+        </button>
+        {showFinished && <div className="reading-list">{finished.map(course => <CourseCard key={course.id} course={course} state={state} open={open} compact icon="check"/>)}</div>}
       </section>}
 
       {!courses.length && <Empty title="Nenhum material neste filtro." onAdd={() => open({ type: 'new' })}>Troque o filtro ou importe um curso por link.</Empty>}

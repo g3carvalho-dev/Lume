@@ -10,9 +10,13 @@
   margin-bottom: 0;
 }
 .library-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.library-toolbar .search-field {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .library-filters .filter-tabs {
   max-width: 100%;
@@ -243,17 +247,14 @@
 .course-card-wrap.is-row {
   position: relative;
 }
-.course-card-wrap.is-row:has(.course-menu-button[aria-expanded="true"]) {
-  z-index: 10;
-}
 .reading-row {
   display: grid;
   /* Colunas fixas para progresso e ação: "Ler" e "Revisar" alinham a barra. */
-  grid-template-columns: auto minmax(0, 1fr) minmax(8rem, 12rem) 5.5rem;
+  grid-template-columns: auto minmax(0, 1fr) minmax(8rem, 12rem) 1.25rem;
   align-items: center;
   gap: 0.9rem;
   width: 100%;
-  padding: 0.9rem 3.25rem 0.9rem 1.2rem;
+  padding: 0.9rem 1.2rem;
   border: 0;
   background: transparent;
   color: inherit;
@@ -313,22 +314,16 @@
   color: var(--text-muted);
   backdrop-filter: none;
 }
-.course-card-wrap.is-row .course-menu {
-  position: absolute;
-  top: 50%;
-  right: 0.75rem;
-  transform: translateY(-50%);
-}
 
 @media (max-width: 820px) {
   .subject-card-grid {
     grid-template-columns: minmax(0, 1fr);
   }
   .reading-row {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) 1.25rem;
   }
   .reading-progress {
-    grid-column: 2;
+    grid-column: 2 / 4;
   }
   .reading-row .course-status {
     display: none;
@@ -357,11 +352,14 @@
 
 .subject-tile-open {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   width: 100%;
-  font-size: 0.78rem;
+  color: var(--text);
+}
+.subject-tile-count {
   color: var(--text-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
 }
 .subject-open-arrow {
   display: inline-flex;
@@ -380,7 +378,7 @@
   display: grid;
   gap: 0.65rem;
   align-content: space-between;
-  padding: 1.1rem 2.75rem 1.05rem 1.2rem;
+  padding: 1.1rem 1.2rem 1.05rem;
   border-radius: var(--radius-lg);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -462,18 +460,6 @@
   width: 0.9rem;
   height: 0.9rem;
 }
-.reading-cta {
-  justify-self: stretch;
-  text-align: center;
-  padding: 0.35rem 0.75rem;
-  border-radius: 10px;
-  background: transparent;
-  border: 1px solid var(--border-strong);
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text);
-}
-
 @media (max-width: 820px) {
   #library-results.course-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -482,24 +468,159 @@
 
 /* O menu "…" fica no canto do cartão: a linha de etiquetas e a porcentagem
    reservam o espaço dele. */
-.course-card-wrap:not(.is-row) .stitch-course-top {
-  padding-right: 2.6rem;
+/* Um botão para adicionar material (menu) e um para filtros (painel). */
+.add-menu,
+.library-filter-menu {
+  position: relative;
 }
-/* Celular: tipos numa linha que rola; disciplina e filtro na linha de baixo. */
-@media (max-width: 820px) {
-  .library-filters .kind-tabs {
-    flex: 1 1 100%;
-    min-width: 0;
-  }
-  .library-filters .library-quick-right {
-    width: 100%;
-    flex-wrap: nowrap;
-  }
-  .library-filters .subject-filter {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-  .library-filters .subject-filter select {
-    width: 100%;
-  }
+.add-menu-caret {
+  transform: rotate(90deg);
+}
+.add-menu-list,
+.library-filter-panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 30;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 12px 32px color-mix(in srgb, black 35%, transparent);
+}
+.add-menu-list {
+  display: grid;
+  min-width: 14rem;
+  padding: 0.35rem;
+}
+.add-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+.add-menu-item .icon {
+  color: var(--lume);
+}
+.add-menu-item:hover,
+.add-menu-item:focus-visible {
+  background: var(--surface-2);
+}
+.filter-trigger {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.filter-trigger:hover,
+.filter-trigger[aria-expanded='true'] {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.filter-trigger.has-active {
+  color: var(--lume);
+}
+.filter-trigger-count {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  min-width: 1.1rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--action);
+  color: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.1rem;
+  text-align: center;
+}
+.library-filter-panel {
+  display: grid;
+  gap: 1rem;
+  width: min(24rem, calc(100vw - 2 * var(--page-gutter, 1rem)));
+  padding: 1rem;
+}
+.filter-group {
+  display: grid;
+  gap: 0.45rem;
+}
+.library-filter-panel .kind-tabs {
+  gap: 0.35rem;
+}
+.library-filter-panel .kind-tab {
+  border-color: var(--border);
+}
+.library-filter-panel .subject-filter select {
+  width: 100%;
+}
+
+/* Retomada: título abre os detalhes, um só botão de ação. */
+.resume-title-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.resume-title-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.resume-subject {
+  color: var(--lume);
+  font-family: var(--font-mono);
+}
+.resume-deck {
+  justify-self: start;
+}
+
+.reading-chevron {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--text-subtle);
+}
+.finished-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.finished-toggle:hover {
+  border-color: var(--border-strong);
+}
+.finished-toggle .title {
+  flex: 1;
+  margin: 0;
+  font-size: 1rem;
+}
+.finished-caret {
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-subtle);
+  transition: transform 0.16s ease;
+}
+.finished-toggle[aria-expanded='true'] .finished-caret {
+  transform: rotate(90deg);
 }

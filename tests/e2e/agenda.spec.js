@@ -88,7 +88,8 @@ test('tarefas existentes são agendadas sem cópia e menu continua legível', { 
   const state = addTask(initial(), { title: 'Tarefa preservada', dueDate: '2030-12-01', priority: 1 });
   await seedAccount(page, state);
   await page.goto('/#tarefas');
-  await page.getByRole('button', { name: 'Agendar tarefa Tarefa preservada' }).click();
+  await page.getByRole('button', { name: 'Mais ações de Tarefa preservada' }).click();
+  await page.getByRole('menuitem', { name: 'Agendar tarefa Tarefa preservada' }).click();
   await expect(page.getByLabel('Título do compromisso')).toHaveValue('Tarefa preservada');
   const saved = await saveForm(page);
   expect(saved.tasks).toEqual(state.tasks);

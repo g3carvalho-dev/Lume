@@ -16,8 +16,8 @@ function fixture(t) {
   sql.exec(`INSERT INTO friendships VALUES ('ana','bia','2026-11-13T10:00:00.000Z'), ('bia','ana','2026-11-13T10:00:00.000Z'),
     ('ana','carla','2026-11-13T11:00:00.000Z'), ('carla','ana','2026-11-13T11:00:00.000Z')`);
   sql.exec(`INSERT INTO social_posts (id,user_id,body,kind,ready,created_at) VALUES ('post','ana','Revisando','post',1,'2026-11-13T09:00:00.000Z')`);
-  sql.exec(`INSERT INTO social_comments VALUES ('c1','post','bia','Boa!','2026-11-13T12:00:00.000Z'), ('c2','post','ana','Valeu','2026-11-13T12:30:00.000Z')`);
-  sql.exec(`INSERT INTO social_reactions VALUES ('post','carla','2026-11-13T13:00:00.000Z')`);
+  sql.exec(`INSERT INTO social_comments (id,post_id,user_id,body,created_at) VALUES ('c1','post','bia','Boa!','2026-11-13T12:00:00.000Z'), ('c2','post','ana','Valeu','2026-11-13T12:30:00.000Z')`);
+  sql.exec(`INSERT INTO social_reactions (post_id,user_id,created_at) VALUES ('post','carla','2026-11-13T13:00:00.000Z')`);
   return { db: sqliteAdapter(sql), sql };
 }
 
@@ -37,7 +37,7 @@ test('marcar como visto zera o contador e só o que chega depois volta a contar'
   assert.equal((await listNotifications(db, 'ana', NOW)).unseen, 0);
   await markNotificationsSeen(db, 'ana', NOW - 3600000);
   assert.equal((await listNotifications(db, 'ana', NOW)).unseen, 0, 'o marco não volta no tempo');
-  sql.exec(`INSERT INTO social_comments VALUES ('c3','post','bia','Mais uma','2026-11-13T15:30:00.000Z')`);
+  sql.exec(`INSERT INTO social_comments (id,post_id,user_id,body,created_at) VALUES ('c3','post','bia','Mais uma','2026-11-13T15:30:00.000Z')`);
   assert.equal((await listNotifications(db, 'ana', NOW + 3600000)).unseen, 1);
 });
 

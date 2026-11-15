@@ -16,6 +16,7 @@ test('resposta perdida permite repetir a mesma operação sem duplicar a tarefa'
       await route.abort('failed');
     } else await route.continue();
   });
+  await page.getByRole('button', { name: 'Nova tarefa', exact: true }).click();
   await page.getByLabel('Tarefa', { exact: true }).fill('Revisar concorrência');
   await page.getByRole('button', { name: 'Adicionar tarefa' }).click();
   await expect(page.getByRole('alert')).toContainText('Não foi possível confirmar a gravação');
@@ -39,6 +40,7 @@ test('prévia não carrega dados antigos nem persiste alterações após recarga
   await page.getByRole('button', { name: 'Explorar a prévia' }).click();
   await page.getByRole('button', { name: 'Explorar sem personalizar agora' }).click();
   await page.goto('/#tarefas');
+  await page.getByRole('button', { name: 'Nova tarefa', exact: true }).click();
   await page.getByLabel('Tarefa', { exact: true }).fill('Somente na prévia');
   await page.getByRole('button', { name: 'Adicionar tarefa' }).click();
   await expect(page.getByText('Somente na prévia', { exact: true })).toBeVisible();
@@ -55,9 +57,11 @@ test('duas abas recebem conflito explícito e recarregam sem mesclar documentos'
   const other = await page.context().newPage();
   await other.goto('/#tarefas');
   await expect(other.getByRole('heading', { name: 'Tarefas', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Nova tarefa', exact: true }).click();
   await page.getByLabel('Tarefa', { exact: true }).fill('Primeira aba');
   await page.getByRole('button', { name: 'Adicionar tarefa' }).click();
   await readAccount(page);
+  await other.getByRole('button', { name: 'Nova tarefa', exact: true }).click();
   await other.getByLabel('Tarefa', { exact: true }).fill('Segunda aba');
   await other.getByRole('button', { name: 'Adicionar tarefa' }).click();
   await expect(other.getByRole('alert')).toContainText('A biblioteca mudou');

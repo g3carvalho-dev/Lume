@@ -1,10 +1,12 @@
 import { expect, test } from '@playwright/test';
+import { addMaterial } from '../../public/domain.js';
 import { addPdfMaterial } from '../../public/pdf-domain.js';
 import { libraryActions } from '../../public/library-actions.js';
 import { SOCIAL_IMAGE_BYTES } from '../../public/social-domain.js';
+import { addSlide, setSlideImage } from '../../public/slides-domain.js';
 import { noisePng } from '../fixtures/sample-image.js';
 import { scannedPdf } from '../fixtures/sample-pdf.js';
-import { E2E_ORIGIN, seedAccount } from './library-helpers.js';
+import { E2E_ORIGIN, readAccount, seedAccount } from './library-helpers.js';
 
 async function uploadLibraryPdf(request, bytes, name) {
   const fileId = crypto.randomUUID();
@@ -25,6 +27,58 @@ async function openStorage(page) {
   await page.goto('/#armazenamento');
   await expect(page.getByRole('heading', { name: 'Armazenamento' })).toBeVisible();
 }
+
+test('avatar, capa e imagem de slide existentes são otimizados pelo Armazenamento', async ({ page }) => {
+  await seedAccount(page);
+  const bytes = noisePng({ width: 600, height: 600 });
+  expect(bytes.length).toBeLessThan(SOCIAL_IMAGE_BYTES);
+
+  async function upload(path) {
+    const response = await page.request.put(path, {
+      headers: { origin: E2E_ORIGIN, 'Content-Type': 'image/png' },
+      data: bytes,
+    });
+    expect(response.ok()).toBe(true);
+    return (await response.json()).url;
+  }
+
+  const avatarUrl = await upload('/api/profile/media/avatar');
+  const headerUrl = await upload('/api/profile/media/header');
+  const loaded = await page.request.get('/api/library', { headers: { origin: E2E_ORIGIN } });
+  expect(loaded.ok()).toBe(true);
+  const current = await loaded.json();
+  let next = {
+    ...current.state,
+    profile: { ...(current.state.profile || {}), avatar: avatarUrl, header: headerUrl },
+  };
+  next = addMaterial(next, { title: 'Curso com slide', type: 'article', planning: false }, 'manual');
+  const courseId = next.selectedCourseId;
+  next = addSlide(next, courseId, { title: 'Slide com imagem', body: 'Conteúdo' });
+  const slide = next.courses.find((course) => course.id === courseId).slides[0];
+  const slideUrl = await upload(`/api/slides/media/${encodeURIComponent(courseId)}/${encodeURIComponent(slide.id)}`);
+  next = setSlideImage(next, courseId, slide.id, slideUrl);
+
+  const actions = libraryActions(current.state, next);
+  const saved = await page.request.post('/api/library/actions', {
+    headers: { origin: E2E_ORIGIN },
+    data: { id: crypto.randomUUID(), revision: current.revision, actions },
+  });
+  expect(saved.ok()).toBe(true);
+
+  await openStorage(page);
+  for (const name of ['Foto do perfil', 'Capa do perfil', 'Curso com slide · Slide com imagem']) {
+    const row = page.locator('.cfg-storage-item').filter({ hasText: name });
+    await expect(row).toBeVisible();
+    await row.getByRole('button', { name: 'Otimizar' }).click();
+    await expect(page.getByRole('status').getByText(/Imagem otimizada:/)).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Otimizar' })).toBeEnabled();
+  }
+
+  const account = await readAccount(page);
+  expect(account.profile.avatar).not.toBe(avatarUrl);
+  expect(account.profile.header).not.toBe(headerUrl);
+  expect(account.courses.find((course) => course.id === courseId).slides[0].image).not.toBe(slideUrl);
+});
 
 test('PDF existente da Biblioteca é otimizado pela tela de armazenamento', async ({ page }) => {
   await seedAccount(page);

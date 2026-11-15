@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { createInitialState } from '../../public/domain.js';
 import { addSubject } from '../../public/subject-domain.js';
 import { penalPdf, scannedPdf } from '../fixtures/sample-pdf.js';
-import { seedAccount, readAccount, E2E_ORIGIN } from './library-helpers.js';
+import { seedAccount, readAccount, E2E_ORIGIN, addMaterial } from './library-helpers.js';
 
 function seeded() {
   return addSubject({ ...createInitialState(), onboarded: true }, { title: 'Processo Penal', keywords: ['inquerito', 'prisao preventiva'] }, 'penal');
@@ -12,7 +12,7 @@ test('anexar PDF, vincular à disciplina, ler no leitor e retomar na página dep
   await seedAccount(page, seeded());
   await page.goto('/#biblioteca');
   await expect(page.getByRole('heading', { name: 'Biblioteca', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Anexar PDF', exact: true }).click();
+  await addMaterial(page, 'Anexar PDF');
 
   const dialog = page.getByRole('dialog');
   await dialog.locator('input[type=file]').setInputFiles({ name: 'apostila-penal.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
@@ -55,10 +55,85 @@ test('anexar PDF, vincular à disciplina, ler no leitor e retomar na página dep
   await expect(card.getByRole('button', { name: /Continuar: Apostila de Processo Penal · p\. 4/ })).toBeVisible();
 });
 
+test('leitor de PDF registra leitura automática, pausa por inatividade e retoma com interação', async ({ page }) => {
+  await seedAccount(page, seeded());
+  await page.goto('/#biblioteca');
+  await addMaterial(page, 'Anexar PDF');
+  const dialog = page.getByRole('dialog');
+  await dialog.locator('input[type=file]').setInputFiles({ name: 'apostila-penal.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
+  await dialog.getByRole('button', { name: 'Anexar PDF' }).click();
+  await expect(dialog.locator('.pdf-page canvas')).toBeVisible();
+  const status = dialog.getByRole('group', { name: 'Tempo de leitura' });
+  await expect(status).toContainText('Lendo');
+  const opened = await readAccount(page);
+  expect(opened.activeSession).toMatchObject({ origin: 'reading' });
+  expect(opened.activeSession.label).toContain('Leitura');
+
+  await dialog.getByRole('button', { name: 'Voltar para a biblioteca' }).click();
+  const firstClose = await readAccount(page);
+  expect(firstClose.activeSession).toBeNull();
+  expect(firstClose.studySessions.at(-1).origin).toBe('reading');
+
+  await page.clock.install();
+  await page.locator('.reading-row').filter({ hasText: 'Apostila de Processo Penal' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /Abrir no leitor|Continuar na p\./ }).click();
+  await expect(dialog.locator('.pdf-page canvas')).toBeVisible();
+  await expect(status).toContainText('Lendo');
+  await page.clock.fastForward(5 * 60 * 1000 + 15000);
+  await expect(status).toContainText('Pausado por inatividade');
+  await dialog.locator('.pdf-stage').click({ position: { x: 12, y: 12 } });
+  await expect(status).toContainText('Lendo');
+});
+
+test('preferência desligada não inicia registro automático ao abrir o PDF', async ({ page }) => {
+  const state = seeded();
+  state.preferences = { ...state.preferences, readingTimer: false };
+  await seedAccount(page, state);
+  await page.goto('/#biblioteca');
+  await addMaterial(page, 'Anexar PDF');
+  const dialog = page.getByRole('dialog');
+  await dialog.locator('input[type=file]').setInputFiles({ name: 'apostila-penal.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
+  await dialog.getByRole('button', { name: 'Anexar PDF' }).click();
+  await expect(dialog.locator('.pdf-page canvas')).toBeVisible();
+  await expect(dialog.getByRole('group', { name: 'Tempo de leitura' })).toHaveCount(0);
+  const saved = await readAccount(page);
+  expect(saved.activeSession).toBeNull();
+});
+
+test('sessão pausada de foco pede escolha antes de registrar leitura', async ({ page }) => {
+  const pausedAt = new Date(Date.now() - 60000).toISOString();
+  await seedAccount(page, {
+    ...createInitialState(),
+    onboarded: true,
+    activeSession: {
+      id: 'paused-focus',
+      courseId: '',
+      stepId: '',
+      label: 'Sessão de foco pausada',
+      origin: 'focus',
+      status: 'paused',
+      startedAt: pausedAt,
+      lastTickAt: pausedAt,
+      accumulatedMs: 60000,
+    },
+  });
+  await page.goto('/#biblioteca');
+  await addMaterial(page, 'Anexar PDF');
+  const dialog = page.getByRole('dialog');
+  await dialog.locator('input[type=file]').setInputFiles({ name: 'apostila-penal.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
+  await dialog.getByRole('button', { name: 'Anexar PDF' }).click();
+  const choice = dialog.getByRole('alertdialog');
+  await expect(choice).toContainText('Você tem uma sessão pausada');
+  await choice.getByRole('button', { name: 'Encerrar e registrar leitura' }).click();
+  const saved = await readAccount(page);
+  expect(saved.activeSession).toMatchObject({ origin: 'reading' });
+  expect(saved.studySessions.find((session) => session.id === 'paused-focus')).toBeTruthy();
+});
+
 test('concluir o PDF registra a leitura uma vez e excluir libera o arquivo', async ({ page }) => {
   await seedAccount(page, seeded());
   await page.goto('/#biblioteca');
-  await page.getByRole('button', { name: 'Anexar PDF', exact: true }).click();
+  await addMaterial(page, 'Anexar PDF');
   const dialog = page.getByRole('dialog');
   await dialog.locator('input[type=file]').setInputFiles({ name: 'apostila-penal.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
   await expect(dialog.getByText(/6 páginas/)).toBeVisible();
@@ -85,7 +160,7 @@ test('concluir o PDF registra a leitura uma vez e excluir libera o arquivo', asy
 test('PDF recém-anexado fica não iniciado e o marca-texto marca, troca a cor e apaga', async ({ page }) => {
   await seedAccount(page, seeded());
   await page.goto('/#biblioteca');
-  await page.getByRole('button', { name: 'Anexar PDF', exact: true }).click();
+  await addMaterial(page, 'Anexar PDF');
   const dialog = page.getByRole('dialog');
   await dialog.locator('input[type=file]').setInputFiles({ name: 'apostila-penal.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
   await expect(dialog.getByText(/6 páginas/)).toBeVisible();
@@ -133,7 +208,7 @@ test('PDF recém-anexado fica não iniciado e o marca-texto marca, troca a cor e
 test('PDF digitalizado só é enviado depois de optar pela redução com perda', async ({ page }) => {
   await seedAccount(page);
   await page.goto('/#biblioteca');
-  await page.getByRole('button', { name: 'Anexar PDF', exact: true }).click();
+  await addMaterial(page, 'Anexar PDF');
   const dialog = page.getByRole('dialog');
   const source = scannedPdf();
   expect(source.length).toBeGreaterThan(10 * 1024 * 1024);
@@ -167,7 +242,7 @@ test('no celular, o leitor de PDF ocupa a tela sem controles sobrepostos e as te
   }
 
   await page.goto('/#biblioteca');
-  await page.getByRole('button', { name: 'Anexar PDF', exact: true }).click();
+  await addMaterial(page, 'Anexar PDF');
   const dialog = page.getByRole('dialog');
   await dialog.locator('input[type=file]').setInputFiles({ name: 'apostila-penal.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
   await dialog.getByRole('button', { name: 'Anexar PDF' }).click();

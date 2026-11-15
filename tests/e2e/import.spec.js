@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { materialSteps } from '../../public/material-model.js';
-import { seedAccount, readAccount } from './library-helpers.js';
+import { seedAccount, readAccount, addMaterial } from './library-helpers.js';
 import { createInitialState, STORAGE_KEY } from '../../public/domain.js';
 
 // Cenários de importação. O fluxo por texto usa a API real do servidor local
@@ -16,7 +16,7 @@ async function openLibrary(page) {
 
 test('erro de link, fonte protegida e falha de rede preservam a escolha', async ({ page }) => {
   await openLibrary(page);
-  await page.getByRole('button', { name: 'Adicionar curso', exact: true }).click();
+  await addMaterial(page, 'Adicionar curso');
 
   // Link inválido: erro recuperável, sem perder o que foi digitado.
   await page.getByLabel('Link do curso').fill('nao-e-um-link');
@@ -59,7 +59,7 @@ test('erro de link, fonte protegida e falha de rede preservam a escolha', async 
 
 test('seleção parcial, reimportação sem duplicata e progresso preservado', async ({ page }) => {
   await openLibrary(page);
-  await page.getByRole('button', { name: 'Adicionar curso', exact: true }).click();
+  await addMaterial(page, 'Adicionar curso');
   await page.getByRole('tab', { name: 'Colar a grade' }).click();
   await page.getByLabel('Nome do curso (opcional)').fill('Preparatório OAB');
   await page.getByLabel('Grade do curso', { exact: true }).fill([
@@ -135,7 +135,7 @@ test('biblioteca vazia pergunta a área e cria a primeira trilha sem XP', async 
 
 test('página copiada da conta vira revisão sem enviar sessão', async ({ page }) => {
   await openLibrary(page);
-  await page.getByRole('button', { name: 'Adicionar curso', exact: true }).click();
+  await addMaterial(page, 'Adicionar curso');
   await page.getByRole('tab', { name: 'Colar a grade' }).click();
 
   let sent = null;

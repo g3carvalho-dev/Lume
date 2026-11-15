@@ -25,6 +25,7 @@ const Profile = lazy(() => import('../features/social/Profile.jsx'));
 const Agenda = lazy(() => import('../features/agenda/Agenda.jsx'));
 const Ranking = lazy(() => import('../features/social/Ranking.jsx'));
 const AddFriends = lazy(() => import('../features/social/AddFriends.jsx'));
+const Reports = lazy(() => import('../features/social/Reports.jsx'));
 const Messages = lazy(() => import('../features/social/Messages.jsx'));
 const Subjects = lazy(() => import('../features/library/Subjects.jsx'));
 const FocusSession = lazy(() => import('../features/progress/FocusSession.jsx'));
@@ -80,7 +81,7 @@ const ROUTES = [
   { id: 'tarefas', title: 'Tarefas', loading: 'panel', section: 'plano', tab: 'Tarefas', tabIcon: 'check', hideTabs: () => true, render: (ctx) => <Tasks state={ctx.state} actions={ctx.model.planActions} notify={ctx.notify} onSchedule={(task) => ctx.go(`agenda?tarefa=${encodeURIComponent(task.id)}`)}/> },
 
   { id: 'amigos', title: 'Social', section: 'amigos', tab: 'Feed', hideTabs: () => true, render: (ctx) => <Friends account={ctx.model.account} state={ctx.state} xp={ctx.model.xp} inviteCode={ctx.params.get('convite') || ''} notify={ctx.notify} go={ctx.go}/> },
-  { id: 'mensagens', title: 'Mensagens', section: 'amigos', tab: 'Mensagens', render: (ctx) => <Messages account={ctx.model.account} state={ctx.state} notify={ctx.notify} go={ctx.go} contactId={ctx.params.get('com') || ''}/> },
+  { id: 'mensagens', title: 'Mensagens', section: 'amigos', tab: 'Mensagens', render: (ctx) => <Messages account={ctx.model.account} state={ctx.state} notify={ctx.notify} go={ctx.go} contactId={ctx.params.get('com') || ''} groupId={ctx.params.get('grupo') || ''}/> },
   { id: 'ranking', title: 'Ranking', section: 'amigos', tab: 'Ranking', render: (ctx) => <Ranking account={ctx.model.account} xp={ctx.model.xp} refreshXP={ctx.model.refreshXP} notify={ctx.notify} go={ctx.go}/> },
   { id: 'adicionar', title: 'Adicionar amigos', section: 'amigos', tab: 'Amigos', tabIcon: 'users', render: (ctx) => <AddFriends account={ctx.model.account} notify={ctx.notify} go={ctx.go}/> },
 
@@ -88,9 +89,10 @@ const ROUTES = [
   // Perfil de uma amizade (#perfil?id=) não mostra as abas da própria conta.
   { id: 'perfil', title: 'Perfil', loading: 'panel', section: 'perfil', tab: 'Meu perfil', hideTabs: (ctx) => Boolean(ctx.params.get('id') || ctx.params.get('u')), render: (ctx) => <Profile id={ctx.params.get('id') || ''} handle={ctx.params.get('u') || ''} state={ctx.state} actions={ctx.model.settingsActions} account={ctx.model.account} notify={ctx.notify} go={ctx.go} xp={ctx.model.xp}/> },
   { id: 'conquistas', title: 'Conquistas', loading: 'cards', section: 'perfil', tab: 'Conquistas', render: (ctx) => <Achievements state={ctx.state} account={ctx.model.account} xp={ctx.model.xp}/> },
-  { id: 'armazenamento', title: 'Armazenamento', loading: 'panel', section: 'perfil', tab: 'Armazenamento', render: (ctx) => <StoragePage state={ctx.state} account={ctx.model.account} libraryActions={ctx.model.libraryActions} confirmSave={ctx.model.confirmSave} notify={ctx.notify} open={ctx.open} go={ctx.go}/> },
+  { id: 'armazenamento', title: 'Armazenamento', loading: 'panel', section: 'perfil', tab: 'Armazenamento', render: (ctx) => <StoragePage state={ctx.state} account={ctx.model.account} libraryActions={ctx.model.libraryActions} settingsActions={ctx.model.settingsActions} confirmSave={ctx.model.confirmSave} notify={ctx.notify} open={ctx.open} go={ctx.go}/> },
   { id: 'configuracoes', title: 'Configurações', loading: 'panel', section: 'perfil', tab: 'Configurações', render: (ctx) => <Preferences state={ctx.state} actions={ctx.model.settingsActions} libraryActions={ctx.model.libraryActions} confirmSave={ctx.model.confirmSave} account={ctx.model.account} notify={ctx.notify} go={ctx.go} open={ctx.open} xp={ctx.model.xp} refreshXP={ctx.model.refreshXP} initialSection={ctx.params.get('secao') || ''} onPersonalize={() => ctx.go('inicio')}/> },
 
+  { id: 'denuncias', title: 'Denúncias', loading: 'panel', render: (ctx) => <Reports account={ctx.model.account} notify={ctx.notify}/> },
   { id: 'novidades', title: 'Novidades', render: (ctx) => <News go={ctx.go} focusId={ctx.params.get('id') || ''}/> },
   { id: 'aplicativo', title: 'Conexões', loading: 'panel', section: 'perfil', render: (ctx) => <Preferences state={ctx.state} actions={ctx.model.settingsActions} libraryActions={ctx.model.libraryActions} confirmSave={ctx.model.confirmSave} account={ctx.model.account} notify={ctx.notify} go={ctx.go} open={ctx.open} xp={ctx.model.xp} refreshXP={ctx.model.refreshXP} initialSection="conexoes" onPersonalize={() => ctx.go('inicio')}/> },
 ];
