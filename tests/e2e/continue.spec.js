@@ -113,7 +113,7 @@ test('focar uma tarefa a coloca no cartão principal da Hoje, sobrevive ao recar
   await expect(page.getByRole('button', { name: 'Tirar A2 – Falência do foco' })).toHaveAttribute('aria-pressed', 'true');
 
   // A sessão de foco leva o nome do foco.
-  await page.locator('section.next-action').getByRole('button', { name: 'Sessão de foco' }).click();
+  await page.getByRole('navigation', { name: 'Navegação' }).getByRole('link', { name: 'Foco', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sessão de foco', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Iniciar foco' }).click();
   await expect(page.getByText('Sessão em andamento: A2 – Falência')).toBeVisible();
@@ -172,11 +172,11 @@ test('Início mostra o módulo como constelação, as entregas em contagem regre
   await expect(card.locator('.constellation-todo')).toHaveCount(2);
 
   const countdown = page.locator('.countdown');
-  await expect(countdown).toHaveCount(2);
+  await expect(countdown).toHaveCount(1);
   await expect(countdown.first()).toHaveClass(/is-next/);
   await expect(countdown.first()).toContainText('Relatório de Física');
   await expect(countdown.first().locator('.countdown-number')).toHaveText('2');
-  await expect(countdown.nth(1)).toContainText('Lista de exercícios');
+  await expect(page.locator('.today-tasks')).toContainText('Lista de exercícios');
 
   await expect(page.locator('.week-day')).toHaveCount(7);
   await expect(page.locator('.week-day.is-today')).toHaveCount(1);

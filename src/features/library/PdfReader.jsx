@@ -32,6 +32,111 @@ function selectionRects(range, box) {
     .map((rect) => ({ x: (rect.left - box.left) / box.width, y: (rect.top - box.top) / box.height, w: rect.width / box.width, h: rect.height / box.height }));
 }
 
+// Mantém a seleção restrita aos trechos de texto do pdf.js sem saltar nem flickar
+// quando o ponteiro passa pelos vãos entre spans (técnica do TextLayerBuilder).
+function bindTextLayerSelection(container, signal) {
+  const endOfContent = document.createElement('div');
+  endOfContent.className = 'endOfContent';
+  container.append(endOfContent);
+
+  let isPointerDown = false;
+  let prevRange = null;
+  let useSimpleSelection = null;
+
+  const reset = () => {
+    if (endOfContent.parentNode !== container || endOfContent !== container.lastElementChild) {
+      container.append(endOfContent);
+    }
+    endOfContent.style.width = '';
+    endOfContent.style.height = '';
+    endOfContent.style.userSelect = '';
+    container.classList.remove('selecting');
+  };
+
+  container.addEventListener('pointerdown', () => {
+    isPointerDown = true;
+    container.classList.add('selecting');
+  }, { signal });
+
+  document.addEventListener('pointerup', () => {
+    isPointerDown = false;
+    reset();
+  }, { signal });
+
+  window.addEventListener('blur', () => {
+    isPointerDown = false;
+    reset();
+  }, { signal });
+
+  document.addEventListener('keyup', () => {
+    if (!isPointerDown) reset();
+  }, { signal });
+
+  document.addEventListener('selectionchange', () => {
+    const selection = document.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      reset();
+      prevRange = null;
+      return;
+    }
+    let active = false;
+    for (let i = 0; i < selection.rangeCount; i += 1) {
+      const range = selection.getRangeAt(i);
+      if (range.collapsed && !isPointerDown) continue;
+      if (range.intersectsNode(container)) {
+        active = true;
+        break;
+      }
+    }
+    if (!active) {
+      reset();
+      prevRange = null;
+      return;
+    }
+    container.classList.add('selecting');
+
+    if (useSimpleSelection === null) {
+      useSimpleSelection = getComputedStyle(endOfContent).getPropertyValue('-moz-user-select') === 'none';
+      if (!useSimpleSelection) {
+        const chromiumBrand = navigator.userAgentData?.brands?.find(({ brand }) => brand === 'Chromium')?.version;
+        const chromeVersion = chromiumBrand || /\bChrome\/(\d+)\b/.exec(navigator.userAgent)?.[1];
+        useSimpleSelection = Boolean(chromeVersion) && parseInt(chromeVersion, 10) >= 148;
+      }
+    }
+    if (useSimpleSelection) return;
+
+    const range = selection.getRangeAt(0);
+    const modifyStart = prevRange && (
+      range.compareBoundaryPoints(Range.END_TO_END, prevRange) === 0 ||
+      range.compareBoundaryPoints(Range.START_TO_END, prevRange) === 0
+    );
+    let anchor = modifyStart ? range.startContainer : range.endContainer;
+    if (anchor.nodeType === Node.TEXT_NODE) anchor = anchor.parentNode;
+    if (!anchor || anchor === container || !container.contains(anchor)) {
+      prevRange = range.cloneRange();
+      return;
+    }
+    if (!modifyStart && range.endOffset === 0) {
+      while (anchor && anchor !== container && !anchor.previousSibling) {
+        anchor = anchor.parentNode;
+      }
+      if (anchor && anchor !== container && anchor.previousSibling) {
+        anchor = anchor.previousSibling;
+        while (anchor && !anchor.childNodes.length && anchor.previousSibling) {
+          anchor = anchor.previousSibling;
+        }
+      }
+    }
+    if (anchor && anchor !== container && anchor.parentElement && container.contains(anchor.parentElement)) {
+      endOfContent.style.width = container.style.width;
+      endOfContent.style.height = container.style.height;
+      endOfContent.style.userSelect = 'text';
+      anchor.parentElement.insertBefore(endOfContent, modifyStart ? anchor : anchor.nextSibling);
+    }
+    prevRange = range.cloneRange();
+  }, { signal });
+}
+
 function SubjectSelect({ state, course, actions, label = 'Disciplina' }) {
   return <label className="field pdf-subject-field">{label}
     <select value={course.subjectId || ''} onChange={(event) => actions.linkSubject(course.id, event.target.value)}>
@@ -185,12 +290,12 @@ export default function PdfReader({ course, state, actions, progressActions, not
   // Desenho da página: canvas na largura do palco e camada de texto selecionável.
   useEffect(() => {
     if (!doc || !width) return undefined;
-    let cancelled = false;
+    const controller = new AbortController();
     let task = null;
     let text = null;
     (async () => {
       const pdfPage = await doc.getPage(page);
-      if (cancelled) return;
+      if (controller.signal.aborted) return;
       const base = pdfPage.getViewport({ scale: 1 });
       const scale = Math.max(0.3, (width - 56) / base.width) * zoom;
       const viewport = pdfPage.getViewport({ scale });
@@ -202,15 +307,17 @@ export default function PdfReader({ course, state, actions, progressActions, not
       target.style.height = `${Math.floor(viewport.height)}px`;
       task = pdfPage.render({ canvas: target, viewport, transform: ratio !== 1 ? [ratio, 0, 0, ratio, 0, 0] : undefined });
       await task.promise.catch(() => {});
-      if (cancelled) return;
+      if (controller.signal.aborted) return;
       const container = layer.current;
       container.replaceChildren();
       container.style.setProperty('--total-scale-factor', String(scale));
       const { TextLayer } = await import('pdfjs-dist');
       text = new TextLayer({ textContentSource: pdfPage.streamTextContent(), container, viewport });
       await text.render().catch(() => {});
+      if (controller.signal.aborted) return;
+      bindTextLayerSelection(container, controller.signal);
     })();
-    return () => { cancelled = true; task?.cancel(); text?.cancel?.(); };
+    return () => { controller.abort(); task?.cancel(); text?.cancel?.(); };
   }, [doc, page, width, zoom]);
 
   useEffect(() => {

@@ -93,6 +93,19 @@ test('PDF recém-anexado fica não iniciado e o marca-texto marca, troca a cor e
   await expect(dialog.locator('.pdf-page canvas')).toBeVisible();
   await expect(dialog.locator('.textLayer span').first()).toBeVisible();
 
+  // Arrastar pela camada de texto (passando pelo vão abaixo do span) não deve selecionar a página inteira.
+  const firstSpan = dialog.locator('.textLayer span').first();
+  const spanBox = await firstSpan.boundingBox();
+  await page.mouse.move(spanBox.x + 4, spanBox.y + spanBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(spanBox.x + spanBox.width * 0.6, spanBox.y + spanBox.height + 12, { steps: 5 });
+  await page.mouse.up();
+  const selected = await page.evaluate(() => window.getSelection()?.toString() || '');
+  const fullText = await dialog.locator('.textLayer').innerText();
+  expect(selected.length).toBeGreaterThan(0);
+  expect(selected.length).toBeLessThan(fullText.length);
+  await page.evaluate(() => window.getSelection()?.removeAllRanges());
+
   await dialog.getByRole('button', { name: 'Marca-texto' }).click();
   await dialog.getByRole('radio', { name: 'Verde' }).click();
   await dialog.locator('.textLayer span').first().selectText();

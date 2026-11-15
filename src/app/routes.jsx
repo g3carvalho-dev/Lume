@@ -33,11 +33,12 @@ const ScheduleSession = lazy(() => import('../features/agenda/ScheduleSession.js
 const News = lazy(() => import('../features/news/News.jsx'));
 const Landing = lazy(() => import('../features/account/Landing.jsx'));
 
-// Quatro destinos no cabeçalho; as demais telas ficam em abas ou no menu da conta.
+// Cinco destinos no cabeçalho; as demais telas ficam em abas ou no menu da conta.
 export const SECTIONS = {
   hoje: { label: 'Início', icon: 'home', home: 'hoje' },
   biblioteca: { label: 'Biblioteca', icon: 'book', home: 'biblioteca' },
   plano: { label: 'Plano de Estudos', icon: 'calendar', home: 'plano' },
+  foco: { label: 'Foco', icon: 'timer', home: 'foco' },
   amigos: { label: 'Social', icon: 'users', home: 'amigos' },
   // Perfil, Conquistas e Configurações abrem pelo menu da conta, não pelo cabeçalho.
   perfil: { label: 'Perfil', icon: 'user', home: 'perfil', nav: false },
@@ -69,8 +70,7 @@ const ROUTES = [
   { id: 'redefinir', title: 'Nova senha', render: (ctx) => <Recovery key={ctx.hash} reset notify={ctx.notify} go={ctx.go}/> },
 
   { id: 'hoje', title: 'Início', loading: 'panel', section: 'hoje', render: (ctx) => <Home state={ctx.state} open={ctx.open} go={ctx.go} planActions={ctx.model.planActions} progressActions={ctx.model.progressActions} notify={ctx.notify} account={ctx.model.account} xp={ctx.model.xp}/> },
-  // Telas de ação sem aba própria: o menu continua marcando a seção de origem.
-  { id: 'foco', title: 'Sessão de foco', section: 'hoje', hideTabs: () => true, render: (ctx) => <FocusSession state={ctx.state} actions={ctx.model.progressActions} settingsActions={ctx.model.settingsActions} open={ctx.open} go={ctx.go} notify={ctx.notify} account={ctx.model.account} xp={ctx.model.xp}/> },
+  { id: 'foco', title: 'Sessão de foco', section: 'foco', hideTabs: () => true, render: (ctx) => <FocusSession state={ctx.state} actions={ctx.model.progressActions} settingsActions={ctx.model.settingsActions} open={ctx.open} go={ctx.go} notify={ctx.notify} account={ctx.model.account} xp={ctx.model.xp}/> },
 
   { id: 'biblioteca', title: 'Biblioteca', loading: 'cards', section: 'biblioteca', tab: 'Materiais', hideTabs: () => true, render: (ctx) => <Library state={ctx.state} open={ctx.open} go={ctx.go} actions={ctx.model.libraryActions}/> },
   { id: 'disciplinas', title: 'Disciplinas', loading: 'cards', section: 'biblioteca', tab: 'Disciplinas', render: (ctx) => <Subjects key={ctx.params.get('id') || 'todas'} state={ctx.state} actions={ctx.model.libraryActions} open={ctx.open} go={ctx.go} notify={ctx.notify} id={ctx.params.get('id') || ''}/> },

@@ -115,6 +115,31 @@ export function Home({ state, open, go, planActions, notify, account }) {
     if (planActions.focusTask(task.id)) notify(`Foco agora: ${task.title}.`);
   }
 
+  const wide = useWideRail();
+  const [showActive, setShowActive] = useState(() => {
+    try {
+      return localStorage.getItem('lume:today-active-rail') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  function toggleActive() {
+    setShowActive((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('lume:today-active-rail', String(next));
+      } catch {
+        // Ignora falha de armazenamento em navegação privada.
+      }
+      return next;
+    });
+  }
+  const friendsResource = useResource('/api/friends', { interval: 45000, enabled: Boolean(account) });
+  const friends = friendsResource.data?.friends || [];
+  const activeFriends = friends
+    .filter((friend) => friend.activity?.active)
+    .sort((a, b) => Number(b.activity?.status === 'studying') - Number(a.activity?.status === 'studying') || a.name.localeCompare(b.name, 'pt-BR'));
+
   const today = localDay();
   const firstName = (account?.name || '').split(' ')[0];
   const hour = new Date().getHours();
@@ -124,19 +149,34 @@ export function Home({ state, open, go, planActions, notify, account }) {
   const trailLabel = trail
     ? `${trail.module || action.courseTitle}: ${plural(trail.done, `${unit} concluída`, `${unit}s concluídas`)} de ${trail.nodes.length}; a atual é ${action.title}.`
     : '';
-  const focusButton = (primary = false) => <Button secondary={!primary} onClick={() => go('foco')}><Icon name="timer"/>Sessão de foco</Button>;
 
-  return <div className="study-root today-root">
-    <section className="today-welcome" aria-labelledby="today-title">
-      <h1 id="today-title" className="sr-only">Início</h1>
-      <div className="today-date">
-        <span>{shortDate(today)}</span>
-        <button type="button" className="today-rhythm" onClick={() => go('inicio')} title="Ajustar seu ritmo">ritmo: {plan.title.toLowerCase()}</button>
-      </div>
-      <p className="today-greeting">{greeting}{firstName ? `, ${firstName}` : ''}.<span>{headlineFor({ focus, action, trail, unit })}</span></p>
-    </section>
+  return <div className={`study-root today-root ${showActive ? 'has-active-panel' : ''}`}>
+    <div className="today-workspace-main">
+      <section className="today-welcome" aria-labelledby="today-title">
+        <h1 id="today-title" className="sr-only">Início</h1>
+        <div className="today-date">
+          <div className="today-date-meta">
+            <span>{shortDate(today)}</span>
+          </div>
+          {!showActive && <button
+            type="button"
+            className="today-active-toggle"
+            aria-expanded="false"
+            aria-controls="active-rail-panel"
+            onClick={toggleActive}
+            title="Mostrar Ativos agora"
+          >
+            <Icon name="users"/>
+            <span>Ativos</span>
+            {account && friendsResource.data && <>
+              <span className={`today-active-dot ${activeFriends.length ? 'is-live' : ''}`} aria-hidden="true"/>
+              <span className="today-active-count">{activeFriends.length}</span>
+            </>}
+          </button>}
+        </div>
+        <p className="today-greeting">{greeting}{firstName ? `, ${firstName}` : ''}.<span>{headlineFor({ focus, action, trail, unit })}</span></p>
+      </section>
 
-    <div className="today-layout">
       <div className="today-main">
         <section className={`card-surface next-action today-resume ${focus ? 'is-focus' : ''}`} aria-labelledby="next-title">
           {focus ? <>
@@ -154,10 +194,12 @@ export function Home({ state, open, go, planActions, notify, account }) {
               </div>
             </div>
             <div className="action-row">
-              {focusButton(true)}
-              {focusLesson && <Button secondary onClick={() => open({ type: 'session', id: focusCourse.id, stepId: focusLesson.id })}><Icon name="check"/>Abrir a aula</Button>}
-              <Button secondary onClick={() => completeTask(focus)}><Icon name="check"/>Concluir tarefa</Button>
-              {focusCourse && <Button ghost onClick={() => open({ type: 'course', id: focusCourse.id })}>Abrir na biblioteca</Button>}
+              {focusLesson
+                ? <>
+                  <Button onClick={() => open({ type: 'session', id: focusCourse.id, stepId: focusLesson.id })}><Icon name="play"/>Abrir a aula</Button>
+                  <Button secondary onClick={() => completeTask(focus)}><Icon name="check"/>Concluir tarefa</Button>
+                </>
+                : <Button onClick={() => completeTask(focus)}><Icon name="check"/>Concluir tarefa</Button>}
               <Button ghost onClick={() => toggleFocus(focus)}>Tirar do foco</Button>
             </div>
           </> : action?.pdf ? <>
@@ -174,9 +216,8 @@ export function Home({ state, open, go, planActions, notify, account }) {
             <p className="today-reason"><strong>{action.reason.label}.</strong> {action.reason.detail}</p>
             <div className="action-row">
               <Button onClick={() => open({ type: 'pdf', id: action.courseId })}><Icon name="book"/>{action.pdf.started ? `Continuar na p. ${action.pdf.page}` : 'Abrir no leitor'}</Button>
-              {focusButton()}
-              <Button ghost onClick={() => open({ type: 'course', id: action.courseId })}>Abrir na biblioteca</Button>
               {reward > 0 && <span className="today-reward">+{reward} xp ao concluir a leitura</span>}
+              <a className="text-link today-swap-link" href="#biblioteca">Trocar material</a>
             </div>
           </> : action ? <>
             <div className="today-resume-top">
@@ -191,10 +232,8 @@ export function Home({ state, open, go, planActions, notify, account }) {
               {prepare
                 ? <Button onClick={() => open({ type: 'session', id: action.courseId, preparation: true })}><Icon name="book"/>Preparar o material</Button>
                 : <Button onClick={() => open({ type: 'session', id: action.courseId, stepId: action.lessonId })}><Icon name="play"/>Continuar {unit} {trail.position}</Button>}
-              {focusButton()}
-              {!action.imported && <Button ghost onClick={() => open({ type: 'session', id: action.courseId, preparation: !prepare })}>{prepare ? 'Ir direto à etapa' : 'Dividir em um passo menor'}</Button>}
-              <Button ghost onClick={() => open({ type: 'course', id: action.courseId })}>Abrir na biblioteca</Button>
               {reward > 0 && <span className="today-reward">+{reward} xp ao concluir</span>}
+              <a className="text-link today-swap-link" href="#biblioteca">Trocar material</a>
             </div>
           </> : <>
             <div className="today-resume-top">
@@ -204,121 +243,114 @@ export function Home({ state, open, go, planActions, notify, account }) {
             <p className="today-resume-sub">Importe um curso por link, anexe um PDF ou crie um material. A próxima aula aparece aqui com o tempo sugerido.</p>
             <div className="action-row">
               <Button onClick={() => go('biblioteca')}><Icon name="plus"/>Ir para a biblioteca</Button>
-              {focusButton()}
             </div>
           </>}
         </section>
 
-        <Upcoming state={state} today={today}/>
-
-        <section className="card-surface today-tasks" aria-labelledby="today-tasks-title">
-          <div className="today-card-head">
-            <h2 id="today-tasks-title" className="title">Plano do dia <span className="today-count">{agenda.pending}</span></h2>
-            <a className="text-link" href="#tarefas">Abrir lista</a>
-          </div>
-          {agenda.overdue > 0 && <p className="inline-note todo-overdue-note" role="status"><Icon name="flag"/><span>{overdueMessage(agenda.overdue)}</span></p>}
-          {agenda.next.length
-            ? <ul className="today-task-list">{agenda.next.map((task) => {
-              const late = isOverdue(task);
-              return <li key={task.id} className={`todo-item ${focus?.id === task.id ? 'is-focus' : ''}`}>
-                <button
-                  type="button"
-                  aria-pressed={focus?.id === task.id}
-                  title={focus?.id === task.id ? 'Tirar do foco' : 'Focar no Início'}
-                  aria-label={focus?.id === task.id ? `Tirar ${task.title} do foco` : `Focar em ${task.title} no Início`}
-                  className="todo-focus"
-                  onClick={() => toggleFocus(task)}
-                >
-                  <Icon name="focus"/>
-                </button>
-                <span className="todo-copy">
-                  <strong>{task.title}</strong>
-                  <small className="todo-meta">{focus?.id === task.id ? 'em foco · ' : ''}{task.dueDate ? shortDate(task.dueDate) : 'sem prazo'}</small>
-                </span>
-                <span className="today-task-right">
-                  {(late || task.priority > 0) && <span className={`task-priority ${late ? 'p-late' : `p-${task.priority}`}`}>{late ? 'Atrasada' : priorityLabel(task.priority)}</span>}
+        <div className="today-lower-grid">
+          <section className="card-surface today-tasks" aria-labelledby="today-tasks-title">
+            <div className="today-card-head">
+              <h2 id="today-tasks-title" className="title">Para hoje <span className="today-count">{agenda.pending}</span></h2>
+              <a className="text-link" href="#tarefas">Ver plano<Icon name="arrow"/></a>
+            </div>
+            {agenda.overdue > 0 && <p className="inline-note todo-overdue-note" role="status"><Icon name="flag"/><span>{overdueMessage(agenda.overdue)}</span></p>}
+            {agenda.next.length
+              ? <ul className="today-task-list">{agenda.next.map((task) => {
+                const late = isOverdue(task);
+                return <li key={task.id} className={`todo-item ${focus?.id === task.id ? 'is-focus' : ''}`}>
                   <button
                     type="button"
-                    role="checkbox"
-                    aria-checked="false"
-                    title="Concluir"
-                    aria-label={`Concluir tarefa ${task.title}`}
-                    className="todo-check today-task-done"
-                    onClick={() => completeTask(task)}
+                    aria-pressed={focus?.id === task.id}
+                    title={focus?.id === task.id ? 'Tirar do foco' : 'Focar no Início'}
+                    aria-label={focus?.id === task.id ? `Tirar ${task.title} do foco` : `Focar em ${task.title} no Início`}
+                    className="todo-focus"
+                    onClick={() => toggleFocus(task)}
                   >
-                    <Icon name="check"/>
+                    <Icon name="focus"/>
                   </button>
-                </span>
-              </li>;
-            })}</ul>
-            : <p className="muted-text">Sem tarefas pendentes. Defina o próximo passo em <a className="text-link" href="#tarefas">Tarefas</a> ou agende um bloco.</p>}
-          {agenda.pending > agenda.next.length && <a className="text-link today-foot-link" href="#tarefas">Mais {plural(agenda.pending - agenda.next.length, 'tarefa', 'tarefas')}<Icon name="arrow"/></a>}
-        </section>
-      </div>
+                  <span className="todo-copy">
+                    <strong>{task.title}</strong>
+                    <small className="todo-meta">{focus?.id === task.id ? 'em foco · ' : ''}{task.dueDate ? shortDate(task.dueDate) : 'sem prazo'}</small>
+                  </span>
+                  <span className="today-task-right">
+                    {(late || task.priority > 0) && <span className={`task-priority ${late ? 'p-late' : `p-${task.priority}`}`}>{late ? 'Atrasada' : priorityLabel(task.priority)}</span>}
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked="false"
+                      title="Concluir"
+                      aria-label={`Concluir tarefa ${task.title}`}
+                      className="todo-check today-task-done"
+                      onClick={() => completeTask(task)}
+                    >
+                      <Icon name="check"/>
+                    </button>
+                  </span>
+                </li>;
+              })}</ul>
+              : <p className="muted-text">Sem tarefas pendentes para hoje.</p>}
+          </section>
 
-      <aside className="today-side" aria-label="Semana">
-        <WeekLights state={state} today={today}/>
-      </aside>
+          <WeekRadar state={state} today={today}/>
+        </div>
+      </div>
     </div>
-    <ActiveRail account={account} go={go}/>
+    {showActive && <ActiveRail
+      wide={wide}
+      account={account}
+      go={go}
+      friends={friends}
+      activeFriends={activeFriends}
+      loaded={Boolean(friendsResource.data)}
+      onHide={toggleActive}
+    />}
   </div>;
 }
 
-function Upcoming({ state, today }) {
-  const { items, total, session } = upcomingDeadlines(state, today);
-  return <section className="today-upcoming" aria-labelledby="upcoming-title">
-    <div className="today-card-head">
-      <h2 id="upcoming-title" className="title">O que vem aí</h2>
-      <a className="text-link" href="#agenda">Abrir calendário</a>
-    </div>
-    {items.length
-      ? <ul className="countdown-list">{items.map((item, index) => {
-        const days = daysUntil(item.date, today);
-        return <li key={item.id}>
-          <a className={`countdown ${index === 0 ? 'is-next' : ''}`} href={item.href}>
-            <span className="countdown-number" aria-hidden="true">{days}</span>
-            <span className="countdown-copy">
-              <span className="countdown-when">{days === 0 ? 'é hoje' : days === 1 ? 'dia' : 'dias'} · {shortDate(item.date)}{item.start ? ` · ${item.start}` : ''}</span>
-              <strong>{item.title}</strong>
-              <span className="sr-only">{item.kind}, {days === 0 ? 'hoje' : days === 1 ? 'amanhã' : `em ${days} dias`}</span>
-            </span>
-          </a>
-        </li>;
-      })}</ul>
-      : <p className="muted-text today-upcoming-empty">Nenhuma prova, entrega ou prazo marcado. <a className="text-link" href="#agenda">Marcar no calendário</a></p>}
-    <p className="today-upcoming-foot">
-      {session
-        ? <>próxima sessão · <a className="text-link" href={`#agenda?data=${encodeURIComponent(session.date)}`}>{shortDate(session.date)}{session.start ? ` ${session.start}` : ''} · {session.title}</a></>
-        : <a className="text-link" href="#agendar">Agendar uma sessão de estudo</a>}
-      {total > items.length && <span> · mais {total - items.length} no calendário</span>}
-    </p>
-  </section>;
-}
-
-function WeekLights({ state }) {
+function WeekRadar({ state, today }) {
+  const { items, session } = upcomingDeadlines(state, today);
+  const nextMilestone = items[0] || null;
+  const milestoneDays = nextMilestone ? daysUntil(nextMilestone.date, today) : 0;
   const week = weekLights(state);
-  return <section className="card-surface week-lights" aria-labelledby="week-title">
-    <div className="today-card-head">
-      <h2 id="week-title" className="title">Sua semana</h2>
-      <span className="week-total">{formatMinutes(week.total)}</span>
+  return <section className="card-surface today-radar" aria-labelledby="radar-title">
+    <div className="today-radar-milestone">
+      <div className="today-card-head">
+        <h2 id="radar-title" className="metric-label">Próximo marco</h2>
+        <a className="text-link" href="#agenda">Calendário</a>
+      </div>
+      {nextMilestone
+        ? <a className="countdown is-next radar-milestone-link" href={nextMilestone.href}>
+          <span className="countdown-number" aria-hidden="true">{milestoneDays}</span>
+          <span className="countdown-copy">
+            <span className="countdown-when">{milestoneDays === 0 ? 'é hoje' : milestoneDays === 1 ? 'dia restante' : 'dias restantes'} · {shortDate(nextMilestone.date)}{nextMilestone.start ? ` · ${nextMilestone.start}` : ''}</span>
+            <strong>{nextMilestone.title}</strong>
+          </span>
+        </a>
+        : <p className="muted-text radar-empty">Nenhum prazo marcado.</p>}
+      {session && <p className="today-upcoming-foot">próxima sessão · <a className="text-link" href={`#agenda?data=${encodeURIComponent(session.date)}`}>{shortDate(session.date)}{session.start ? ` ${session.start}` : ''} · {session.title}</a></p>}
     </div>
-    <ol className="week-dots" aria-label={`Minutos de estudo nesta semana: ${week.days.filter((day) => day.state !== 'future').map((day) => `${WEEKDAYS[new Date(`${day.date}T12:00:00`).getDay()]} ${day.minutes}`).join(', ')}`}>
-      {week.days.map((day) => {
-        const label = day.state === 'today' ? 'hoje' : WEEKDAYS[new Date(`${day.date}T12:00:00`).getDay()];
-        return <li key={day.date} className={`week-day is-${day.state}`} title={day.state === 'future' ? label : `${label}: ${formatMinutes(day.minutes)}`}>
-          {day.state === 'today' ? <Star size={20}/> : <span className="week-dot" aria-hidden="true"/>}
-          <span>{label}</span>
-        </li>;
-      })}
-    </ol>
-    <p className="week-note">{week.lit ? `${plural(week.lit, 'dia aceso', 'dias acesos')} nesta semana.` : 'Nenhum dia aceso ainda nesta semana.'}</p>
+
+    <div className="today-radar-divider" role="separator"/>
+
+    <div className="today-radar-week" aria-labelledby="week-title">
+      <div className="today-card-head">
+        <h3 id="week-title" className="metric-label">Sua semana</h3>
+        <span className="week-total">{formatMinutes(week.total)}</span>
+      </div>
+      <ol className="week-dots" aria-label={`Minutos de estudo nesta semana: ${week.days.filter((day) => day.state !== 'future').map((day) => `${WEEKDAYS[new Date(`${day.date}T12:00:00`).getDay()]} ${day.minutes}`).join(', ')}`}>
+        {week.days.map((day) => {
+          const label = day.state === 'today' ? 'hoje' : WEEKDAYS[new Date(`${day.date}T12:00:00`).getDay()];
+          return <li key={day.date} className={`week-day is-${day.state}`} title={day.state === 'future' ? label : `${label}: ${formatMinutes(day.minutes)}`}>
+            {day.state === 'today' ? <Star size={20}/> : <span className="week-dot" aria-hidden="true"/>}
+            <span>{label}</span>
+          </li>;
+        })}
+      </ol>
+      <p className="week-note">{week.lit ? `${plural(week.lit, 'dia aceso', 'dias acesos')} nesta semana.` : 'Nenhum dia aceso ainda nesta semana.'}</p>
+    </div>
   </section>;
 }
 
-// Barra lateral "Ativos agora": amigos com presença recente (sessão de foco aberta,
-// aplicativo de desktop ou site aberto) e a matéria que estudam, quando compartilham.
-// Em telas largas fica fixa na borda direita, em altura total, abaixo do cabeçalho;
-// em telas estreitas vira uma seção comum no fim da página.
 const RAIL_QUERY = '(min-width: 1200px)';
 
 function useWideRail() {
@@ -333,25 +365,33 @@ function useWideRail() {
   return wide;
 }
 
-function ActiveRail({ account, go }) {
-  const wide = useWideRail();
-  const resource = useResource('/api/friends', { interval: 45000, enabled: Boolean(account) });
-  const friends = resource.data?.friends || [];
-  const activeFriends = friends
-    .filter((friend) => friend.activity?.active)
-    .sort((a, b) => Number(b.activity?.status === 'studying') - Number(a.activity?.status === 'studying') || a.name.localeCompare(b.name, 'pt-BR'));
-
-  useEffect(() => {
-    if (!wide) return undefined;
-    document.documentElement.classList.add('has-active-rail');
-    return () => document.documentElement.classList.remove('has-active-rail');
-  }, [wide]);
-
-  const rail = <aside className="active-rail" aria-labelledby="active-rail-title">
-    <h2 id="active-rail-title" className="active-rail-title">Ativos agora</h2>
+// Barra lateral "Ativos agora": amigos com presença recente (sessão de foco aberta,
+// aplicativo de desktop ou site aberto) e a matéria que estudam, quando compartilham.
+// Em telas largas monta direto no body (fora da transição de página) em altura total,
+// sem deslocar o cabeçalho nem outras páginas; em telas estreitas fica no fim da página.
+function ActiveRail({ wide, account, go, friends, activeFriends, loaded, onHide }) {
+  const rail = <aside id="active-rail-panel" className={`active-rail ${wide ? 'is-docked' : ''}`} aria-labelledby="active-rail-title">
+    <div className="active-rail-head">
+      <div className="active-rail-heading">
+        <Icon name="users"/>
+        <h2 id="active-rail-title" className="active-rail-title">Ativos agora</h2>
+      </div>
+      <div className="active-rail-actions">
+        {account && loaded && <span className="active-rail-badge">{activeFriends.length}</span>}
+        <button
+          type="button"
+          className="active-rail-hide"
+          onClick={onHide}
+          title="Ocultar ativos"
+          aria-label="Ocultar Ativos agora"
+        >
+          <Icon name="close"/>
+        </button>
+      </div>
+    </div>
     {!account
       ? <p className="muted-text active-rail-empty">Amigos, mensagens e ranking ficam disponíveis com uma conta.</p>
-      : !resource.data
+      : !loaded
         ? <Skeleton label="Carregando amigos…" rows={2}/>
         : activeFriends.length
           ? <ul className="active-rail-list">{activeFriends.map((friend) => {
@@ -383,6 +423,9 @@ function ActiveRail({ account, go }) {
             </li>;
           })}</ul>
           : <p className="muted-text active-rail-empty">{friends.length ? 'Nenhum amigo ativo agora.' : 'Estudar junto é opcional. Um convite começa a lista.'}</p>}
+    {account && <div className="active-rail-foot">
+      <a className="text-link" href="#amigos">Ver todos os amigos{friends.length ? ` (${friends.length})` : ''}</a>
+    </div>}
   </aside>;
 
   return wide ? createPortal(rail, document.body) : rail;
