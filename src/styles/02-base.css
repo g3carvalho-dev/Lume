@@ -411,3 +411,36 @@ html[data-theme='light'] .glow {
   border-radius: var(--radius-xl);
 }
 
+/* Estrela da marca: gira um quarto de volta e ganha brilho suave ao passar o mouse. */
+.logo-mark {
+  flex: none;
+  rotate: 0deg;
+  scale: 1;
+  transform-origin: center;
+  transition:
+    rotate 0.45s var(--ease-out, cubic-bezier(.22, 1, .36, 1)),
+    scale 0.3s var(--ease-out, cubic-bezier(.22, 1, .36, 1)),
+    filter 0.3s var(--ease-out, cubic-bezier(.22, 1, .36, 1));
+}
+
+.logo-mark:hover,
+.brand:hover .logo-mark,
+.brand:focus-visible .logo-mark {
+  rotate: 90deg;
+  scale: 1.12;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--star, #f6c165) 55%, transparent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-mark {
+    transition: filter 0.2s ease;
+  }
+  .logo-mark:hover,
+  .brand:hover .logo-mark,
+  .brand:focus-visible .logo-mark {
+    rotate: 0deg;
+    scale: 1;
+  }
+}
+
+

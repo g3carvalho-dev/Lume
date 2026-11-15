@@ -141,6 +141,21 @@ export const MCP_TOOLS = [
     },
   },
   {
+    name: 'lume_get_material_content',
+    description: 'Retorna o conteúdo textual extraído (Markdown), insights de IA, sumário (outline), página atual de leitura e marcações (highlights) de um material PDF. Suporta paginação por caracteres (offset/limit).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        materialId: { type: 'string', description: 'ID do material.' },
+        offset: { type: 'number', description: 'Posição inicial em caracteres no Markdown (padrão: 0).' },
+        limit: { type: 'number', description: 'Quantidade máxima de caracteres retornada (padrão: 20000, máx: 40000).' },
+        includeHighlights: { type: 'boolean', description: 'Se true, inclui marcações do usuário (padrão: true).' },
+      },
+      required: ['materialId'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'lume_list_tasks',
     description: 'Lista tarefas de estudo do usuário, com filtro opcional por status (open, done, all) e indicação de atraso e foco.',
     inputSchema: {
@@ -316,6 +331,66 @@ async function executeTool(db, userId, name, args = {}, now = Date.now()) {
       return {
         ...summarizeMaterial(course, completed, subjectsById),
         units: steps,
+      };
+    }
+
+    case 'lume_get_material_content': {
+      const course = state.courses.find((c) => c.id === args.materialId);
+      if (!course) throw new McpError('Material não encontrado.', 'not_found', 404);
+      const base = summarizeMaterial(course, completed, subjectsById);
+      if (course.type !== 'pdf' || !course.pdf?.fileId) {
+        return {
+          ...base,
+          hasPdf: false,
+          units: materialSteps(course).map((s) => ({ id: s.id, title: s.title, completed: completed.has(s.id) })),
+        };
+      }
+      const aiRow = await db.first(
+        `SELECT markdown, markdown_status, markdown_source, markdown_chars, insights_json, insights_updated_at
+         FROM library_file_ai WHERE user_id = ? AND file_id = ?`,
+        [userId, course.pdf.fileId],
+      );
+      const fullMarkdown = aiRow?.markdown || '';
+      const offset = Math.max(0, Math.floor(Number(args.offset) || 0));
+      const limit = Math.min(40000, Math.max(500, Math.floor(Number(args.limit) || 20000)));
+      const markdownChunk = fullMarkdown.slice(offset, offset + limit);
+      const nextOffset = offset + markdownChunk.length;
+      let insights = null;
+      if (aiRow?.insights_json) {
+        try { insights = JSON.parse(aiRow.insights_json); } catch { insights = null; }
+      }
+      const includeHighlights = args.includeHighlights !== false;
+      const highlights = includeHighlights
+        ? (course.highlights || []).map((h) => ({
+          id: h.id,
+          page: h.page,
+          color: h.color || '',
+          ...(h.text ? { text: h.text } : {}),
+          ...(h.note ? { note: h.note } : {}),
+        }))
+        : undefined;
+      return {
+        ...base,
+        hasPdf: true,
+        pdf: {
+          name: course.pdf.name || '',
+          pages: course.pdf.pages || 0,
+          outline: course.pdf.outline || [],
+        },
+        reading: course.reading || null,
+        ...(highlights ? { highlights } : {}),
+        insights,
+        insightsUpdatedAt: aiRow?.insights_updated_at || null,
+        content: {
+          status: aiRow?.markdown_status || 'pending',
+          source: aiRow?.markdown_source || null,
+          totalChars: aiRow?.markdown_chars ?? fullMarkdown.length,
+          offset,
+          limit,
+          hasMore: nextOffset < fullMarkdown.length,
+          nextOffset: nextOffset < fullMarkdown.length ? nextOffset : null,
+          markdown: markdownChunk,
+        },
       };
     }
 

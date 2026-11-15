@@ -66,7 +66,7 @@ export default function McpPanel({ account, notify, go }) {
     }
   }
 
-  const tokenForSnippet = freshToken || (info?.active ? `${info.prefix}SUA_CHAVE_AQUI` : 'lume_mcp_SUA_CHAVE_AQUI');
+  const tokenForSnippet = freshToken || 'lume_mcp_COLE_SUA_CHAVE_AQUI';
   const clients = {
     claudeCode: {
       label: 'Claude Code (CLI)',

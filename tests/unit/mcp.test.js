@@ -223,3 +223,72 @@ test('rotas HTTP /api/mcp/token e /api/mcp integradas ao createApp', async (t) =
   }));
   assert.equal(deniedRes.status, 401);
 });
+
+test('lume_get_material_content retorna markdown paginado, insights, outline, reading e highlights de PDF', async (t) => {
+  const { db } = fixture(t);
+  const now = Date.parse('2026-11-15T12:00:00Z');
+  await ensureXpSettings(db, 'u1', { now: now - 1000 });
+  const fileId = 'file-pdf-1';
+
+  await db.run(
+    `INSERT INTO library_files (user_id, id, size, name, created_at, status)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    ['u1', fileId, 1024, 'redes.pdf', new Date(now).toISOString(), 'ready'],
+  );
+  await db.run(
+    `INSERT INTO library_file_ai (user_id, file_id, markdown, markdown_status, markdown_source, markdown_chars, insights_json, insights_updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      'u1',
+      fileId,
+      `## Página 1\n${'A'.repeat(600)}\n## Página 2\n${'B'.repeat(600)}`,
+      'ready',
+      'pdfjs',
+      1230,
+      JSON.stringify({ summary: 'Resumo de redes TCP/IP', topics: ['Camada de Transporte'] }),
+      new Date(now).toISOString(),
+    ],
+  );
+
+  const lib = await readLibrary(db, 'u1');
+  await applyLibraryActions(db, 'u1', {
+    id: 'add-pdf-mat',
+    revision: lib.revision,
+    actions: [{
+      type: 'material.put',
+      value: {
+        id: 'mat-pdf-1',
+        title: 'Redes de Computadores',
+        type: 'pdf',
+        subjectId: '',
+        units: stepUnits([{ id: 'u-pdf-1', title: 'Leitura completa' }]),
+        pdf: {
+          fileId,
+          name: 'redes.pdf',
+          size: 1024,
+          pages: 12,
+          outline: [{ title: 'Capítulo 1 — TCP', page: 1, depth: 0 }],
+        },
+        reading: { page: 4, maxPage: 6, section: 'Capítulo 1 — TCP', updatedAt: new Date(now).toISOString() },
+        highlights: [{ id: 'h1', page: 2, color: 'azul', text: 'Handshake em 3 vias', rects: [{ x: 0.1, y: 0.2, w: 0.3, h: 0.05 }] }],
+      },
+    }],
+  }, { now });
+
+  const page1 = await handleMcpRpc(db, 'u1', {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: { name: 'lume_get_material_content', arguments: { materialId: 'mat-pdf-1', offset: 0, limit: 500 } },
+  }, { now });
+  const data1 = JSON.parse(page1.body.result.content[0].text);
+  assert.equal(data1.hasPdf, true);
+  assert.equal(data1.pdf.pages, 12);
+  assert.equal(data1.pdf.outline[0].title, 'Capítulo 1 — TCP');
+  assert.equal(data1.reading.page, 4);
+  assert.equal(data1.highlights.length, 1);
+  assert.equal(data1.highlights[0].rects, undefined);
+  assert.equal(data1.insights.summary, 'Resumo de redes TCP/IP');
+  assert.equal(data1.content.hasMore, true);
+  assert.equal(data1.content.nextOffset, 500);
+});

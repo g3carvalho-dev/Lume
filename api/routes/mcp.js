@@ -8,7 +8,7 @@ import {
 
 const MCP_RATE_LIMIT = {
   key: (ctx) => `mcp|${ctx.clientIp}`,
-  limit: 120,
+  limit: 1000,
   message: 'Muitas chamadas MCP em pouco tempo. Aguarde um instante.',
   code: 'rate_limited',
 };
