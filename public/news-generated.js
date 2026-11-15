@@ -1,6 +1,17 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-36e576a0",
+    "at": "2026-11-14T23:41:25.000Z",
+    "title": "Painel Ativos agora recolhível",
+    "body": "A coluna de amigos ativos no Início agora pode ser ocultada ou reaberta sem deslocar o cabeçalho nem outras telas.",
+    "href": "#hoje",
+    "area": "site",
+    "details": [
+      "Em telas largas, o painel fica fixo na borda direita em altura total fora da transição de página."
+    ]
+  },
+  {
     "id": "news-6d5392f9",
     "at": "2026-11-14T20:35:33.000Z",
     "title": "Fotos dos amigos online",
