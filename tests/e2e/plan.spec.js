@@ -23,44 +23,56 @@ function seeded() {
   return state;
 }
 
-test('cronograma distribui aulas, recalcula após conclusão e sobrevive ao recarregamento', async ({ page }) => {
+test('aulas previstas aparecem no Calendário, recalculam após conclusão e sobrevivem ao recarregamento', async ({ page }) => {
   await seedAccount(page, seeded());
 
   await page.goto('/#hoje');
   await page.getByRole('navigation', { name: 'Navegação' }).getByRole('link', { name: 'Plano de Estudos', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Plano de Estudos', exact: true })).toBeVisible();
+  // A aba padrão do Plano é Tarefas; a aba Agenda deixou de existir.
+  await expect(page.getByRole('heading', { name: 'Tarefas', exact: true })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Seções de Plano de Estudos' }).getByRole('link')).toHaveText(['Tarefas', 'Calendário']);
+  await page.getByRole('navigation', { name: 'Seções de Plano de Estudos' }).getByRole('link', { name: 'Calendário', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Calendário', exact: true })).toBeVisible();
+
+  // Sem disponibilidade, nada é previsto; o estado vazio oferece segunda a sexta.
+  await expect(page.locator('[data-planned-lesson]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Usar segunda a sexta, 30 min por dia' }).click();
-  await expect(page.getByRole('heading', { name: 'Distribuição dos blocos' })).toBeVisible();
-  const items = page.locator('.plan-item');
-  await expect(items.first()).toContainText('Aula 1 — Teoria geral');
-  await expect(items.first()).toContainText('(duração da fonte)');
-  // O dia em detalhe mostra os blocos daquele dia; a Aula 4 cai num dia seguinte da faixa.
-  const aula4 = page.locator('.plan-item', { hasText: 'Aula 4' });
-  for (let week = 0; week < 3 && !(await aula4.count()); week += 1) {
-    for (const day of await page.locator('.plan-week-day').all()) {
-      if (await aula4.count()) break;
-      await day.click();
-    }
-    if (!(await aula4.count())) await page.getByRole('button', { name: 'Próxima semana' }).click();
+  const planned = (title) => page.getByLabel(`Aula prevista: ${title}`, { exact: true });
+  await expect(planned('Aula 1 — Teoria geral')).toBeVisible();
+
+  // Clicar numa aula prevista mostra o dia abaixo da grade; ela não abre o editor nem é arrastável.
+  await planned('Aula 1 — Teoria geral').click();
+  const detail = page.locator('.agenda-day');
+  await expect(detail.locator('.agenda-day-item.is-planned').first()).toContainText('Aula 1 — Teoria geral');
+  await expect(detail).toContainText('(duração da fonte)');
+  await expect(page.getByLabel('Título do compromisso')).toHaveCount(0);
+
+  // A Aula 4 não informa duração: fica como estimativa.
+  for (let step = 0; step < 2 && !(await planned('Aula 4 — Nacionalidade').count()); step += 1) {
+    await page.getByRole('button', { name: 'Próximo período' }).click();
   }
-  await expect(aula4).toContainText('(estimativa)');
-  await page.locator('.plan-controls').getByRole('button', { name: 'Hoje', exact: true }).click();
+  await planned('Aula 4 — Nacionalidade').click();
+  await expect(detail).toContainText('(estimativa)');
+  await page.getByRole('button', { name: 'Hoje', exact: true }).click();
 
   // Concluir a primeira aula recalcula o cronograma a partir de hoje.
-  await page.getByRole('button', { name: 'Estudar' }).click();
+  await planned('Aula 1 — Teoria geral').click();
+  await detail.getByRole('button', { name: 'Estudar' }).click();
   await page.getByRole('button', { name: 'Concluí esta aula' }).click();
   await page.getByRole('button', { name: 'Fechar janela' }).click();
-  await expect(items.first()).toContainText('Aula 2 — Direitos individuais');
-  await expect(page.locator('.plan-item', { hasText: 'Aula 1 — Teoria geral' })).toHaveCount(0);
+  await expect(planned('Aula 1 — Teoria geral')).toHaveCount(0);
+  await expect(planned('Aula 2 — Direitos individuais')).toBeVisible();
 
-  // Adiar move a aula e as seguintes do curso; nada é concluído.
-  await page.getByRole('button', { name: 'Adiar Aula 2 — Direitos individuais' }).click();
+  // Adiar, no detalhe do dia, move a aula e as seguintes do curso; nada é concluído.
+  await planned('Aula 2 — Direitos individuais').click();
+  await detail.getByRole('button', { name: 'Adiar Aula 2 — Direitos individuais' }).click();
   await expect(page.getByText(/As aulas seguintes de Direito Constitucional — OAB acompanham/)).toBeVisible();
   const beforeReload = await readAccount(page);
   expect(Object.keys(beforeReload.plan.postponed)).toEqual([materialSteps(beforeReload.courses[0])[1].id]);
+  expect(beforeReload.agenda).toEqual([]);
 
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Disponibilidade e prazos' })).toHaveCount(0);
+  await expect(planned('Aula 2 — Direitos individuais')).toBeVisible();
   const saved = await readAccount(page);
   const course = saved.courses[0];
   expect(saved.plan.availability).toEqual({ 1: 30, 2: 30, 3: 30, 4: 30, 5: 30 });
@@ -111,15 +123,17 @@ test('tarefa vinculada conclui a aula uma vez; subtarefa vale 10 XP uma vez e re
   await expect(page.getByRole('region', { name: 'Cargos de estudo' })).toContainText('Iniciante');
 });
 
-test('próximos marcos mostram compromissos da Agenda de qualquer tipo', async ({ page }) => {
-  const date = shiftDate(localDate(), 3);
-  const base = { date, endDate: date, start: '', end: '', timeZone: 'America/Sao_Paulo', taskIds: [] };
-  let state = createAppointment({ ...createInitialState(), onboarded: true }, { ...base, title: 'Simulado de Falência', category: 'study' });
-  state = createAppointment(state, { ...base, title: 'Consulta médica', category: 'personal' });
+test('próximo marco do Início conta só provas e entregas', async ({ page }) => {
+  const base = (days) => { const date = shiftDate(localDate(), days); return { date, endDate: date, start: '', end: '', timeZone: 'America/Sao_Paulo', taskIds: [] }; };
+  let state = createAppointment({ ...createInitialState(), onboarded: true }, { ...base(1), title: 'Consulta médica', category: 'personal' });
+  state = createAppointment(state, { ...base(2), title: 'Revisão em grupo', category: 'study' });
+  state = createAppointment(state, { ...base(3), title: 'Prova de Falência', category: 'exam' });
   await seedAccount(page, state);
-  await page.goto('/#plano');
-  const milestones = page.getByRole('region', { name: 'Próximos Marcos' });
-  await expect(milestones).toContainText('Simulado de Falência');
-  await expect(milestones).toContainText('Consulta médica');
-  await expect(milestones).toContainText('faltam 3 dias');
+  await page.goto('/#hoje');
+  const milestone = page.locator('.today-radar-milestone');
+  await expect(milestone).toContainText('Prova de Falência');
+  await expect(milestone.locator('.countdown-number')).toHaveText('3');
+  await expect(milestone).not.toContainText('Consulta médica');
+  // A sessão de estudo agendada aparece só como a próxima sessão.
+  await expect(milestone).toContainText('próxima sessão');
 });

@@ -48,7 +48,7 @@ test('módulos longos mostram uma janela em torno da aula atual', () => {
   assert.equal(trailWindow(nodes.slice(0, 5), 2, 7).length, 5);
 });
 
-test('o que vem aí junta provas, entregas e prazos de tarefas, sem sessões de estudo nem repetidos', () => {
+test('próximo marco conta só provas e entregas; pessoais, tarefas e sessões de estudo ficam de fora', () => {
   let state = createInitialState();
   state = addTask(state, { title: 'Lista 4', dueDate: '2026-11-18' }, '2026-11-10T10:00:00.000Z');
   state = addTask(state, { title: 'Sem prazo' }, '2026-11-10T10:00:00.000Z');
@@ -62,10 +62,12 @@ test('o que vem aí junta provas, entregas e prazos de tarefas, sem sessões de 
     entry('s', 'Revisão', 'study', '2026-11-15'),
     entry('c', 'Cancelada', 'delivery', '2026-11-17', { cancelled: true }),
     entry('v', 'Passada', 'exam', '2026-11-01'),
+    entry('m', 'Consulta médica', 'personal', '2026-11-15'),
   ];
   const result = upcomingDeadlines(state, '2026-11-14');
-  assert.deepEqual(result.items.map((item) => item.title), ['Relatório', 'Lista 4', 'Prova de Cálculo']);
-  assert.equal(result.total, 3);
+  assert.deepEqual(result.items.map((item) => item.title), ['Relatório', 'Prova de Cálculo']);
+  assert.deepEqual(result.items.map((item) => item.kind), ['Entrega', 'Prova']);
+  assert.equal(result.total, 2);
   assert.equal(result.session.title, 'Revisão');
   assert.deepEqual(upcomingDeadlines(createInitialState(), '2026-11-14'), { items: [], total: 0, session: null });
 });

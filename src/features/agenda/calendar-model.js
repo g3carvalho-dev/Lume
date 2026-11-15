@@ -32,6 +32,25 @@ export function calendarEvent(item, tasks) {
   };
 }
 
+// Aulas previstas pelo cronograma (`buildSchedule`) como itens derivados da
+// grade: dia inteiro, nunca arrastáveis e sem persistência. Ids com prefixo
+// próprio para não colidirem com compromissos.
+export const PLANNED_PREFIX = 'plano:';
+export function plannedEvents(schedule) {
+  return (schedule?.days || []).flatMap((day) => day.items.map((item) => ({
+    id: `${PLANNED_PREFIX}${item.lessonId}`,
+    title: item.title,
+    allDay: true,
+    start: day.date,
+    end: shiftDate(day.date, 1),
+    editable: false,
+    startEditable: false,
+    durationEditable: false,
+    className: 'lume-event lume-event-planned',
+    extendedProps: { planned: { ...item, date: day.date } },
+  })));
+}
+
 // Horários de 15 em 15 minutos, sempre em 24 h, independentemente do idioma do navegador.
 const TIMES = Array.from({ length: 96 }, (_, i) => `${String(Math.floor(i / 4)).padStart(2, '0')}:${String(i % 4 * 15).padStart(2, '0')}`);
 export const minutesOf = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));

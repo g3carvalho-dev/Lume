@@ -337,6 +337,7 @@ export function createInitialState() {
       focusShield: false,
       focusNotes: '',
       readingTimer: true,
+      focusTimer: true,
       studyGoal: '',
       sharing: { library: true, queue: true, progress: true, xp: true, public: true },
     },
@@ -718,6 +719,7 @@ export function restoreState(raw) {
         focusShield: preferences.focusShield === true,
         focusNotes: typeof preferences.focusNotes === 'string' ? preferences.focusNotes.slice(0, 4000) : '',
         readingTimer: preferences.readingTimer !== false,
+        focusTimer: preferences.focusTimer !== false,
         studyGoal: STUDY_GOALS.includes(preferences.studyGoal) ? preferences.studyGoal : '',
         sharing: {
           library: preferences.sharing?.library !== false,

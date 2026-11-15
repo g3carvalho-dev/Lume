@@ -29,7 +29,7 @@ export default function App() {
   const notify = useCallback((message, { action = null, important = false } = {}) => {
     const prefs = stateRef.current?.preferences;
     const active = stateRef.current?.activeSession;
-    if (!important && !action && prefs?.focusShield && active && !active.paused) return;
+    if (!important && !action && prefs?.focusShield && active?.status === 'active') return;
     const duration = action ? 8000 : 6500;
     clearTimeout(toastTimer.current);
     setToast({ message, action, duration, id: Date.now() });
@@ -110,8 +110,8 @@ export default function App() {
     }
     previousRoute.current = route;
   }, [route, state.preferences.theme, state.preferences.textSize]);
-  // Uma sessão ativa continua sendo gravada mesmo fora da tela de Foco ou do
-  // leitor: sem isso, trocar de tela podia perder o tempo até o último batimento.
+  // Uma sessão ativa continua sendo gravada em qualquer tela, com o leitor
+  // aberto ou fechado: sem isso, trocar de tela podia perder o tempo até o último batimento.
   useEffect(() => {
     if (!state.activeSession || state.activeSession.status !== 'active') return undefined;
     const beat = setInterval(() => model.progressActions.touchSession(), 60000);
@@ -147,9 +147,9 @@ export default function App() {
   const hideTabs = Boolean(current.hideTabs?.(routeContext));
   // Fora do Shell e da animação de entrada: um ancestral com transform deslocaria o position: fixed.
   if (checkingSession && route === 'login') return <SessionCheck/>;
-  return <><Shell route={route} model={model} hideTabs={hideTabs} onHelp={() => open({ type: 'help' })} onRegister={() => setAuthMode('register')} onExit={exit}><Reminders account={model.account} syncStatus={model.syncStatus}/><motion.div className={`page page-${route}`} key={route} {...enter}>{page}</motion.div></Shell>
+  return <><Shell route={route} model={model} hideTabs={hideTabs} onHelp={() => open({ type: 'help' })} onRegister={() => setAuthMode('register')} onExit={exit} notify={notify} current={modal}><Reminders account={model.account} syncStatus={model.syncStatus}/><motion.div className={`page page-${route}`} key={route} {...enter}>{page}</motion.div></Shell>
     <div className={`toast-region${toast ? '' : ' is-leaving'}`} role="status" aria-live="polite" aria-atomic="true"><AnimatePresence>{toast && <motion.div key="feedback" className="toast" initial={{ opacity: 0, y: 16, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: .28, ease }}><span className="toast-icon"><Icon name="check"/></span><span>{toast.message}</span>{toast.action && <button className="toast-action" onClick={() => { clearTimeout(toastTimer.current); setToast(null); toast.action.run(); }}>{toast.action.label}</button>}{toast.action && <span className="toast-timer" key={toast.id} style={{ animationDuration: `${toast.duration}ms` }}/>}<button aria-label="Fechar aviso" className="icon-button" onClick={() => setToast(null)}><Icon name="close"/></button></motion.div>}</AnimatePresence></div>
-    <MessageAlert account={model.account} quiet={Boolean(state.preferences?.focusShield && state.activeSession && !state.activeSession.paused)}/>
+    <MessageAlert account={model.account} quiet={Boolean(state.preferences?.focusShield && state.activeSession?.status === 'active')}/>
     {modal && <Dialog onClose={close} identity={`${modal.type}:${modal.id || ''}`}>
       <ModalContent modal={modal} state={state} settingsActions={model.settingsActions} libraryActions={model.libraryActions} progressActions={model.progressActions} open={open} close={close} notify={notify} go={go} account={model.account}/>
     </Dialog>}

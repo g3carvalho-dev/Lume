@@ -9,6 +9,7 @@
   --cat-delivery: var(--reward);
   --cat-personal: var(--subject-mint);
   --cat-cancelled: var(--text-subtle);
+  --cat-planned: var(--mint);
   --fc-classic-button: var(--surface-2);
   --fc-classic-button-border: var(--border);
   --fc-classic-button-strong: var(--lume-soft);
@@ -42,6 +43,7 @@
 .cat-delivery { --cat: var(--cat-delivery); }
 .cat-personal { --cat: var(--cat-personal); }
 .cat-cancelled { --cat: var(--cat-cancelled); }
+.cat-planned { --cat: var(--cat-planned); }
 
 /* Cabeçalho e barra de ferramentas em poucas linhas, para a grade aparecer cedo. */
 .agenda-heading, .agenda-toolbar, .agenda-period, .agenda-panel-heading, .agenda-panel-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
@@ -87,6 +89,8 @@
 .agenda-calendar .lume-event-exam { --cat: var(--cat-exam); }
 .agenda-calendar .lume-event-delivery { --cat: var(--cat-delivery); }
 .agenda-calendar .lume-event-personal { --cat: var(--cat-personal); }
+.agenda-calendar .lume-event-planned { --cat: var(--cat-planned); --fc-classic-event: transparent; border: 1px dashed color-mix(in srgb, var(--cat) 60%, transparent); border-inline-start: 1px dashed color-mix(in srgb, var(--cat) 60%, transparent); }
+.agenda-calendar .lume-event-planned .agenda-event-content strong { font-weight: 500; color: var(--text-muted); }
 .agenda-calendar .lume-event:hover { box-shadow: 0 2px 10px color-mix(in srgb, var(--cat) 30%, transparent); }
 .agenda-calendar .lume-event.is-complete { opacity: .65; }
 .agenda-calendar .lume-event.is-cancelled { opacity: .5; text-decoration: line-through; }
@@ -241,3 +245,28 @@ fieldset.agenda-editor-group > legend { float: left; width: 100%; margin-bottom:
 .agenda-toolbar { padding: .75rem 1rem; border-radius: var(--radius-lg); background: var(--surface); border: 1px solid var(--border); box-shadow: none; }
 .agenda-nav-group { background: var(--inner); border-color: transparent; }
 
+
+/* Aulas previstas pelo cronograma: derivadas, tracejadas e não arrastáveis.
+   O detalhe do dia fica abaixo da grade, que não pode mudar de altura. */
+.agenda-day { display: grid; gap: .9rem; padding: 1.1rem 1.25rem; min-width: 0; }
+.agenda-day-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.agenda-day-head .title { margin: 0; }
+.agenda-day-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.agenda-day-item { display: flex; align-items: center; gap: .75rem; padding: .6rem 0; border-top: 1px solid var(--border); min-width: 0; }
+.agenda-day-item:first-child { border-top: 0; }
+.agenda-day-item.is-done { opacity: .65; }
+.agenda-day-item .agenda-category-dot { flex-shrink: 0; }
+.agenda-day-copy { flex: 1 1 auto; min-width: 0; display: grid; gap: .15rem; }
+.agenda-day-copy strong { overflow-wrap: anywhere; }
+.agenda-day-actions { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; }
+.agenda-day-empty { display: grid; gap: .6rem; justify-items: start; }
+.agenda-day-empty p, .agenda-day > .muted-text, .agenda-day > .quiet-note { margin: 0; }
+.agenda-conflict { display: grid; gap: .5rem; padding: .9rem 1rem; border: 1px solid var(--warning); border-radius: var(--radius-md); background: color-mix(in srgb, var(--warning) 8%, var(--surface)); }
+.agenda-conflict strong { display: flex; align-items: center; gap: .5rem; }
+.agenda-conflict strong .icon { color: var(--warning); flex-shrink: 0; }
+.agenda-conflict p { margin: 0; color: var(--text-muted); font-size: .88rem; }
+@media (max-width: 820px) {
+  .agenda-day { padding: 1rem; }
+  .agenda-day-item { flex-wrap: wrap; }
+  .agenda-day-actions { width: 100%; justify-content: flex-end; }
+}

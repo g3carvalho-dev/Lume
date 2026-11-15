@@ -8,6 +8,7 @@ import { useResource } from '../lib/resources.js';
 import { isDesktopApp } from '../lib/desktop.js';
 import DesktopUpdate from '../features/desktop/DesktopUpdate.jsx';
 import NotificationBell from '../features/social/NotificationBell.jsx';
+import HeaderTimer, { openTimerPanel, timerEnabled } from '../features/progress/HeaderTimer.jsx';
 import SectionTabs, { SECTIONS, sectionOf } from './SectionTabs.jsx';
 import { ENTRY_ROUTES } from './routes.jsx';
 
@@ -37,7 +38,7 @@ function positionPopoverFallback(panel, trigger) {
   panel.style.left = `${Math.round(left)}px`;
 }
 
-export default function Shell({ route, model, children, hideTabs = false, onHelp, onRegister, onExit }) {
+export default function Shell({ route, model, children, hideTabs = false, onHelp, onRegister, onExit, notify, current }) {
   const section = sectionOf(route);
   const accountTriggerRef = useRef(null);
   const accountPopoverRef = useRef(null);
@@ -92,6 +93,7 @@ export default function Shell({ route, model, children, hideTabs = false, onHelp
           {model.account && (model.syncStatus === 'saving' || model.syncStatus === 'loading') && <span className={`sr-only sync-${model.syncStatus}`} role="status">{syncLabels[model.syncStatus]}</span>}
           {(!model.account || model.syncStatus === 'error') && <span className={`sync-chip sync-${model.account ? model.syncStatus : 'local'}`} role="status"><Icon name="cloud"/>{model.account ? syncLabels[model.syncStatus] : 'Prévia temporária'}</span>}
           {desktop && <DesktopUpdate/>}
+          <HeaderTimer state={model.state} actions={model.progressActions} settingsActions={model.settingsActions} notify={notify} account={model.account} current={current} positionFallback={positionPopoverFallback}/>
           <NotificationBell account={model.account} positionFallback={positionPopoverFallback}/>
 
           {gamified && !(model.account && !summary) && <a className="level-chip" href="#conquistas" aria-label={`Nível ${level.level}, ${level.current} de ${level.next} ${xpLabel}`} title="Conquistas">
@@ -136,6 +138,10 @@ export default function Shell({ route, model, children, hideTabs = false, onHelp
                 <Icon name="trophy"/>
                 <span>Conquistas</span>
               </a>
+              {timerEnabled(model.state) && !model.state.activeSession && <button type="button" className="user-dropdown-item user-dropdown-timer" onClick={() => { hidePopover(accountPopoverRef); openTimerPanel(); }}>
+                <Icon name="timer"/>
+                <span>Timer de estudo</span>
+              </button>}
               <a className={`user-dropdown-item ${route === 'configuracoes' ? 'active' : ''}`} href="#configuracoes" onClick={() => hidePopover(accountPopoverRef)}>
                 <Icon name="settings"/>
                 <span>Configurações</span>

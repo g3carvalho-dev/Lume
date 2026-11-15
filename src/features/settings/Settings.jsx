@@ -193,6 +193,18 @@ export function Preferences({ state, actions, libraryActions, confirmSave, notif
             checked={state.preferences.readingTimer !== false}
             onChange={(value) => preference('readingTimer', value)}
           />
+          <Toggle
+            title="Mostrar o timer de estudo"
+            hint="Um controle pequeno no cabeçalho inicia, pausa e encerra uma sessão, com ciclo e som ambiente. Desligado, ele some da interface; o histórico continua."
+            checked={state.preferences.focusTimer !== false}
+            onChange={(value) => preference('focusTimer', value)}
+          />
+          {state.preferences.focusTimer !== false && <Toggle
+            title="Silenciar avisos durante o timer"
+            hint="Enquanto uma sessão do timer estiver em andamento, só os avisos importantes aparecem."
+            checked={state.preferences.focusShield === true}
+            onChange={(value) => preference('focusShield', value)}
+          />}
           <label className="cfg-row">
             <span className="cfg-row-copy"><strong>Plano semanal</strong><span>Passos sugeridos, sem obrigação.</span></span>
             <select className="cfg-select" value={goal} onChange={(event) => preference('weeklyGoal', Number(event.target.value))}>

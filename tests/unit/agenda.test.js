@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { createInitialState, addCourse, restoreState } from '../../public/domain.js';
 import { addTask, completeTask, removeTask } from '../../public/tasks-domain.js';
 import { createAppointment, updateAppointment, saveAppointment, movePending, conflictsFor, zonedInstant, dueReminders, reminderKey, agendaSuggestions, appointmentRange, occurrenceDates, deleteAppointment, restoreAppointments } from '../../public/agenda-domain.js';
-import { calendarEvent, calendarPatch, timeOptions, durationLabel } from '../../src/features/agenda/calendar-model.js';
+import { calendarEvent, calendarPatch, timeOptions, durationLabel, plannedEvents, PLANNED_PREFIX } from '../../src/features/agenda/calendar-model.js';
+import { buildSchedule } from '../../public/schedule-domain.js';
+import { applyCourseImport, normalizePayload } from '../../public/import-domain.js';
 import { readBackup, mergeBackup } from '../../public/backup-domain.js';
 import { libraryActions } from '../../public/library-actions.js';
 import { buildProfile } from '../../public/profile-domain.js';
@@ -265,4 +267,20 @@ test('horários do editor em 24 h, com o valor atual preservado e a duração le
   assert.equal(durationLabel(30), '30 min');
   assert.equal(durationLabel(90), '1 h 30 min');
   assert.equal(durationLabel(120), '2 h');
+});
+
+test('aulas previstas entram na grade como itens derivados, de dia inteiro e não arrastáveis', () => {
+  const payload = normalizePayload({
+    title: 'Constitucional', provider: { id: 'grancursos' }, sourceUrl: 'https://www.grancursosonline.com.br/curso/constitucional',
+    disciplines: [{ title: 'Constitucional', modules: [{ title: 'Módulo', lessons: [{ title: 'Aula 1', duration: '30:00' }, { title: 'Aula 2', duration: '30:00' }] }] }],
+  });
+  const state = applyCourseImport({ ...createInitialState(), onboarded: true }, payload);
+  // Sem disponibilidade o cronograma não inventa datas: a grade fica sem aulas.
+  assert.deepEqual(plannedEvents(buildSchedule(state, { today: '2026-11-16' })), []);
+  state.plan = { ...state.plan, availability: { 1: 30, 2: 30, 3: 30, 4: 30, 5: 30 } };
+  const events = plannedEvents(buildSchedule(state, { today: '2026-11-16' }));
+  assert.deepEqual(events.map((event) => [event.title, event.start, event.end]), [['Aula 1', '2026-11-16', '2026-11-17'], ['Aula 2', '2026-11-17', '2026-11-18']]);
+  assert.ok(events.every((event) => event.allDay && event.editable === false && event.startEditable === false && event.id.startsWith(PLANNED_PREFIX)));
+  assert.equal(events[0].extendedProps.planned.date, '2026-11-16');
+  assert.deepEqual(state.agenda || [], []);
 });

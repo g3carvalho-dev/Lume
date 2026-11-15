@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { studyRhythm, hasPreparation } from '../../../public/domain.js';
 import { materialLesson } from '../../../public/material-model.js';
+import { isImportedCourse } from '../../../public/import-domain.js';
 import { nextAction } from '../../../public/study-plan.js';
 import { focusedTask, isOverdue, priorityLabel, taskAgenda } from '../../../public/tasks-domain.js';
 import { formatMinutes, localDay } from '../../../public/session-domain.js';
@@ -107,6 +108,16 @@ export function Home({ state, open, go, planActions, notify, account }) {
     notify(`Tarefa concluída: ${task.title}.${task.lessonId ? ' A conclusão da aula vinculada foi registrada.' : ''}`);
   }
 
+  // "Continuar" abre o conteúdo direto. PDF abre no leitor na página em que
+  // parou; aula de curso importado abre na plataforma (o mesmo clique abre o
+  // registro da aula, como em "Concluir e abrir a próxima"); material sem link
+  // abre o registro do passo, que é o próprio conteúdo dele no Lume.
+  function openLesson(target, lessonId) {
+    const link = lessonLink(target, lessonId);
+    if (link) window.open(link, '_blank', 'noopener,noreferrer');
+    open({ type: 'session', id: target.id, stepId: lessonId });
+  }
+
   function toggleFocus(task) {
     if (focus?.id === task.id) {
       if (planActions.clearTaskFocus()) notify(`${task.title} saiu do foco. O Início volta a sugerir pelo roteiro.`);
@@ -196,7 +207,7 @@ export function Home({ state, open, go, planActions, notify, account }) {
             <div className="action-row">
               {focusLesson
                 ? <>
-                  <Button onClick={() => open({ type: 'session', id: focusCourse.id, stepId: focusLesson.id })}><Icon name="play"/>Abrir a aula</Button>
+                  <Button onClick={() => openLesson(focusCourse, focusLesson.id)}><Icon name={lessonLink(focusCourse, focusLesson.id) ? 'external' : 'play'}/>Abrir a aula</Button>
                   <Button secondary onClick={() => completeTask(focus)}><Icon name="check"/>Concluir tarefa</Button>
                 </>
                 : <Button onClick={() => completeTask(focus)}><Icon name="check"/>Concluir tarefa</Button>}
@@ -231,7 +242,7 @@ export function Home({ state, open, go, planActions, notify, account }) {
             <div className="action-row">
               {prepare
                 ? <Button onClick={() => open({ type: 'session', id: action.courseId, preparation: true })}><Icon name="book"/>Preparar o material</Button>
-                : <Button onClick={() => open({ type: 'session', id: action.courseId, stepId: action.lessonId })}><Icon name="play"/>Continuar {unit} {trail.position}</Button>}
+                : <Button onClick={() => openLesson(course, action.lessonId)}><Icon name={lessonLink(course, action.lessonId) ? 'external' : 'play'}/>Continuar {unit} {trail.position}</Button>}
               {reward > 0 && <span className="today-reward">+{reward} xp ao concluir</span>}
               <a className="text-link today-swap-link" href="#biblioteca">Trocar material</a>
             </div>
@@ -326,7 +337,7 @@ function WeekRadar({ state, today }) {
             <strong>{nextMilestone.title}</strong>
           </span>
         </a>
-        : <p className="muted-text radar-empty">Nenhum prazo marcado.</p>}
+        : <p className="muted-text radar-empty">Nenhuma prova ou entrega marcada.</p>}
       {session && <p className="today-upcoming-foot">próxima sessão · <a className="text-link" href={`#agenda?data=${encodeURIComponent(session.date)}`}>{shortDate(session.date)}{session.start ? ` ${session.start}` : ''} · {session.title}</a></p>}
     </div>
 
@@ -429,6 +440,12 @@ function ActiveRail({ wide, account, go, friends, activeFriends, loaded, onHide 
   </aside>;
 
   return wide ? createPortal(rail, document.body) : rail;
+}
+
+// Link da aula na plataforma, só para curso importado (o mesmo que o registro da aula oferece).
+function lessonLink(course, lessonId) {
+  if (!isImportedCourse(course)) return '';
+  return materialLesson(course, lessonId)?.url || course.url || '';
 }
 
 function taskMeta(task) {

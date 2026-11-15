@@ -95,7 +95,7 @@ test('ao recarregar a biblioteca, a tela mostra a forma do conteúdo, não um es
   await expect(page.getByText('Revisar resumo')).toBeVisible();
 });
 
-test('focar uma tarefa a coloca no cartão principal da Hoje, sobrevive ao recarregar e não a conclui', { tag: '@celular' }, async ({ page }) => {
+test('focar uma tarefa a coloca no cartão principal da Hoje, sobrevive ao recarregar e não a conclui', { tag: '@celular' }, async ({ page, isMobile }) => {
   await seedAccount(page, addTask({ ...createInitialState(), onboarded: true }, { title: 'A2 – Falência', dueDate: '2026-11-26', priority: 1 }, '2026-11-10T10:00:00Z'));
   await page.goto('/#hoje');
   await page.getByRole('button', { name: 'Focar em A2 – Falência no Início' }).click();
@@ -112,13 +112,17 @@ test('focar uma tarefa a coloca no cartão principal da Hoje, sobrevive ao recar
   await expect(page.locator('section.next-action').getByRole('heading', { name: 'A2 – Falência' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Tirar A2 – Falência do foco' })).toHaveAttribute('aria-pressed', 'true');
 
-  // A sessão de foco leva o nome do foco.
-  await page.getByRole('navigation', { name: 'Navegação' }).getByRole('link', { name: 'Foco', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Sessão de foco', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Iniciar foco' }).click();
-  await expect(page.getByText('Sessão em andamento: A2 – Falência')).toBeVisible();
-  await page.getByRole('button', { name: 'Finalizar', exact: true }).click();
-  await page.getByRole('link', { name: 'Voltar ao Início' }).click();
+  // A sessão do timer leva o nome da tarefa em foco. No celular, o timer abre pelo menu da conta.
+  if (isMobile) {
+    await page.getByRole('button', { name: /^Menu da conta/ }).click();
+    await page.getByLabel('Opções do usuário').getByRole('button', { name: 'Timer de estudo' }).click();
+  } else {
+    await page.getByRole('button', { name: 'Timer de estudo', exact: true }).click();
+  }
+  const timer = page.locator('#timer-popover');
+  await timer.getByRole('button', { name: 'Iniciar' }).click();
+  await expect(timer.getByText('A2 – Falência', { exact: true })).toBeVisible();
+  await timer.getByRole('button', { name: 'Encerrar' }).click();
 
   await page.locator('section.next-action').getByRole('button', { name: 'Concluir tarefa' }).click();
   await expect(page.getByText('Tarefa concluída: A2 – Falência.')).toBeVisible();

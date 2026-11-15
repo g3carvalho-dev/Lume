@@ -15,11 +15,9 @@ import Tasks from '../features/plan/Tasks.jsx';
 // A Agenda leva o FullCalendar consigo. O App envolve a rota em Suspense.
 const named = (load, name) => lazy(() => load().then((module) => ({ default: module[name] })));
 const personal = () => import('../features/settings/Personal.jsx');
-const plan = () => import('../features/plan/Plan.jsx');
 const Achievements = named(personal, 'Achievements');
 const Preferences = named(() => import('../features/settings/Settings.jsx'), 'Preferences');
 const StoragePage = named(() => import('../features/settings/StoragePanel.jsx'), 'StoragePage');
-const Schedule = named(plan, 'Schedule');
 const Friends = lazy(() => import('../features/social/Friends.jsx'));
 const Profile = lazy(() => import('../features/social/Profile.jsx'));
 const Agenda = lazy(() => import('../features/agenda/Agenda.jsx'));
@@ -28,17 +26,15 @@ const AddFriends = lazy(() => import('../features/social/AddFriends.jsx'));
 const Reports = lazy(() => import('../features/social/Reports.jsx'));
 const Messages = lazy(() => import('../features/social/Messages.jsx'));
 const Subjects = lazy(() => import('../features/library/Subjects.jsx'));
-const FocusSession = lazy(() => import('../features/progress/FocusSession.jsx'));
 const ScheduleSession = lazy(() => import('../features/agenda/ScheduleSession.jsx'));
 const News = lazy(() => import('../features/news/News.jsx'));
 const Landing = lazy(() => import('../features/account/Landing.jsx'));
 
-// Cinco destinos no cabeçalho; as demais telas ficam em abas ou no menu da conta.
+// Quatro destinos no cabeçalho; as demais telas ficam em abas ou no menu da conta.
 export const SECTIONS = {
   hoje: { label: 'Início', icon: 'home', home: 'hoje' },
   biblioteca: { label: 'Biblioteca', icon: 'book', home: 'biblioteca' },
   plano: { label: 'Plano de Estudos', short: 'Plano', icon: 'calendar', home: 'plano' },
-  foco: { label: 'Foco', icon: 'timer', home: 'foco' },
   amigos: { label: 'Social', icon: 'users', home: 'amigos' },
   // Perfil, Conquistas e Configurações abrem pelo menu da conta, não pelo cabeçalho.
   perfil: { label: 'Perfil', icon: 'user', home: 'perfil', nav: false },
@@ -50,9 +46,11 @@ export const ENTRY_ROUTES = new Set(['login', 'inicio', 'recuperar', 'redefinir'
 // Telas abertas sem conta nem prévia (a apresentação e a recuperação de acesso).
 export const PUBLIC_ROUTES = new Set(['recuperar', 'redefinir', 'conheca']);
 
-// Endereços antigos continuam válidos: Missões virou o Roteiro dentro do Plano.
-// Endereços antigos continuam válidos: Missões e Roteiro viraram o Plano; Meu caminho, Conquistas.
-const ALIASES = { missoes: 'plano', roteiro: 'plano', historico: 'conquistas' };
+// Endereços antigos continuam válidos. `#plano` abre a aba padrão do Plano
+// (Tarefas), assim como Missões e Roteiro; Meu caminho virou Conquistas. A tela
+// de Foco e a aba Agenda deixaram de existir: o timer fica no cabeçalho e as
+// aulas previstas, no Calendário.
+const ALIASES = { plano: 'tarefas', missoes: 'tarefas', roteiro: 'tarefas', historico: 'conquistas', foco: 'hoje' };
 
 // Enquanto a sessão é verificada, o formulário não aparece: evita a impressão de estar deslogada.
 export function SessionCheck() {
@@ -70,15 +68,13 @@ const ROUTES = [
   { id: 'redefinir', title: 'Nova senha', render: (ctx) => <Recovery key={ctx.hash} reset notify={ctx.notify} go={ctx.go}/> },
 
   { id: 'hoje', title: 'Início', loading: 'panel', section: 'hoje', render: (ctx) => <Home state={ctx.state} open={ctx.open} go={ctx.go} planActions={ctx.model.planActions} progressActions={ctx.model.progressActions} notify={ctx.notify} account={ctx.model.account} xp={ctx.model.xp}/> },
-  { id: 'foco', title: 'Sessão de foco', section: 'foco', hideTabs: () => true, render: (ctx) => <FocusSession state={ctx.state} actions={ctx.model.progressActions} settingsActions={ctx.model.settingsActions} open={ctx.open} go={ctx.go} notify={ctx.notify} account={ctx.model.account} xp={ctx.model.xp}/> },
 
   { id: 'biblioteca', title: 'Biblioteca', loading: 'cards', section: 'biblioteca', tab: 'Materiais', hideTabs: () => true, render: (ctx) => <Library state={ctx.state} open={ctx.open} go={ctx.go} actions={ctx.model.libraryActions}/> },
   { id: 'disciplinas', title: 'Disciplinas', loading: 'cards', section: 'biblioteca', tab: 'Disciplinas', render: (ctx) => <Subjects key={ctx.params.get('id') || 'todas'} state={ctx.state} actions={ctx.model.libraryActions} open={ctx.open} go={ctx.go} notify={ctx.notify} id={ctx.params.get('id') || ''}/> },
 
-  { id: 'plano', title: 'Plano de Estudos', loading: 'panel', section: 'plano', tab: 'Agenda', tabIcon: 'calendar', hideTabs: () => true, render: (ctx) => <Schedule go={ctx.go} state={ctx.state} actions={ctx.model.planActions} agendaActions={ctx.model.agendaActions} progressActions={ctx.model.progressActions} open={ctx.open} notify={ctx.notify}/> },
-  { id: 'agenda', title: 'Calendário', section: 'plano', tab: 'Calendário', tabIcon: 'layers', hideTabs: () => true, render: (ctx) => <Agenda key={ctx.hash} state={ctx.state} actions={ctx.model.agendaActions} taskActions={ctx.model.planActions} confirmSave={ctx.model.confirmSave} retrySave={ctx.model.retrySave} saveError={ctx.model.saveError} syncStatus={ctx.model.syncStatus} params={ctx.params} notify={ctx.notify}/> },
   { id: 'agendar', title: 'Agendar sessão', loading: 'panel', section: 'plano', hideTabs: () => true, render: (ctx) => <ScheduleSession state={ctx.state} actions={ctx.model.agendaActions} open={ctx.open} confirmSave={ctx.model.confirmSave} notify={ctx.notify} go={ctx.go}/> },
   { id: 'tarefas', title: 'Tarefas', loading: 'panel', section: 'plano', tab: 'Tarefas', tabIcon: 'check', hideTabs: () => true, render: (ctx) => <Tasks state={ctx.state} actions={ctx.model.planActions} notify={ctx.notify} onSchedule={(task) => ctx.go(`agenda?tarefa=${encodeURIComponent(task.id)}`)}/> },
+  { id: 'agenda', title: 'Calendário', section: 'plano', tab: 'Calendário', tabIcon: 'layers', hideTabs: () => true, render: (ctx) => <Agenda key={ctx.hash} state={ctx.state} actions={ctx.model.agendaActions} taskActions={ctx.model.planActions} confirmSave={ctx.model.confirmSave} retrySave={ctx.model.retrySave} saveError={ctx.model.saveError} syncStatus={ctx.model.syncStatus} params={ctx.params} notify={ctx.notify} open={ctx.open}/> },
 
   { id: 'amigos', title: 'Social', section: 'amigos', tab: 'Feed', hideTabs: () => true, render: (ctx) => <Friends account={ctx.model.account} state={ctx.state} xp={ctx.model.xp} inviteCode={ctx.params.get('convite') || ''} notify={ctx.notify} go={ctx.go}/> },
   { id: 'mensagens', title: 'Mensagens', section: 'amigos', tab: 'Mensagens', render: (ctx) => <Messages account={ctx.model.account} state={ctx.state} notify={ctx.notify} go={ctx.go} contactId={ctx.params.get('com') || ''} groupId={ctx.params.get('grupo') || ''}/> },

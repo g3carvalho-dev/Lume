@@ -199,9 +199,12 @@ test('jornada 3 configura ritmo e primeira matéria sem gerar XP', async ({ page
   await page.getByLabel('Opções do usuário').getByRole('link', { name: 'Conquistas', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Suas conquistas', exact: true })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Seções de Perfil' }).getByRole('link', { name: 'Meu caminho' })).toHaveCount(0);
-  // Endereços antigos: Missões e Roteiro abrem o Plano; Meu caminho abre Conquistas.
+  // Endereços antigos: Missões e Roteiro abrem o Plano (aba Tarefas); Foco abre o
+  // Início; Meu caminho abre Conquistas.
   await page.goto('/#missoes');
-  await expect(page.getByRole('heading', { name: 'Plano de Estudos', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tarefas', exact: true })).toBeVisible();
+  await page.goto('/#foco');
+  await expect(page.getByRole('heading', { name: 'Início', exact: true })).toBeAttached();
   await page.goto('/#historico');
   await expect(page.getByRole('heading', { name: 'Suas conquistas', exact: true })).toBeVisible();
 });

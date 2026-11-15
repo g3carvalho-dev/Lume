@@ -1,0 +1,212 @@
+/* Timer de estudo no cabeçalho: controle pequeno, sem cor de chamada. Parado é
+   só o ícone; em andamento mostra o tempo em mono; pausado fica apagado. */
+
+.header-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 2.25rem;
+  min-width: 2.25rem;
+  padding: 0 0.6rem;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.header-timer.is-idle {
+  padding: 0;
+  border-radius: 50%;
+}
+.header-timer:hover,
+.header-timer:focus-visible {
+  color: var(--text);
+}
+.header-timer .icon {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+.header-timer-digits,
+.timer-fab span,
+.timer-popover-time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.header-timer-digits {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+.header-timer.is-paused .header-timer-digits {
+  color: var(--text-subtle);
+}
+.header-timer.is-finished .header-timer-digits {
+  color: var(--mint);
+}
+.header-timer:has(+ * + .timer-popover:is(:popover-open, .\:popover-open)),
+.header-timer:has(+ .timer-popover:is(:popover-open, .\:popover-open)) {
+  color: var(--lume);
+  background: var(--lume-soft);
+}
+
+/* Botão flutuante do celular: só existe com sessão em andamento. */
+.timer-fab {
+  display: none;
+}
+
+/* Item do menu da conta que abre o timer: só no celular. */
+.user-dropdown-timer {
+  display: none;
+}
+
+.timer-popover {
+  width: min(19rem, calc(100vw - 2 * var(--page-gutter, 1rem)));
+  display: grid;
+  gap: 0.85rem;
+}
+.timer-popover[popover]:not(:is(:popover-open, .\:popover-open)) {
+  display: none;
+}
+.timer-popover-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.timer-popover-head strong {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.timer-popover-time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.timer-popover-time small {
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-subtle);
+}
+.timer-current {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.timer-field {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.timer-field > span {
+  font-size: 0.75rem;
+  color: var(--text-subtle);
+}
+.timer-field select {
+  width: 100%;
+  min-width: 0;
+}
+.timer-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.timer-chips button,
+.timer-chips input {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.timer-chips button .icon {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+.timer-chips button[aria-pressed="true"] {
+  border-color: var(--text);
+  color: var(--text);
+}
+.timer-chips input {
+  width: 4.6rem;
+  cursor: text;
+  font-family: var(--font-mono);
+}
+.timer-volume {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-subtle);
+}
+.timer-volume input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--mint);
+}
+.timer-volume .icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+.timer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.timer-actions .button {
+  flex: 1 1 auto;
+}
+
+/* Celular: o cabeçalho não tem espaço. O botão flutuante fica acima da barra
+   inferior e o painel vira uma folha presa ao rodapé, acima da barra. */
+@media (max-width: 820px) {
+  .header-timer {
+    display: none;
+  }
+  .user-dropdown-timer {
+    display: flex;
+  }
+  .timer-fab {
+    position: fixed;
+    /* À esquerda: o canto direito é dos botões de criar (ex.: Novo compromisso). */
+    left: var(--page-gutter, 1rem);
+    bottom: calc(5.2rem + env(safe-area-inset-bottom));
+    z-index: 49;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 2.25rem;
+    padding: 0 0.7rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-elevated);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    box-shadow: var(--shadow-lg);
+  }
+  .timer-fab .icon {
+    width: 1rem;
+    height: 1rem;
+  }
+  .timer-fab.is-paused {
+    color: var(--text-subtle);
+  }
+  .shell-popover[popover].timer-popover {
+    position: fixed;
+    inset: auto var(--page-gutter, 1rem) calc(5.2rem + env(safe-area-inset-bottom)) var(--page-gutter, 1rem);
+    width: auto;
+    margin: 0;
+    position-area: none;
+  }
+}

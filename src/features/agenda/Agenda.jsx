@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import themePlugin from '@fullcalendar/react/themes/classic';
 import dayGridPlugin from '@fullcalendar/react/daygrid';
@@ -6,11 +6,12 @@ import interactionPlugin, { Draggable } from '@fullcalendar/react/interaction';
 import ptBr from '@fullcalendar/react/locales/pt-br';
 import { CATEGORIES, agendaSuggestions, validDate, shiftDate } from '../../../public/agenda-domain.js';
 import { localDate } from '../../../public/tasks-domain.js';
+import { buildSchedule, suggestedAvailability } from '../../../public/schedule-domain.js';
 import { Button } from '../../ui/ui.jsx';
 import Icon from '../../ui/Icon.jsx';
 import SectionTabs from '../../app/SectionTabs.jsx';
 import { requestNotifications } from './Reminders.jsx';
-import { calendarEvent, calendarPatch, emptyDraft } from './calendar-model.js';
+import { calendarEvent, calendarPatch, emptyDraft, plannedEvents } from './calendar-model.js';
 import AppointmentEditor from './AppointmentEditor.jsx';
 import AppointmentDetails from './AppointmentDetails.jsx';
 
@@ -19,9 +20,26 @@ const plugins = [themePlugin, dayGridPlugin, interactionPlugin];
 const CATEGORY_ICONS = { study: 'book', exam: 'edit', delivery: 'flag', personal: 'user' };
 const narrow = () => window.matchMedia('(max-width: 820px)').matches;
 
-export default function Agenda({ state, actions, taskActions, confirmSave, retrySave, saveError, syncStatus, params, notify }) {
+function formatMinutes(total) {
+  const value = Math.max(0, Math.round(total));
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  if (!hours) return `${minutes} min`;
+  return minutes ? `${hours} h ${String(minutes).padStart(2, '0')} min` : `${hours} h`;
+}
+
+function longDate(date) {
+  const text = new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+const dayMonth = (date) => (date ? new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' }) : '');
+
+export default function Agenda({ state, actions, taskActions, confirmSave, retrySave, saveError, syncStatus, params, notify, open }) {
   const today = localDate();
-  const initialDate = validDate(params?.get('dia')) ? params.get('dia') : today;
+  // `dia` vem do Agendar; `data`, dos marcos do Início.
+  const requestedDate = params?.get('dia') || params?.get('data');
+  const initialDate = validDate(requestedDate) ? requestedDate : today;
   const task = state.tasks.find((item) => item.id === params?.get('tarefa'));
   const calendar = useRef(null);
   const section = useRef(null);
@@ -34,15 +52,25 @@ export default function Agenda({ state, actions, taskActions, confirmSave, retry
   const [planning, setPlanning] = useState(false);
   const [settings, setSettings] = useState(false);
   const [hidden, setHidden] = useState(() => new Set(['cancelled']));
+  const [day, setDay] = useState(initialDate);
+  const detail = useRef(null);
   const [permission, setPermission] = useState('Notification' in window ? Notification.permission : 'unsupported');
   const entries = state.agenda || [];
   const visible = useMemo(() => entries.filter((item) => !hidden.has(item.category) && !(item.cancelled && hidden.has('cancelled'))), [entries, hidden]);
-  const events = useMemo(() => visible.map((item) => calendarEvent(item, state.tasks)), [visible, state.tasks]);
+  // Aulas previstas pelo cronograma: derivadas a cada desenho, nunca gravadas.
+  const schedule = useMemo(() => buildSchedule(state, { today }), [state, today]);
+  const planned = useMemo(() => plannedEvents(schedule), [schedule]);
+  const events = useMemo(() => [
+    ...visible.map((item) => calendarEvent(item, state.tasks)),
+    ...(hidden.has('planned') ? [] : planned),
+  ], [visible, state.tasks, planned, hidden]);
+  const firstPlanned = schedule.days[0]?.items[0] || null;
+  const noAvailability = !schedule.weeklyMinutes && schedule.courses.length > 0;
   const suggestions = useMemo(() => agendaSuggestions(state, today), [state, today]);
   const scheduled = new Set(entries.filter((item) => !item.cancelled).flatMap((item) => item.taskIds));
   const pending = state.tasks.filter((item) => !item.done && !scheduled.has(item.id));
   const late = entries.filter((item) => !item.done && !item.cancelled && item.date < today);
-  const empty = !entries.some((item) => !item.cancelled);
+  const empty = !entries.some((item) => !item.cancelled) && !planned.length;
   const blocked = ['loading', 'error', 'saving'].includes(syncStatus);
   const selected = panel?.id ? entries.find((item) => item.id === panel.id) : null;
   const api = () => calendar.current?.getApi();
@@ -79,6 +107,20 @@ export default function Agenda({ state, actions, taskActions, confirmSave, retry
     if (step < 0) api()?.prev(); else if (step > 0) api()?.next(); else api()?.today();
   }
   function goDate(value) { if (validDate(value)) api()?.gotoDate(value); }
+  // Detalhe do dia abaixo da grade: escolher um dia não mexe em nada acima dela.
+  function showDay(value, reveal = false) {
+    if (!validDate(value)) return;
+    setDay(value);
+    if (reveal) requestAnimationFrame(() => detail.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }));
+  }
+  function applyWeekdays() {
+    if (taskActions?.useSuggestedAvailability?.()) notify?.('Disponibilidade definida: segunda a sexta. As aulas previstas aparecem no calendário.');
+  }
+  function postpone(item) {
+    const result = taskActions?.postponeLesson?.(item.lessonId, item.date);
+    if (!result) return;
+    notify?.(`${item.title} foi para ${dayMonth(result.target)}. As aulas seguintes de ${item.courseTitle} acompanham.`);
+  }
   function toggleFilter(key) { setHidden((old) => { const next = new Set(old); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }
   function select(info) {
     if (blocked) return;
@@ -143,7 +185,7 @@ export default function Agenda({ state, actions, taskActions, confirmSave, retry
   }, [planning]);
   return <div className="agenda-root">
     <header className="agenda-heading">
-      <div className="agenda-title"><span className="eyebrow">Plano de estudos · Calendário</span><h1 className="display">Agenda</h1></div>
+      <div className="agenda-title"><span className="eyebrow">Plano de estudos</span><h1 className="display">Calendário</h1></div>
       <div className="page-heading-actions">
         <a className="button secondary" href="#agendar"><Icon name="calendar-plus"/>Agendar sessão</a>
         <Button secondary aria-expanded={planning} onClick={() => setPlanning(!planning)}>Para agendar{pending.length ? ` (${pending.length})` : ''}</Button>
@@ -161,12 +203,13 @@ export default function Agenda({ state, actions, taskActions, confirmSave, retry
     </div>
     <div className="agenda-filters" role="group" aria-label="Mostrar no calendário">
       {Object.entries(CATEGORIES).map(([key, label]) => <button key={key} type="button" className={`agenda-chip cat-${key}`} aria-pressed={!hidden.has(key)} onClick={() => toggleFilter(key)}><span className={`agenda-category-dot cat-${key}`} aria-hidden="true"/>{label}</button>)}
+      <button type="button" className="agenda-chip cat-planned" aria-pressed={!hidden.has('planned')} onClick={() => toggleFilter('planned')}><span className="agenda-category-dot cat-planned" aria-hidden="true"/>Aulas previstas</button>
       <button type="button" className="agenda-chip cat-cancelled" aria-pressed={!hidden.has('cancelled')} onClick={() => toggleFilter('cancelled')}><span className="agenda-category-dot cat-cancelled" aria-hidden="true"/>Canceladas</button>
     </div>
     <div className={`agenda-workspace${planning ? ' with-planner' : ''}`}>
       <section ref={section} className="agenda-calendar" aria-label="Calendário: mês">
         {/* Flutua sobre a grade: não desloca o calendário e deixa os cliques passarem. */}
-        {empty && syncStatus !== 'loading' && <section className="agenda-empty"><span className="empty-icon"><Icon name="calendar"/></span><div><h2 className="title">Sua agenda está livre</h2><p>Clique num dia para reservar tempo; depois, arraste o bloco para outro dia ou abra-o para ajustar o horário.</p></div>{(pending.length > 0 || suggestions.length > 0) && !planning && <Button secondary onClick={() => setPlanning(true)}>Ver o que agendar</Button>}</section>}
+        {empty && syncStatus !== 'loading' && <section className="agenda-empty"><span className="empty-icon"><Icon name="calendar"/></span><div><h2 className="title">Sua agenda está livre</h2><p>Clique num dia para reservar tempo; depois, arraste o bloco para outro dia ou abra-o para ajustar o horário.{noAvailability ? ' Com a sua disponibilidade, as aulas previstas aparecem aqui.' : ''}</p></div>{noAvailability && <Button onClick={applyWeekdays} disabled={blocked}>Usar segunda a sexta, {suggestedAvailability(state)[1]} min por dia</Button>}{(pending.length > 0 || suggestions.length > 0) && !planning && <Button secondary onClick={() => setPlanning(true)}>Ver o que agendar</Button>}</section>}
         <div className="agenda-calendar-frame">
         <FullCalendar ref={calendar} plugins={plugins} locale={ptBr} initialView="dayGridMonth" initialDate={initialDate} headerToolbar={false}
           height="min(640px, 64vh)" firstDay={1} eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
@@ -174,8 +217,13 @@ export default function Agenda({ state, actions, taskActions, confirmSave, retry
           noEventsContent="Nada agendado neste período."
           events={events} editable={!blocked} selectable={!blocked} selectMirror select={select} eventDrop={move} eventResize={move}
           eventLongPressDelay={400} selectLongPressDelay={400}
-          dateClick={(info) => { if (!blocked && window.matchMedia('(max-width: 700px)').matches) edit(emptyDraft(info.dateStr.slice(0, 10), calendarPatch({ start: info.date, startStr: info.dateStr, allDay: info.allDay }))); }}
-          eventClick={(info) => setPanel({ id: info.event.id })} dayMaxEvents={3}
+          dateClick={(info) => { showDay(info.dateStr.slice(0, 10)); if (!blocked && window.matchMedia('(max-width: 700px)').matches) edit(emptyDraft(info.dateStr.slice(0, 10), calendarPatch({ start: info.date, startStr: info.dateStr, allDay: info.allDay }))); }}
+          eventClick={(info) => {
+            const lesson = info.event.extendedProps.planned;
+            if (lesson) { showDay(lesson.date, true); return; }
+            showDay(info.event.extendedProps.item?.date);
+            setPanel({ id: info.event.id });
+          }} dayMaxEvents={3}
           selectAllow={(info) => !info.allDay || info.endStr.slice(0, 10) === shiftDate(info.startStr.slice(0, 10), 1)}
           datesSet={datesSet}
           droppable={!blocked} drop={(info) => {
@@ -184,11 +232,20 @@ export default function Agenda({ state, actions, taskActions, confirmSave, retry
             quick(emptyDraft(info.dateStr.slice(0, 10), { ...calendarPatch({ start: info.date, startStr: info.dateStr, allDay: info.allDay }), title: linked.title, taskIds: [linked.id] }), info.jsEvent);
           }}
           eventContent={(info) => {
+            const lesson = info.event.extendedProps.planned;
+            if (lesson) return <span className="agenda-event-content in-month"><strong><Icon name="book"/>{info.event.title}</strong></span>;
             const item = info.event.extendedProps.item;
             const detail = [info.timeText, info.event.extendedProps.progress && `${info.event.extendedProps.progress} tarefas`, item?.done && 'encerrada', item?.cancelled && 'cancelada'].filter(Boolean).join(' · ');
             return <span className="agenda-event-content in-month"><strong>{item && <Icon name={CATEGORY_ICONS[item.category]}/>}{info.event.title}</strong>{detail && <span>{detail}</span>}</span>;
           }}
           eventDidMount={(info) => {
+            const lesson = info.event.extendedProps.planned;
+            if (lesson) {
+              info.el.dataset.plannedLesson = lesson.lessonId;
+              info.el.setAttribute('aria-label', `Aula prevista: ${info.event.title}`);
+              info.el.title = `Aula prevista · ${lesson.courseTitle} · ${formatMinutes(lesson.minutes)}`;
+              return;
+            }
             const item = info.event.extendedProps.item;
             info.el.dataset.appointmentId = info.event.id;
             info.el.setAttribute('aria-label', `Abrir compromisso ${info.event.title}`);
@@ -199,11 +256,78 @@ export default function Agenda({ state, actions, taskActions, confirmSave, retry
       </section>
       {planning && <aside className="agenda-planner" ref={tray} aria-label="Para agendar"><div className="agenda-planner-heading"><h2 className="title">Para agendar</h2><button type="button" className="icon-button" aria-label="Fechar Para agendar" onClick={() => setPlanning(false)}><Icon name="close"/></button></div><p>Arraste uma tarefa para um horário ou use Agendar.</p><label className="field">Ir para data<input type="date" value={date} onChange={(e) => goDate(e.target.value)}/></label>
         <h3>Tarefas sem horário reservado</h3>{pending.length ? pending.map((item) => <div key={item.id} className="agenda-planner-item" data-task-id={item.id} data-title={item.title}><strong>{item.title}</strong>{item.dueDate && <small>Prazo: {item.dueDate}</small>}<button className="text-button" disabled={blocked} onClick={() => edit(emptyDraft(date, { title: item.title, taskIds: [item.id] }))}>Agendar tarefa {item.title}</button></div>) : <p>Nenhuma tarefa para agendar.</p>}
-        <h3>Sugestões de estudo</h3>{suggestions.length ? suggestions.map((item) => <div key={`${item.courseId}:${item.lessonId}`} className="agenda-planner-item"><strong>{item.title}</strong><small>{item.date} · {item.minutes} min {item.durationKnown ? '' : '(estimativa)'}</small><button className="text-button" disabled={blocked} onClick={() => { goDate(item.date); edit(emptyDraft(item.date, { title: item.title, tasks: [{ title: item.title, courseId: item.courseId, lessonId: item.lessonId }] })); }}>Revisar sugestão</button></div>) : <p>Defina sua disponibilidade no <a href="#plano">Plano</a> para receber sugestões.</p>}
+        <h3>Sugestões de estudo</h3>{suggestions.length ? suggestions.map((item) => <div key={`${item.courseId}:${item.lessonId}`} className="agenda-planner-item"><strong>{item.title}</strong><small>{item.date} · {item.minutes} min {item.durationKnown ? '' : '(estimativa)'}</small><button className="text-button" disabled={blocked} onClick={() => { goDate(item.date); edit(emptyDraft(item.date, { title: item.title, tasks: [{ title: item.title, courseId: item.courseId, lessonId: item.lessonId }] })); }}>Revisar sugestão</button></div>) : <p>{noAvailability ? <>Sem disponibilidade declarada. <button type="button" className="text-button accent" disabled={blocked} onClick={applyWeekdays}>Usar segunda a sexta</button></> : 'Nenhuma aula sugerida agora.'}</p>}
         {!!late.length && <details><summary>Pendências anteriores ({late.length})</summary>{late.map((item) => <button key={item.id} className="agenda-planner-item" onClick={() => setPanel({ id: item.id })}>{item.title} · {item.date}</button>)}</details>}
       </aside>}
     </div>
+    <DayDetail
+      ref={detail}
+      date={day}
+      today={today}
+      schedule={schedule}
+      appointments={entries.filter((item) => item.date === day && !item.cancelled)}
+      firstPlanned={firstPlanned}
+      noAvailability={noAvailability && !(empty && syncStatus !== 'loading')}
+      blocked={blocked}
+      suggested={suggestedAvailability(state)[1]}
+      actions={taskActions}
+      notify={notify}
+      open={open}
+      onWeekdays={applyWeekdays}
+      onPostpone={postpone}
+      onAppointment={(item) => setPanel({ id: item.id })}
+    />
     {panel?.draft && <AppointmentEditor key={panel.key || 'initial'} initial={panel.draft} initialExpected={panel.expected} anchor={panel.anchor} state={state} actions={actions} confirmSave={confirmSave} retrySave={retrySave} saveError={saveError} onSaved={saved} onExpand={(draft) => setPanel({ draft, key: crypto.randomUUID() })} onClose={() => setPanel(null)}/>}
     {selected && <AppointmentDetails key={selected.id} item={selected} state={state} actions={actions} taskActions={taskActions} confirmSave={confirmSave} retrySave={retrySave} saveError={saveError} edit={edit} onRemove={remove} onClose={() => setPanel(null)}/>}
   </div>;
 }
+
+// Detalhe do dia escolhido, abaixo da grade: aulas previstas (com "Adiar") e
+// compromissos daquele dia, e o alerta de prazo que não cabe no plano. Fica
+// fora da área acima do FullCalendar, que não pode mudar de altura.
+const DayDetail = forwardRef(function DayDetail({ date, today, schedule, appointments, firstPlanned, noAvailability, blocked, suggested, actions, notify, open, onWeekdays, onPostpone, onAppointment }, ref) {
+  const lessons = schedule.days.find((entry) => entry.date === date)?.items.map((item) => ({ ...item, date })) || [];
+  const sorted = [...appointments].sort((a, b) => (a.start || '99').localeCompare(b.start || '99'));
+  const count = lessons.length + sorted.length;
+  return <section ref={ref} className="card-surface agenda-day" aria-labelledby="agenda-day-title">
+    <div className="agenda-day-head">
+      <h2 id="agenda-day-title" className="title">{date === today ? `Hoje · ${dayMonth(date)}` : longDate(date)}</h2>
+      <span className="muted-text">{count ? `${count} ${count === 1 ? 'item' : 'itens'}` : 'Nada previsto'}</span>
+    </div>
+
+    {schedule.conflicts.map((conflict) => <div key={conflict.courseId} className="agenda-conflict" role="status">
+      <strong><Icon name="flag"/>O prazo de {conflict.title} não cabe no plano atual</strong>
+      <p>Faltam {formatMinutes(conflict.neededMinutes)} de estudo (contando o que vem antes na ordem) e há {formatMinutes(conflict.availableMinutes)} disponíveis até {dayMonth(conflict.deadline)}. {conflict.finish ? `No ritmo atual, termina em ${dayMonth(conflict.finish)}.` : 'No ritmo atual, não termina nos próximos seis meses.'}</p>
+      <div className="action-row">
+        <Button secondary disabled={blocked} onClick={() => { if (actions?.increaseWeekly?.(conflict.extraWeeklyMinutes)) notify?.(`Disponibilidade aumentada em ${formatMinutes(conflict.extraWeeklyMinutes)} por semana.`); }}>Aumentar {formatMinutes(conflict.extraWeeklyMinutes)} por semana</Button>
+        {conflict.finish && <Button secondary disabled={blocked} onClick={() => { if (actions?.setGoal?.(conflict.courseId, { deadline: conflict.finish })) notify?.(`Prazo de ${conflict.title} ajustado para ${dayMonth(conflict.finish)}.`); }}>Mudar o prazo para {dayMonth(conflict.finish)}</Button>}
+        {!conflict.prioritized && <Button secondary disabled={blocked} onClick={() => { if (actions?.setGoal?.(conflict.courseId, { priority: 1 })) notify?.(`${conflict.title} passou para prioridade alta.`); }}>Dar prioridade alta a este curso</Button>}
+      </div>
+      <p className="quiet-note">Nenhum ajuste é aplicado sem a sua escolha.</p>
+    </div>)}
+
+    {count > 0 && <ul className="agenda-day-list">
+      {sorted.map((item) => <li key={item.id} className={`agenda-day-item${item.done ? ' is-done' : ''}`}>
+        <span className={`agenda-category-dot cat-${item.category}`} aria-hidden="true"/>
+        <span className="agenda-day-copy"><strong>{item.title}</strong><small className="todo-meta">{item.start ? `${item.start} – ${item.end}` : 'Sem horário'} · {CATEGORIES[item.category]}{item.done ? ' · encerrada' : ''}</small></span>
+        <button type="button" className="text-button" onClick={() => onAppointment(item)} aria-label={`Ver ${item.title} no detalhe do dia`}>Ver</button>
+      </li>)}
+      {lessons.map((item) => <li key={item.lessonId} className="agenda-day-item is-planned">
+        <span className="agenda-category-dot cat-planned" aria-hidden="true"/>
+        <span className="agenda-day-copy"><strong>{item.title}</strong><small className="todo-meta">Aula prevista · {item.courseTitle} · {formatMinutes(item.minutes)} {item.durationKnown ? '(duração da fonte)' : '(estimativa)'}{item.overflow ? ' · maior que o tempo do dia' : ''}</small></span>
+        <span className="agenda-day-actions">
+          {firstPlanned?.lessonId === item.lessonId && <Button onClick={() => open?.({ type: 'session', id: item.courseId, stepId: item.lessonId })}><Icon name="play"/>Estudar</Button>}
+          <button type="button" className="text-button" disabled={blocked} aria-label={`Adiar ${item.title}`} onClick={() => onPostpone(item)}>Adiar</button>
+        </span>
+      </li>)}
+    </ul>}
+
+    {!count && (noAvailability
+      ? <div className="agenda-day-empty">
+        <p className="muted-text">Sem disponibilidade declarada, o cronograma não distribui aulas. Comece pela sugestão de segunda a sexta.</p>
+        <Button secondary disabled={blocked} onClick={onWeekdays}>Usar segunda a sexta, {suggested} min por dia</Button>
+      </div>
+      : <p className="muted-text">{schedule.weeklyMinutes ? 'Nenhuma aula prevista nem compromisso neste dia.' : 'Nenhum compromisso neste dia.'}</p>)}
+    {schedule.unscheduled > 0 && schedule.weeklyMinutes > 0 && <p className="quiet-note">{schedule.unscheduled} aulas ficam além de seis meses.</p>}
+  </section>;
+});

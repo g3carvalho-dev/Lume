@@ -388,7 +388,15 @@
 }
 .landing-dial .focus-dial-track,
 .landing-dial .focus-dial-progress {
+  fill: none;
   stroke-width: 8;
+}
+.landing-dial .focus-dial-track {
+  stroke: var(--track);
+}
+.landing-dial .focus-dial-progress {
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
 }
 .landing-dial > span {
   position: absolute;

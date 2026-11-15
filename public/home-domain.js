@@ -62,16 +62,18 @@ export function trailWindow(nodes, current, size) {
   return nodes.slice(start, start + size);
 }
 
-// Provas, entregas e prazos de tarefas em contagem regressiva. Sessões de estudo
-// agendadas não são entregas: aparecem só como a próxima sessão.
+// Marcos em contagem regressiva: só o que a pessoa marcou como Prova ou Entrega
+// na Agenda (decisão de 15/11/2026). Compromissos pessoais e prazos de tarefas
+// não entram; sessões de estudo agendadas aparecem só como a próxima sessão.
+const MILESTONE_CATEGORIES = new Set(['exam', 'delivery']);
 export function upcomingDeadlines(state, today = localDay(), limit = 3) {
   const agenda = (state.agenda || []).filter((item) => !item.cancelled && !item.done && item.date >= today);
-  const linked = new Set(agenda.flatMap((item) => item.taskIds || []));
-  const items = [
-    ...agenda.filter((item) => item.category !== 'study').map((item) => ({ id: `agenda-${item.id}`, title: item.title, date: item.date, start: item.start || '', kind: CATEGORIES[item.category] || 'Compromisso', href: `#agenda?data=${encodeURIComponent(item.date)}` })),
-    ...(state.tasks || []).filter((task) => !task.done && task.dueDate && task.dueDate >= today && !linked.has(task.id)).map((task) => ({ id: `task-${task.id}`, title: task.title, date: task.dueDate, start: '', kind: 'Tarefa', href: '#tarefas' })),
-  ].sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`));
-  const session = agenda.filter((item) => item.category === 'study').sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))[0] || null;
+  const byTime = (a, b) => `${a.date}${a.start || ''}`.localeCompare(`${b.date}${b.start || ''}`);
+  const items = agenda
+    .filter((item) => MILESTONE_CATEGORIES.has(item.category))
+    .map((item) => ({ id: `agenda-${item.id}`, title: item.title, date: item.date, start: item.start || '', kind: CATEGORIES[item.category], href: `#agenda?data=${encodeURIComponent(item.date)}` }))
+    .sort(byTime);
+  const session = agenda.filter((item) => item.category === 'study').sort(byTime)[0] || null;
   return { items: items.slice(0, limit), total: items.length, session };
 }
 

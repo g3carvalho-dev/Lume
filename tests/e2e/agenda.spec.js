@@ -28,7 +28,7 @@ test('calendário mensal, criação, checklist editável e sobreposição', { ta
   page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()); });
   await seedAccount(page, initial());
   await page.goto('/#agenda');
-  await expect(page.getByRole('heading', { name: 'Agenda', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Calendário', exact: true })).toBeVisible();
   await expect(page.getByLabel('Calendário: mês', { exact: true })).toBeVisible();
   // Só a visão mensal: não há seletor de Dia, 3 dias, Semana ou Lista.
   await expect(page.getByRole('group', { name: 'Visualização' })).toHaveCount(0);
@@ -95,7 +95,9 @@ test('tarefas existentes são agendadas sem cópia e menu continua legível', { 
   expect(saved.tasks).toEqual(state.tasks);
   expect(saved.agenda[0].taskIds).toEqual([state.tasks[0].id]);
   await page.goto('/#plano');
-  await expect(page.getByRole('link', { name: 'Agenda', exact: true })).toBeVisible();
+  // `#plano` abre a aba padrão (Tarefas); a aba Agenda deixou de existir.
+  await expect(page.getByRole('heading', { name: 'Tarefas', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Agenda', exact: true })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Calendário', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Roteiro', exact: true })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Tarefas', exact: true })).toBeVisible();
@@ -300,7 +302,7 @@ test('arrastar no mês move o dia e remove o horário', async ({ page, isMobile 
   });
   await seedAccount(page, state);
   await page.goto('/#agenda');
-  await expect(page.getByRole('heading', { name: 'Agenda', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Calendário', exact: true })).toBeVisible();
   const event = page.getByLabel('Abrir compromisso Bloco com hora', { exact: true }).first();
   await expect(event).toBeVisible();
   const source = await event.boundingBox();

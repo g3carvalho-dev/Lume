@@ -229,7 +229,7 @@ export default function Landing({ go, setAuthMode, signedIn }) {
             <div>
               <strong>Recursos</strong>
               <a href="#biblioteca" onClick={e => { if (!signedIn) { e.preventDefault(); login(); } }}>Biblioteca e PDFs</a>
-              <a href="#plano" onClick={e => { if (!signedIn) { e.preventDefault(); login(); } }}>Plano e Agenda</a>
+              <a href="#plano" onClick={e => { if (!signedIn) { e.preventDefault(); login(); } }}>Plano e Calendário</a>
               <a href="#amigos" onClick={e => { if (!signedIn) { e.preventDefault(); login(); } }}>Amigos e ranking</a>
             </div>
             <div>
