@@ -233,6 +233,8 @@
   gap: 0.4rem;
   color: var(--lume);
   font-size: 0.8rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .profile-x-progression {

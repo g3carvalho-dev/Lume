@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { createInitialState } from '../../../public/domain.js';
 import { libraryActions } from '../../../public/library-actions.js';
+import { closeStaleSession } from '../../../public/session-domain.js';
 import { api, apiError } from '../../lib/api.js';
 import { clearResources } from '../../lib/resources.js';
 
@@ -18,6 +19,7 @@ export function useLibraryPersistence(notify, onSaved) {
   const pending = useRef(Promise.resolve());
   const failed = useRef(null);
   const blocked = useRef('');
+  const actRef = useRef(null);
   const saved = useRef(onSaved);
   saved.current = onSaved;
   const publish = useCallback((value) => { current.current = value; renderState(value); }, []);
@@ -45,6 +47,11 @@ export function useLibraryPersistence(notify, onSaved) {
     publish(result.data.state);
     connected.current = true;
     setSyncStatus('saved');
+    // Sessão esquecida aberta vira registro com o tempo já acumulado.
+    actRef.current?.((state) => {
+      const next = closeStaleSession(state);
+      return next === state ? null : { state: next };
+    });
     return true;
   }, [notify, publish]);
 
@@ -99,6 +106,7 @@ export function useLibraryPersistence(notify, onSaved) {
     pending.current = pending.current.catch(() => {}).then(() => send(operation, token, order));
     return result;
   }, [notify, publish, send]);
+  actRef.current = act;
 
   const retrySave = useCallback(async () => {
     if (!connected.current) return;

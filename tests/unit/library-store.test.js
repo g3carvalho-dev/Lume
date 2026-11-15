@@ -222,7 +222,7 @@ test('ordem da biblioteca sobrevive a inserções e reordenação', async (t) =>
   assert.deepEqual((await readLibrary(db, 'u1')).state.courses.map((course) => course.id), reordered.courses.map((course) => course.id));
 });
 
-test('sessão esquecida volta pausada sem acumular tempo ausente', async (t) => {
+test('o servidor devolve a sessão esquecida intacta; o cliente a encerra ao carregar', async (t) => {
   const { db } = fixture(t);
   const state = createInitialState();
   const at = new Date(Date.now() - 3600000).toISOString();
@@ -230,7 +230,7 @@ test('sessão esquecida volta pausada sem acumular tempo ausente', async (t) => 
   await readLibrary(db, 'u1');
   await db.run('UPDATE account_documents SET data=? WHERE user_id=?', [JSON.stringify(state), 'u1']);
   const current = await readLibrary(db, 'u1');
-  assert.equal(current.state.activeSession.status, 'paused');
+  assert.equal(current.state.activeSession.status, 'active');
   assert.equal(current.state.activeSession.accumulatedMs, 60000);
 });
 

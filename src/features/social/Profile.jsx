@@ -239,6 +239,10 @@ export default function Profile({ id, handle = '', state, actions, account, noti
         <div className="profile-x-identity">
           <div className="profile-x-title-row">
             <h1 id="profile-user-title" className="display profile-x-name">{user.name}</h1>
+            {(isSelf ? Boolean(state.activeSession) : studying.length > 0) && <span className="profile-x-live">
+              <span className="companion-dot" aria-hidden="true"/>
+              {isSelf ? `Estudando · ${state.activeSession.label}` : 'Estudando'}
+            </span>}
             {!isSelf && <span className="soft-badge tone-mint"><span className="soft-dot" aria-hidden="true"/>{view.viewer === 'public' ? 'Perfil público' : 'Perfil de amigo'}</span>}
           </div>
 
@@ -266,10 +270,6 @@ export default function Profile({ id, handle = '', state, actions, account, noti
             {stats.completedCourses !== null && <span className="profile-x-count-item">
               <strong className="mono"><AnimatedNumber value={stats.completedCourses}/></strong>
               <span>Completos</span>
-            </span>}
-            {(isSelf ? Boolean(state.activeSession) : studying.length > 0) && <span className="profile-x-live">
-              <span className="companion-dot" aria-hidden="true"/>
-              {isSelf ? `Estudando · ${state.activeSession.label}` : 'Estudando'}
             </span>}
           </div>
         </div>

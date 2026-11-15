@@ -218,7 +218,11 @@ export default function PdfReader({ course, state, actions, progressActions, not
     if (ownsSession.current && !ownedId.current && active) ownedId.current = active.id;
   }, [state.activeSession]);
   useEffect(() => {
-    if (!activeRef.current) {
+    // Uma sessão pausada deste mesmo PDF é sobra de uma leitura anterior: o
+    // startSession a encerra (gravando o tempo) e abre a nova. Sessões de outro
+    // material, ou em andamento, continuam sendo de quem as abriu.
+    const left = activeRef.current;
+    if (!left || (left.status === 'paused' && left.courseId === course.id)) {
       ownsSession.current = Boolean(progressActions.startSession({ courseId: course.id, label: `Leitura — ${course.title}` }));
     }
     const beat = setInterval(() => { if (ownedId.current && activeRef.current?.id === ownedId.current) progressActions.touchSession(); }, 60000);

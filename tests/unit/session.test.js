@@ -136,3 +136,16 @@ test('sem semana anterior, o ritmo não inventa porcentagem', () => {
   assert.equal(formatMinutes(135), '2h 15m');
   assert.equal(formatMinutes(180), '3h');
 });
+
+test('sessão esquecida aberta vira registro com o tempo acumulado até o último batimento', async () => {
+  const { closeStaleSession } = await import('../../public/session-domain.js');
+  let state = startSession(createInitialState(), { courseId: 'pdf', label: 'Leitura' }, T0);
+  state = touchSession(state, T0 + 40 * MINUTE);
+  const closed = closeStaleSession(state, T0 + 5 * 60 * MINUTE);
+  assert.equal(closed.activeSession, null);
+  assert.equal(closed.studySessions.length, 1);
+  assert.equal(closed.studySessions[0].durationMs, 40 * MINUTE);
+  assert.equal(closed.studySessions[0].endedAt, new Date(T0 + 40 * MINUTE).toISOString());
+  assert.equal(closeStaleSession(state, T0 + 41 * MINUTE), state);
+  assert.equal(closeStaleSession(startSession(createInitialState(), {}, T0), T0 + 60 * MINUTE).studySessions.length, 0);
+});

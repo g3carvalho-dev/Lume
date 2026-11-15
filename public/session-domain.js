@@ -163,6 +163,31 @@ export function reconcileSession(state, now = Date.now(), { staleMs = STALE_SESS
   };
 }
 
+// Ao carregar, uma sessão ativa sem batimento há muito tempo (app fechado ou
+// computador dormindo com o leitor aberto) é encerrada com o que já tinha
+// acumulado até o último batimento. Sem isso o tempo ficava numa sessão pausada
+// que nunca virava registro. Sem tempo acumulado, a sessão é só descartada.
+export function closeStaleSession(state, now = Date.now(), { staleMs = STALE_SESSION_MS } = {}) {
+  const session = state.activeSession;
+  if (!session || session.status !== 'active') return state;
+  const lastTick = Date.parse(session.lastTickAt);
+  if (now - lastTick <= staleMs) return state;
+  const durationMs = clampDuration(session.accumulatedMs);
+  const base = { ...state, activeSession: null };
+  if (!durationMs) return base;
+  const closed = {
+    id: session.id,
+    courseId: session.courseId,
+    stepId: session.stepId,
+    label: session.label,
+    startedAt: session.startedAt,
+    endedAt: iso(lastTick),
+    durationMs,
+    origin: 'declared',
+  };
+  return { ...base, studySessions: [...normalizeStudySessions(state.studySessions), closed].slice(-MAX_STORED_SESSIONS) };
+}
+
 function cleanId(value) {
   return typeof value === 'string' && value.length <= 120 ? value : '';
 }

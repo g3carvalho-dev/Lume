@@ -3,7 +3,6 @@
 import { createInitialState, restoreState, STATE_VERSION } from '../../public/domain.js';
 import { splitMaterial, projectMaterial } from '../../public/material-model.js';
 import { AppError } from '../errors.js';
-import { reconcileSession } from '../../public/session-domain.js';
 
 const COLLECTIONS = { progress: 'study_progress', tasks: 'study_tasks', studySessions: 'study_sessions', agenda: 'agenda_entries', subjects: 'study_subjects' };
 const json = JSON.stringify;
@@ -111,7 +110,7 @@ export async function readLibrary(db, userId) {
     const state = { ...createInitialState(), ...JSON.parse(document.data), courses: materials.map((row) => projectMaterial(JSON.parse(row.data), units.filter((unit) => unit.material_id === row.id).map((unit) => ({ id: unit.id, parentId: unit.parent_id, kind: unit.kind, position: unit.position, selected: Boolean(unit.selected), data: JSON.parse(unit.data) })))) };
     Object.keys(COLLECTIONS).forEach((field, index) => { state[field] = collections[index].map((row) => JSON.parse(row.data)); });
     const latest = await db.first('SELECT revision FROM account_documents WHERE user_id=?', [userId]);
-    if (latest.revision === document.revision) return { state: reconcileSession(state), revision: document.revision, updatedAt: document.updated_at };
+    if (latest.revision === document.revision) return { state, revision: document.revision, updatedAt: document.updated_at };
   }
   throw new AppError('A biblioteca mudou durante a leitura. Tente novamente.', 'library_busy', 409);
 }
