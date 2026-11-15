@@ -210,7 +210,14 @@ fieldset.agenda-editor-group > legend { float: left; width: 100%; margin-bottom:
 }
 @media (max-width: 700px) {
   .agenda-root { gap: .75rem; }
-  .agenda-heading { flex-wrap: nowrap; }
+  .agenda-heading { position: relative; flex-wrap: wrap; align-items: flex-end; gap: .75rem; }
+  .agenda-root .agenda-heading .page-heading-actions { width: 100%; flex-wrap: nowrap; gap: .5rem; }
+  .agenda-heading .page-heading-actions > .button { flex: 1 1 auto; padding-inline: .7rem; }
+  /* O sino dos lembretes sobe para o canto do título; as duas ações dividem a linha. */
+  .agenda-heading .agenda-bell { position: absolute; top: 0; right: 0; }
+  .agenda-toolbar { padding: .6rem .75rem; }
+  .agenda-period { gap: .5rem; }
+  .agenda-period h2 { flex: 1; min-width: 0; font-size: 1rem; text-align: right; }
   .agenda-heading .display { font-size: 1.75rem; }
   .agenda-heading .page-heading-actions .button { padding-inline: .75rem; }
   .agenda-toolbar { gap: .6rem; }

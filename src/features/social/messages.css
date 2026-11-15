@@ -319,6 +319,17 @@
     border-bottom: 1px solid var(--border);
   }
   .message-thread { padding: 1rem; }
+  /* O cartão não ganha o recuo geral de cartões no celular: as colunas encostam na borda. */
+  .card-surface.messages-layout { padding: 0; }
+  /* Sem conversa aberta, a lista ocupa o espaço e o convite a escolher fica curto. */
+  .messages-layout:not(:has(.message-thread-head)) {
+    height: auto;
+    min-height: 0;
+  }
+  .messages-layout:not(:has(.message-thread-head)) .messages-list {
+    max-height: none;
+  }
+  .messages-placeholder { padding: 1.5rem 0.5rem; }
 }
 
 /* Aviso flutuante de mensagem nova (MessageAlert.jsx), abaixo dos avisos gerais. */

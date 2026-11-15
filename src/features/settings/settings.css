@@ -447,3 +447,32 @@
   .cfg-storage-item-main,
   .cfg-quota-row { grid-template-columns: minmax(0, 1fr); }
 }
+
+@media (max-width: 600px) {
+  .cfg-head {
+    position: relative;
+  }
+  .cfg-head .cfg-info {
+    position: static;
+  }
+  .cfg-head .cfg-info-text {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+  .cfg-info-text {
+    max-width: calc(100vw - 2rem);
+  }
+  .cfg-head .title {
+    font-size: 1.35rem;
+  }
+  .cfg-segment-row {
+    flex-wrap: wrap;
+  }
+  .cfg-segment {
+    width: 100%;
+  }
+  .cfg-segment label {
+    padding-inline: 0.75rem;
+  }
+}
