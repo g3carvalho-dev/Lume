@@ -243,7 +243,6 @@ export default function Tasks({ state, actions, notify, onSchedule }) {
     <header className="plan-heading">
       <div>
         <h1 className="display">Tarefas</h1>
-        <p className="lead">As ações concretas da sua preparação, na ordem que você escolheu. Concluir uma tarefa vinculada registra a aula; sem vínculo, não gera XP.</p>
       </div>
       <div className="page-heading-actions">
         <a className="button secondary" href="#plano"><Icon name="calendar"/>Ver o Plano</a>

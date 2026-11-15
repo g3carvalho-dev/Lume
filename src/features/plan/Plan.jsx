@@ -183,7 +183,6 @@ export function Schedule({ state, actions, open, go, notify }) {
                 </div>}
               </>}
             {schedule.unscheduled > 0 && hasAvailability && <p className="quiet-note">{schedule.unscheduled} aulas ficam além de seis meses.</p>}
-            <p className="quiet-note">{schedule.criteria}</p>
           </section>}
 
       </div>

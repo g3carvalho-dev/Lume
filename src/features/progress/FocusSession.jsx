@@ -169,7 +169,7 @@ export default function FocusSession({ state, actions, settingsActions, open, no
           </span>
           {shieldEnabled && active && <span className="soft-badge tone-lume"><Icon name="shield"/>Escudo ativo</span>}
         </div>
-        <p className="lead">Escolha um ciclo, vincule o material e comece. Pausar não apaga nada.</p>
+        <p className="lead">Escolha um ciclo, vincule o material e comece.</p>
       </div>
       <div className="focus-goal">
         <span><small className="metric-label">Hoje</small><strong>{formatMinutes(today.minutes)}{goal ? ` / ${formatMinutes(goal)}` : ''}</strong></span>
@@ -243,11 +243,6 @@ export default function FocusSession({ state, actions, settingsActions, open, no
             <div><dt>Tempo focado</dt><dd className="tone-mint-text">{formatSessionDuration(elapsed)}</dd></div>
             <div><dt>Blocos de 30 min</dt><dd className="tone-reward-text">{eligibleBlocks}</dd></div>
           </dl>
-          <p className="quiet-note">
-            {account
-              ? 'Ao finalizar, o servidor confirma os blocos completos de 30 minutos (25 XP cada, limite diário de 200 XP). Pausas não contam.'
-              : 'Na prévia o tempo fica apenas nesta página; entre na conta para validar o XP de tempo.'}
-          </p>
         </section>
 
       </div>
@@ -335,7 +330,6 @@ export default function FocusSession({ state, actions, settingsActions, open, no
             </button>)}
           </div>
           <label className="volume-row"><Icon name="mute"/><span className="sr-only">Volume</span><input type="range" min={0} max={100} value={volume} onChange={(event) => changeVolume(Number(event.target.value))}/><Icon name="volume"/></label>
-          <p className="quiet-note">O som é sintetizado localmente no seu aparelho e interrompe ao sair da página.</p>
         </section>
       </div>
     </div>
