@@ -1,6 +1,19 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-2683dc8d",
+    "at": "2026-11-15T21:50:59.000Z",
+    "title": "Social com emojis, respostas e GIFs",
+    "body": "Reaja com vários emojis, responda comentários, escolha emojis e GIFs e use um compositor mais limpo.",
+    "href": "#amigos",
+    "area": "site",
+    "details": [
+      "Cada pessoa pode reagir com mais de um emoji; as curtidas antigas viraram coração.",
+      "Comentários aceitam respostas, reações e GIFs.",
+      "Os GIFs dependem da chave do Giphy configurada no servidor."
+    ]
+  },
+  {
     "id": "news-9e5ff99a",
     "at": "2026-11-15T21:29:58.000Z",
     "title": "Biblioteca mais limpa",
