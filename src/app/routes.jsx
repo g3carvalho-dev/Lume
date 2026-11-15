@@ -22,7 +22,6 @@ const StoragePage = named(() => import('../features/settings/StoragePanel.jsx'),
 const Schedule = named(plan, 'Schedule');
 const Friends = lazy(() => import('../features/social/Friends.jsx'));
 const Profile = lazy(() => import('../features/social/Profile.jsx'));
-const Companion = lazy(() => import('../features/desktop/Companion.jsx'));
 const Agenda = lazy(() => import('../features/agenda/Agenda.jsx'));
 const Ranking = lazy(() => import('../features/social/Ranking.jsx'));
 const AddFriends = lazy(() => import('../features/social/AddFriends.jsx'));
@@ -93,7 +92,7 @@ const ROUTES = [
   { id: 'configuracoes', title: 'Configurações', loading: 'panel', section: 'perfil', tab: 'Configurações', render: (ctx) => <Preferences state={ctx.state} actions={ctx.model.settingsActions} libraryActions={ctx.model.libraryActions} confirmSave={ctx.model.confirmSave} account={ctx.model.account} notify={ctx.notify} go={ctx.go} open={ctx.open} xp={ctx.model.xp} refreshXP={ctx.model.refreshXP} initialSection={ctx.params.get('secao') || ''} onPersonalize={() => ctx.go('inicio')}/> },
 
   { id: 'novidades', title: 'Novidades', render: (ctx) => <News go={ctx.go} focusId={ctx.params.get('id') || ''}/> },
-  { id: 'aplicativo', title: 'Instalar aplicativo', render: (ctx) => <Companion account={ctx.model.account} notify={ctx.notify} go={ctx.go}/> },
+  { id: 'aplicativo', title: 'Conexões', loading: 'panel', section: 'perfil', render: (ctx) => <Preferences state={ctx.state} actions={ctx.model.settingsActions} libraryActions={ctx.model.libraryActions} confirmSave={ctx.model.confirmSave} account={ctx.model.account} notify={ctx.notify} go={ctx.go} open={ctx.open} xp={ctx.model.xp} refreshXP={ctx.model.refreshXP} initialSection="conexoes" onPersonalize={() => ctx.go('inicio')}/> },
 ];
 
 export const ROUTE_BY_ID = new Map(ROUTES.map((route) => [route.id, route]));

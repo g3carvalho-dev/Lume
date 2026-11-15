@@ -9,6 +9,7 @@ import { createRouter } from './router.js';
 import { currentUser, tooManyAttempts } from './session.js';
 import { accountRoutes } from './routes/account.js';
 import { libraryRoutes } from './routes/library.js';
+import { mcpRoutes } from './routes/mcp.js';
 import { mediaRoutes } from './routes/media.js';
 import { progressRoutes } from './routes/progress.js';
 import { realtimeRoutes } from './routes/realtime.js';
@@ -20,6 +21,7 @@ export function buildRouter() {
   const router = createRouter();
   accountRoutes(router);
   libraryRoutes(router);
+  mcpRoutes(router);
   storageRoutes(router);
   socialRoutes(router);
   socialFeedRoutes(router);

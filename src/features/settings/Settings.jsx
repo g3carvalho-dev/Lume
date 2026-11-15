@@ -4,6 +4,7 @@ import { materialSteps } from '../../../public/material-model.js';
 import { completionKindForCourse, stepEventKey } from '../../../public/xp-policy.js';
 import { isCompleted } from '../../../public/progress-domain.js';
 import BackupPanel from './BackupPanel.jsx';
+import ConnectionsPanel from './ConnectionsPanel.jsx';
 import CreatorQuotaPanel from './CreatorQuotaPanel.jsx';
 import HandleSetting from './HandleSetting.jsx';
 import { api, apiError } from '../../lib/api.js';
@@ -15,6 +16,7 @@ const SECTIONS = [
   { id: 'ritmo', label: 'Ritmo de estudo', icon: 'calendar', info: 'Seu momento e o plano semanal sugerem passos, sem obrigação.' },
   { id: 'social', label: 'Social e privacidade', icon: 'users' },
   { id: 'notificacoes', label: 'Notificações', icon: 'bell', info: 'Os lembretes de compromissos ficam na Agenda. Lembretes de pausa e por e-mail ainda não existem, então não há controle que finja um envio. Quando existirem, serão opcionais e não concederão XP.' },
+  { id: 'conexoes', label: 'Conexões', icon: 'cloud', info: 'Conecte agentes de IA (MCP) e o aplicativo de desktop à sua conta.' },
   { id: 'dados', label: 'Meus dados', icon: 'layers', info: 'Baixe uma cópia dos seus dados de estudo ou restaure uma cópia do Lume.' },
   { id: 'cotas', label: 'Controle de cotas', icon: 'settings', creatorOnly: true, info: 'Defina os limites de armazenamento das contas sem precisar de IDs. Visível apenas para a criadora.' },
 ];
@@ -238,6 +240,8 @@ export function Preferences({ state, actions, libraryActions, confirmSave, notif
             </div>
           </div>
         </div>}
+
+        {current.id === 'conexoes' && <ConnectionsPanel account={account} notify={notify} go={go}/>}
 
         {current.id === 'cotas' && account?.isCreator && <CreatorQuotaPanel account={account} notify={notify}/>}
 

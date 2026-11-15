@@ -70,7 +70,7 @@ function relativeSeen(value) {
   return new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
 
-export default function Companion({ account, notify, go }) {
+export default function Companion({ account, notify, go, embedded = false }) {
   const [busy, setBusy] = useState(false);
   const [actionError, setError] = useState('');
   const [pairing, setPairing] = useState(null);
@@ -112,17 +112,18 @@ export default function Companion({ account, notify, go }) {
     finally { setBusy(false); }
   }
 
-  // Tela própria: a instalação e a conexão não ficam mais dentro de Configurações.
-  const page = (content) => <div className="personal-root">
+  const page = (content) => embedded ? content : <div className="personal-root">
     <Heading eyebrow="Lume no seu computador" title="Instalar aplicativo">
       O Lume completo em uma janela, com presença local, aulas restantes e roteiro. Presença não gera XP.
     </Heading>
     {content}
   </div>;
 
+  const panelClass = embedded ? 'cfg-block companion-panel is-embedded' : 'card-surface settings-panel companion-panel';
+
   if (!account) {
-    return page(<section className="card-surface settings-panel companion-panel">
-      <div className="panel-title"><span className="pace-icon"><Icon name="lock"/></span><div><h2 className="title">Lume no desktop</h2><p className="muted-text">O programa que abre o Lume e acompanha sua atividade local.</p></div></div>
+    return page(<section className={panelClass}>
+      <div className="panel-title"><span className="pace-icon"><Icon name="lock"/></span><div><h2 className="title">Aplicativo de desktop</h2><p className="muted-text">O programa que abre o Lume e acompanha sua atividade local.</p></div></div>
       <InstallApp/>
       <p className="muted-text">Conectar o programa exige uma conta: é ela que autoriza o dispositivo e guarda a lista dos seus computadores.</p>
       <Button secondary onClick={() => go('login')}>Entrar para conectar<Icon name="arrow"/></Button>
@@ -131,8 +132,8 @@ export default function Companion({ account, notify, go }) {
 
   const active = (data?.active || []).map((device) => ({ device, state: presenceState(device.presence) }));
 
-  return page(<section className="card-surface settings-panel companion-panel">
-    <div className="panel-title"><span className="pace-icon"><Icon name="cloud"/></span><div><h2 className="title">Presença no desktop</h2><p className="muted-text">Presença local, opcional e sem XP.</p></div></div>
+  return page(<section className={panelClass}>
+    <div className="panel-title"><span className="pace-icon"><Icon name="cloud"/></span><div><h2 className="title">Aplicativo de desktop</h2><p className="muted-text">Instalação e presença local opcional (sem XP).</p></div></div>
     <InstallApp/>
     <p className="muted-text">Depois de instalar, gere um código aqui nesta tela e cole no programa. Ele informa qual aplicativo da sua lista está aberto. O Lume lê apenas nomes de processo — nunca títulos de janela, tela, teclado ou arquivos.</p>
 
