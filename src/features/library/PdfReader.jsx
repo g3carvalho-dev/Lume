@@ -178,7 +178,8 @@ export default function PdfReader({ course, state, actions, progressActions, not
   const [width, setWidth] = useState(0);
   const [content, setContent] = useState({ page: 0, text: '', lines: [] });
   const [showOutline, setShowOutline] = useState(false);
-  const [showPanel, setShowPanel] = useState(true);
+  // No celular o painel abre por cima da página; começa fechado para a leitura vir primeiro.
+  const [showPanel, setShowPanel] = useState(() => !window.matchMedia?.('(max-width: 820px)').matches);
   const [activeTab, setActiveTab] = useState('marcacoes');
   const [aiAvailable, setAiAvailable] = useState(false);
   const [summary, setSummary] = useState({
@@ -301,7 +302,8 @@ export default function PdfReader({ course, state, actions, progressActions, not
       const pdfPage = await doc.getPage(page);
       if (controller.signal.aborted) return;
       const base = pdfPage.getViewport({ scale: 1 });
-      const scale = Math.max(0.3, (width - 56) / base.width) * zoom;
+      // Folga lateral menor em telas estreitas: a página usa quase toda a largura.
+      const scale = Math.max(0.3, (width - (width < 600 ? 8 : 56)) / base.width) * zoom;
       const viewport = pdfPage.getViewport({ scale });
       const ratio = window.devicePixelRatio || 1;
       const target = canvas.current;
@@ -509,7 +511,7 @@ export default function PdfReader({ course, state, actions, progressActions, not
 
       <div className="pdf-stage" ref={stage} tabIndex={0} aria-label={`Página ${page} de ${pages}`}>
         {marker.on && <div className="pdf-marker-pill" role="group" aria-label="Opções do marca-texto">
-          <span className="pdf-marker-label"><Icon name="highlighter"/>Marca-texto ativo</span>
+          <span className="pdf-marker-label"><Icon name="highlighter"/><span className="pdf-marker-text">Marca-texto ativo</span></span>
           <div className="pdf-marker-colors" role="radiogroup" aria-label="Cor do marca-texto">
             {HIGHLIGHT_COLORS.map((item) => <button key={item.id} type="button" role="radio" aria-checked={!marker.erase && marker.color === item.id} aria-label={item.label} title={item.label}
               className={`marker-swatch marker-${item.id}`} onClick={() => setMarker((value) => ({ ...value, color: item.id, erase: false }))}/>)}

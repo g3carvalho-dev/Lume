@@ -64,6 +64,8 @@
   --space-5: 1.5rem;
   --space-6: 2rem;
   --actions-gap: var(--space-2);
+  /* Margem lateral das páginas (cabeçalho, conteúdo e rodapé). */
+  --page-gutter: clamp(1rem, 3vw, 3rem);
   /* Marca-texto do leitor de PDF: pintado sobre a página branca do documento,
      por isso não muda com o tema. */
   --highlight-amarelo: #ffe14d;
