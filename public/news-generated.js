@@ -1,6 +1,17 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-986159e7",
+    "at": "2026-11-15T14:56:08.000Z",
+    "title": "Tempo de leitura em PDFs",
+    "body": "Abrir um PDF agora registra o tempo automaticamente, com pausa após 5 minutos sem interação e escolha quando há uma sessão pausada.",
+    "href": "#biblioteca",
+    "area": "site",
+    "details": [
+      "O tempo continua valendo para os blocos de XP, agora de 25 minutos e 30 XP, e pode ser desligado em Configurações."
+    ]
+  },
+  {
     "id": "news-94350906",
     "at": "2026-11-15T05:31:50.000Z",
     "title": "Otimização de avatar, capa e slides",
@@ -136,19 +147,6 @@ export const GENERATED_NEWS = [
     "details": [
       "A amizade só começa quando a outra pessoa aceita a solicitação.",
       "Você acompanha solicitações recebidas e enviadas em abas separadas."
-    ]
-  },
-  {
-    "id": "news-7d8e3d89",
-    "at": "2026-11-14T17:24:14.000Z",
-    "title": "Página de novidades",
-    "body": "Veja tudo o que mudou no Lume, com detalhes, pelo rodapé do site.",
-    "href": "#novidades",
-    "area": "site",
-    "details": [
-      "O sino agora abre cada novidade na página, sem texto cortado.",
-      "Histórico por mês, com filtro entre site, aplicativo de desktop e extensão.",
-      "Novas novidades entram sozinhas a partir dos commits."
     ]
   }
 ];
