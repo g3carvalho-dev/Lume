@@ -1,6 +1,47 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-9e5ff99a",
+    "at": "2026-11-15T21:29:58.000Z",
+    "title": "Biblioteca mais limpa",
+    "body": "Um só botão para adicionar material (curso, PDF ou manual), filtros reunidos num painel e concluídos recolhidos.",
+    "href": "#biblioteca",
+    "area": "site",
+    "details": [
+      "Adicionar material abre um menu com Adicionar curso, Anexar PDF e Criar manualmente.",
+      "Tipo, disciplina e situação ficam no botão de filtros ao lado da busca.",
+      "Excluir um material continua disponível no editor do material e no leitor de PDF.",
+      "Prioridade, Agendar e Remover ficam no menu das reticências de cada tarefa.",
+      "As subtarefas concluídas ficam recolhidas em Ver N concluídas.",
+      "O botão Finalizar com resumo agora se chama Finalizar.",
+      "As anotações são salvas ao sair do campo ou ao finalizar a sessão."
+    ]
+  },
+  {
+    "id": "news-d1689716",
+    "at": "2026-11-15T21:12:16.000Z",
+    "title": "Capa do perfil ajustável",
+    "body": "Arraste a capa para escolher a parte da imagem que aparece, com zoom, e veja Online, Offline ou o que cada pessoa está estudando em todos os perfis.",
+    "href": "#perfil",
+    "area": "site",
+    "details": [
+      "Envie a capa de novo para poder reposicionar a imagem inteira.",
+      "O selo de presença aparece em qualquer perfil que você abre, e o tema só aparece se a pessoa compartilha a biblioteca."
+    ]
+  },
+  {
+    "id": "news-a8f3d772",
+    "at": "2026-11-15T20:52:55.000Z",
+    "title": "Altura da capa do perfil",
+    "body": "Em Editar perfil, um controle deslizante ajusta a altura da capa, e o seu perfil mostra Online quando você não está em sessão de estudo.",
+    "href": "#perfil",
+    "area": "site",
+    "details": [
+      "A altura vai de 120 a 360 px e aparece igual para os seus amigos.",
+      "Com sessão ativa, o selo continua mostrando o que você está estudando."
+    ]
+  },
+  {
     "id": "news-986159e7",
     "at": "2026-11-15T14:56:08.000Z",
     "title": "Tempo de leitura em PDFs",
@@ -135,18 +176,6 @@ export const GENERATED_NEWS = [
     "details": [
       "Nova aba Amigos ao lado de Perfil, no seu perfil e no de outras pessoas",
       "Amigos com perfil fechado não aparecem na lista"
-    ]
-  },
-  {
-    "id": "news-83a4f123",
-    "at": "2026-11-14T17:33:07.000Z",
-    "title": "Adicione amigos pelo @usuário",
-    "body": "A nova aba Amigos, no Social, deixa você buscar alguém pelo @usuário, enviar solicitações e convidar por link.",
-    "href": "#adicionar",
-    "area": "site",
-    "details": [
-      "A amizade só começa quando a outra pessoa aceita a solicitação.",
-      "Você acompanha solicitações recebidas e enviadas em abas separadas."
     ]
   }
 ];
