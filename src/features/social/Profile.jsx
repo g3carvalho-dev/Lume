@@ -9,6 +9,7 @@ import { SocialAvatar } from './SocialFeed.jsx';
 import SectionTabs from '../../app/SectionTabs.jsx';
 import { buildProfile } from '../../../public/profile-domain.js';
 import { MAX_PROFILE_BIO_LENGTH, studyRhythm } from '../../../public/domain.js';
+import { LEVEL_XP } from '../../../public/xp-policy.js';
 import { prepareProfileImageBlob, uploadProfileBlob } from './profile-media.js';
 
 // Perfil em coluna central inspirada no X, preservando a identidade celestial do Lume:
@@ -233,66 +234,69 @@ export default function Profile({ id, handle = '', state, actions, account, noti
         </div>
       </div>
 
-      {/* Bloco de identidade estilo X */}
+      {/* Bloco de identidade (esquerda) + Nível & Conquista (direita) */}
       <header className="profile-x-header">
-        <div className="profile-x-title-row">
-          <h1 id="profile-user-title" className="display profile-x-name">{user.name}</h1>
-          {stats.level !== null
-            ? <span className="soft-badge tone-reward mono" aria-label={`Nível ${stats.level}`}><Icon name="spark"/>Nível {stats.level}</span>
-            : <span className="soft-badge mono">Nível privado</span>}
-          {!isSelf && <span className="soft-badge tone-mint"><span className="soft-dot" aria-hidden="true"/>{view.viewer === 'public' ? 'Perfil público' : 'Perfil de amigo'}</span>}
+        <div className="profile-x-identity">
+          <div className="profile-x-title-row">
+            <h1 id="profile-user-title" className="display profile-x-name">{user.name}</h1>
+            {!isSelf && <span className="soft-badge tone-mint"><span className="soft-dot" aria-hidden="true"/>{view.viewer === 'public' ? 'Perfil público' : 'Perfil de amigo'}</span>}
+          </div>
+
+          {activeHandle && <p className="profile-x-handle mono">@{activeHandle}</p>}
+
+          <div className="profile-x-bio">
+            {bioLines.length > 0
+              ? bioLines.map((line, index) => <p key={`${index}-${line}`}>{line}</p>)
+              : <p className="muted-text">Ritmo atual: {rhythmLabel} · Uma disciplina por vez</p>}
+          </div>
+
+          <div className="profile-x-counts">
+            {friendsPath && <button type="button" className="profile-x-count-link" onClick={() => setTab('amigos')}>
+              <strong className="mono">{friendsCount ?? '—'}</strong>
+              <span>{friendsCount === 1 ? 'Amigo' : 'Amigos'}</span>
+            </button>}
+            <span className="profile-x-count-item">
+              <strong className="mono"><AnimatedNumber value={stats.activeCourses ?? 0}/></strong>
+              <span>{stats.activeCourses === 1 ? 'Material' : 'Materiais'}</span>
+            </span>
+            {stats.doneLessons !== null && <span className="profile-x-count-item">
+              <strong className="mono"><AnimatedNumber value={stats.doneLessons}/></strong>
+              <span>Aulas concluídas</span>
+            </span>}
+            {stats.completedCourses !== null && <span className="profile-x-count-item">
+              <strong className="mono"><AnimatedNumber value={stats.completedCourses}/></strong>
+              <span>Completos</span>
+            </span>}
+            {(isSelf ? Boolean(state.activeSession) : studying.length > 0) && <span className="profile-x-live">
+              <span className="companion-dot" aria-hidden="true"/>
+              {isSelf ? `Estudando · ${state.activeSession.label}` : 'Estudando'}
+            </span>}
+          </div>
         </div>
 
-        {activeHandle && <p className="profile-x-handle mono">@{activeHandle}</p>}
-
-        {view.titles?.length > 0 && <ul className="soft-badges profile-x-titles" aria-label="Cargos de estudo">
-          {view.titles.map((item) => <li key={item.id} className="soft-badge tone-reward" title={item.criterion}>
-            <Icon name="trophy"/><strong>{item.title}</strong>
-          </li>)}
-        </ul>}
-
-        <div className="profile-x-bio">
-          {bioLines.length > 0
-            ? bioLines.map((line, index) => <p key={`${index}-${line}`}>{line}</p>)
-            : <p className="muted-text">Ritmo atual: {rhythmLabel} · Uma disciplina por vez</p>}
-        </div>
-
-        <div className="profile-x-details">
-          <span>
-            <Icon name="spark"/>
-            {featuredBadge ? featuredBadge.title : 'Primeira conquista a caminho'}
-          </span>
-          <span className="mono">
-            {stats.xp !== null
-              ? `${stats.xp} XP ${stats.xpValidated ? 'confirmados' : 'na prévia'}`
-              : 'XP oculto'}
-          </span>
-          <span>
-            <span className="companion-dot" aria-hidden="true"/>
-            {isSelf && state.activeSession
-              ? `Estudando agora · ${state.activeSession.label}`
-              : studying.length > 0 ? 'Estudando' : 'Disponível no Lume'}
-          </span>
-        </div>
-
-        <div className="profile-x-counts">
-          {friendsPath && <button type="button" className="profile-x-count-link" onClick={() => setTab('amigos')}>
-            <strong className="mono">{friendsCount ?? '—'}</strong>
-            <span>{friendsCount === 1 ? 'Amigo' : 'Amigos'}</span>
-          </button>}
-          <span className="profile-x-count-item">
-            <strong className="mono"><AnimatedNumber value={stats.activeCourses ?? 0}/></strong>
-            <span>{stats.activeCourses === 1 ? 'Material' : 'Materiais'}</span>
-          </span>
-          {stats.doneLessons !== null && <span className="profile-x-count-item">
-            <strong className="mono"><AnimatedNumber value={stats.doneLessons}/></strong>
-            <span>Aulas concluídas</span>
-          </span>}
-          {stats.completedCourses !== null && <span className="profile-x-count-item">
-            <strong className="mono"><AnimatedNumber value={stats.completedCourses}/></strong>
-            <span>Completos</span>
-          </span>}
-        </div>
+        <aside className="profile-x-progression" aria-label="Nível e conquistas">
+          <div className="profile-x-level-row">
+            <span className="soft-badge tone-reward mono">
+              <Icon name="spark"/>
+              {stats.level !== null ? `Nível ${stats.level}` : 'Nível privado'}
+            </span>
+            <span className="profile-x-xp mono">
+              {stats.xp !== null ? `${stats.xp % LEVEL_XP} / ${LEVEL_XP} xp` : 'XP oculto'}
+            </span>
+          </div>
+          {stats.xp !== null && <Progress value={stats.xp % LEVEL_XP} max={LEVEL_XP} tone="reward" label="Progresso do nível"/>}
+          {(featuredBadge || view.titles?.length > 0) && <div className="profile-x-panel-foot">
+            {featuredBadge && <span className="profile-x-featured-line">
+              <Icon name={featuredBadge.icon || 'trophy'}/>
+              <span>{featuredBadge.title}</span>
+            </span>}
+            {view.titles?.length > 0 && <div className="profile-x-titles-row">
+              {view.titles.map((item) => <span key={item.id} className="soft-badge" title={item.criterion}>
+                {item.title}
+              </span>)}
+            </div>}
+          </div>}
+        </aside>
       </header>
 
       {/* Painel expansível de personalização (bio e remoção de mídias, se houver) */}
@@ -343,35 +347,24 @@ export default function Profile({ id, handle = '', state, actions, account, noti
         {tab === 'estudando' && <div className="profile-x-tab-panel">
           {nothingShared
             ? <p className="profile-x-empty muted-text">Esta pessoa ainda não compartilhou nada do estudo com amigos.</p>
-            : <>
-              {showcaseCourses.length > 0
-                ? <div className="profile-x-showcase-list">
-                  {showcaseCourses.map((item, index) => <motion.article key={item.id} className="profile-x-feed-item" {...stagger(index)}>
-                    <Cover art={item.art} className="profile-x-cover"/>
-                    <div className="profile-x-feed-body">
-                      <div className="profile-x-feed-top">
-                        <span className={`course-status status-${item.status}`}>{STATUS_LABEL[item.status] || item.status}</span>
-                        <span className="mono profile-x-feed-meta">{item.type}{item.progress ? ` · ${item.progress.percent}%` : ''}</span>
-                      </div>
-                      <h2 className="title profile-x-feed-title">{item.title}</h2>
-                      {item.progress && <div className="profile-x-feed-progress">
-                        <Progress value={item.progress.done} max={item.progress.total || 1} tone={item.status === 'completed' ? 'mint' : 'lume'} label={`Progresso de ${item.title}`}/>
-                        <span className="mono profile-x-feed-meta">{item.progress.done} de {item.progress.total} etapas</span>
-                      </div>}
+            : showcaseCourses.length > 0
+              ? <div className="profile-x-showcase-list">
+                {showcaseCourses.map((item, index) => <motion.article key={item.id} className="profile-x-feed-item" {...stagger(index)}>
+                  <Cover art={item.art} className="profile-x-cover"/>
+                  <div className="profile-x-feed-body">
+                    <div className="profile-x-feed-top">
+                      <span className={`course-status status-${item.status}`}>{STATUS_LABEL[item.status] || item.status}</span>
+                      <span className="mono profile-x-feed-meta">{item.type}{item.progress ? ` · ${item.progress.percent}%` : ''}</span>
                     </div>
-                  </motion.article>)}
-                </div>
-                : <p className="profile-x-empty inline-note"><Icon name="info"/><span>Nada em andamento compartilhado.</span></p>}
-
-              <div className="profile-x-milestone">
-                <span className="profile-x-milestone-icon"><Icon name={featuredBadge?.icon || 'spark'}/></span>
-                <div className="profile-x-milestone-copy">
-                  <strong>{featuredBadge ? featuredBadge.title : 'Primeira conquista a caminho'}</strong>
-                  <small className="mono">{stats.xp !== null ? `${stats.xp} XP ${stats.xpValidated ? 'confirmados pelo servidor' : 'da prévia local'}` : 'XP oculto no perfil'}</small>
-                </div>
-                {queue.length > 0 && <span className="soft-badge mono">{queue.length} {queue.length === 1 ? 'passo na fila' : 'passos na fila'}</span>}
+                    <h2 className="title profile-x-feed-title">{item.title}</h2>
+                    {item.progress && <div className="profile-x-feed-progress">
+                      <Progress value={item.progress.done} max={item.progress.total || 1} tone={item.status === 'completed' ? 'mint' : 'lume'} label={`Progresso de ${item.title}`}/>
+                      <span className="mono profile-x-feed-meta">{item.progress.done} de {item.progress.total} etapas</span>
+                    </div>}
+                  </div>
+                </motion.article>)}
               </div>
-            </>}
+              : <p className="profile-x-empty inline-note"><Icon name="info"/><span>Nada em andamento compartilhado.</span></p>}
         </div>}
 
         {tab === 'atividade' && <div className="profile-x-tab-panel">

@@ -165,11 +165,19 @@
   padding-bottom: var(--space-1);
 }
 
-/* Bloco de identidade, bio e contadores estilo X */
+/* Bloco de identidade (esquerda) + Nível & Conquista (direita) */
 .profile-x-header {
   display: grid;
-  gap: var(--space-2);
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+  align-items: end;
+  gap: var(--space-5);
   padding: var(--space-3) var(--space-6) var(--space-5);
+}
+
+.profile-x-identity {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .profile-x-title-row {
@@ -191,10 +199,6 @@
   color: var(--text-subtle);
 }
 
-.profile-x-titles {
-  margin: var(--space-1) 0 0;
-}
-
 .profile-x-bio {
   display: grid;
   gap: 0.2rem;
@@ -213,36 +217,75 @@
   color: var(--text-subtle);
 }
 
-.profile-x-details {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
-  margin-top: var(--space-1);
-  font-size: 0.8rem;
-  color: var(--text-subtle);
-}
-
-.profile-x-details > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.profile-x-details svg {
-  width: 0.9rem;
-  height: 0.9rem;
-  color: var(--reward);
-}
-
 .profile-x-counts {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-4);
-  margin-top: var(--space-1);
+  margin-top: var(--space-2);
   font-size: 0.85rem;
   color: var(--text-subtle);
+}
+
+.profile-x-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--lume);
+  font-size: 0.8rem;
+}
+
+.profile-x-progression {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg) 55%, var(--surface));
+}
+
+.profile-x-level-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.profile-x-xp {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.profile-x-panel-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  margin-top: 0.1rem;
+  border-top: 1px solid var(--border);
+}
+
+.profile-x-featured-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.profile-x-featured-line .icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--reward);
+  flex-shrink: 0;
+}
+
+.profile-x-titles-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
 }
 
 .profile-x-count-link,
@@ -405,46 +448,12 @@
   display: grid;
   gap: 0.25rem;
   margin-top: 0.15rem;
+  max-width: 26rem;
 }
 
 .profile-x-last-step {
   color: var(--text-subtle);
   font-size: 0.8rem;
-}
-
-.profile-x-milestone {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-6);
-}
-
-.profile-x-milestone-icon {
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: var(--radius-md);
-  border: 1px solid color-mix(in srgb, var(--reward) 35%, var(--border));
-  background: var(--reward-soft);
-  color: var(--reward);
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-}
-
-.profile-x-milestone-copy {
-  display: grid;
-  gap: 0.15rem;
-  margin-right: auto;
-}
-
-.profile-x-milestone-copy strong {
-  font-size: 0.92rem;
-}
-
-.profile-x-milestone-copy small {
-  font-size: 0.75rem;
-  color: var(--text-subtle);
 }
 
 .profile-x-empty {
@@ -546,6 +555,22 @@
 
 .profile-friend-list .social-friend-profile:hover {
   border-color: var(--lume);
+}
+
+@media (max-width: 820px) {
+  .profile-x-header {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .profile-x-progression {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .profile-x-titles-row {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 640px) {

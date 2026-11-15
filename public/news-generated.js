@@ -1,6 +1,18 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-a472af07",
+    "at": "2026-11-15T00:13:58.000Z",
+    "title": "Novo visual do perfil",
+    "body": "O perfil agora tem cabeçalho panorâmico com constelação, avatar sobreposto e abas diretas para estudos, atividade, conquistas e amigos.",
+    "href": "#perfil",
+    "area": "site",
+    "details": [
+      "Troca o layout antigo por uma coluna central inspirada no X dentro da identidade Norte do Lume.",
+      "Restaura os estilos do menu suspenso da conta em shell.css."
+    ]
+  },
+  {
     "id": "news-32bd4f58",
     "at": "2026-11-15T00:05:46.000Z",
     "title": "Início mais limpo e aba Foco no topo",
