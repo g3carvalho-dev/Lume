@@ -1,6 +1,19 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-e7df12fe",
+    "at": "2026-11-15T04:03:35.000Z",
+    "title": "Lume no celular",
+    "body": "O leitor de PDF, os diálogos e as telas foram ajustados para caber e ficar confortáveis no celular.",
+    "href": "#biblioteca",
+    "area": "site",
+    "details": [
+      "O leitor de PDF ocupa a tela inteira, com a barra em duas linhas e a página na largura do celular; sumário e painel abrem por cima da leitura.",
+      "Janelas como Anexar PDF e Adicionar curso sobem do rodapé da tela, ao alcance do polegar.",
+      "Abas e filtros rolam de lado, e nenhuma tela passa mais da largura do celular."
+    ]
+  },
+  {
     "id": "news-a472af07",
     "at": "2026-11-15T00:13:58.000Z",
     "title": "Novo visual do perfil",
