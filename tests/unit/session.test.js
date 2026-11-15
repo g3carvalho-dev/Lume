@@ -171,11 +171,11 @@ test('isSessionLive: só sessão ativa com batimento recente conta como estudand
   assert.equal(isSessionLive(null), false);
 });
 
-test('perfil: altura da capa é limitada e tem padrão', async () => {
+test('perfil: enquadramento da capa é limitado e tem padrão', async () => {
   const { normalizeProfileCard } = await import('../../public/domain.js');
-  assert.equal(normalizeProfileCard({}).headerHeight, 240);
-  assert.equal(normalizeProfileCard({ headerHeight: 10 }).headerHeight, 120);
-  assert.equal(normalizeProfileCard({ headerHeight: 9999 }).headerHeight, 360);
-  assert.equal(normalizeProfileCard({ headerHeight: 'abc' }).headerHeight, 240);
-  assert.equal(normalizeProfileCard({ headerHeight: 300 }).headerHeight, 300);
+  const frame = (value) => { const { headerX, headerY, headerZoom } = normalizeProfileCard(value); return [headerX, headerY, headerZoom]; };
+  assert.deepEqual(frame({}), [50, 50, 1]);
+  assert.deepEqual(frame({ headerX: -20, headerY: 400, headerZoom: 9 }), [0, 100, 3]);
+  assert.deepEqual(frame({ headerX: 'abc', headerY: 20.04, headerZoom: 0.1 }), [50, 20, 1]);
+  assert.equal('headerHeight' in normalizeProfileCard({ headerHeight: 300 }), false);
 });

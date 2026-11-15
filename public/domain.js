@@ -275,16 +275,25 @@ export function studyRhythm(state) {
 export const MAX_PROFILE_IMAGE_LENGTH = 256;
 export const MAX_PROFILE_BIO_LENGTH = 240;
 
-export const PROFILE_HEADER_HEIGHT = { min: 120, max: 360, default: 240 };
+// Enquadramento da capa: ponto da imagem (0–100 %) que fica fixo na faixa e zoom.
+export const HEADER_ZOOM = { min: 1, max: 3 };
 
-export function clampHeaderHeight(value) {
-  const number = Math.round(Number(value));
-  if (!Number.isFinite(number)) return PROFILE_HEADER_HEIGHT.default;
-  return Math.min(PROFILE_HEADER_HEIGHT.max, Math.max(PROFILE_HEADER_HEIGHT.min, number));
+export function normalizeHeaderFrame(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  const percent = (raw) => {
+    const number = Number(raw);
+    return Number.isFinite(number) ? Math.round(Math.min(100, Math.max(0, number)) * 10) / 10 : 50;
+  };
+  const zoom = Number(source.headerZoom);
+  return {
+    headerX: percent(source.headerX ?? 50),
+    headerY: percent(source.headerY ?? 50),
+    headerZoom: Number.isFinite(zoom) ? Math.round(Math.min(HEADER_ZOOM.max, Math.max(HEADER_ZOOM.min, zoom)) * 100) / 100 : 1,
+  };
 }
 
 export function emptyProfileCard() {
-  return { bio: '', avatar: '', header: '', headerHeight: PROFILE_HEADER_HEIGHT.default };
+  return { bio: '', avatar: '', header: '', headerX: 50, headerY: 50, headerZoom: 1 };
 }
 
 export function sanitizeProfileImage(value) {
@@ -303,7 +312,7 @@ export function normalizeProfileCard(value) {
     bio,
     avatar: sanitizeProfileImage(value.avatar),
     header: sanitizeProfileImage(value.header),
-    headerHeight: clampHeaderHeight(value.headerHeight ?? PROFILE_HEADER_HEIGHT.default),
+    ...normalizeHeaderFrame(value),
   };
 }
 

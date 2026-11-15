@@ -4,12 +4,13 @@ import { compressImage } from '../../lib/image-compress.js';
 const PROFILE_BYTES = 2 * 1024 * 1024;
 const SOURCE_BYTES = 12 * 1024 * 1024;
 
-export async function prepareProfileImageBlob(file, { width, height }) {
+// `options` escolhe o corte (avatar) ou só a redução proporcional (capa, que a pessoa enquadra depois).
+export async function prepareProfileImageBlob(file, options) {
   try {
     const { blob } = await compressImage(file, {
       maxBytes: PROFILE_BYTES,
       sourceBytes: SOURCE_BYTES,
-      crop: { width, height },
+      ...options,
       qualities: [0.86, 0.74, 0.6],
       formats: ['image/webp', 'image/jpeg'],
       keepGifUnder: PROFILE_BYTES,

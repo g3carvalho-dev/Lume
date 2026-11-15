@@ -16,7 +16,7 @@
 /* Banner panorâmico com constelação ou imagem enviada */
 .profile-x-banner {
   position: relative;
-  height: var(--profile-header-height, 15rem);
+  height: 15rem;
   background:
     radial-gradient(60% 90% at 78% 24%, color-mix(in srgb, var(--lume) 16%, transparent), transparent 72%),
     radial-gradient(45% 75% at 18% 82%, color-mix(in srgb, var(--reward) 10%, transparent), transparent 72%),
@@ -25,10 +25,23 @@
   overflow: hidden;
 }
 
-.profile-x-banner.has-custom-header {
-  background-image: var(--profile-header-image);
-  background-size: cover;
-  background-position: center;
+.profile-x-banner-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  pointer-events: none;
+}
+
+.profile-x-banner.is-framing {
+  cursor: grab;
+  touch-action: none;
+}
+
+.profile-x-banner.is-framing:active {
+  cursor: grabbing;
 }
 
 .profile-x-constellation {
@@ -238,16 +251,26 @@
   margin-left: var(--space-4);
 }
 
-.profile-x-height-control {
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: var(--space-3);
+.profile-x-frame-control {
+  display: grid;
+  gap: var(--space-2);
   margin-bottom: var(--space-3);
 }
 
-.profile-x-height-control .field {
-  flex: 1 1 14rem;
+.profile-x-frame-sliders {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-3);
+}
+
+.profile-x-live.is-offline {
+  color: var(--text-subtle);
+}
+
+.profile-x-live.is-offline .companion-dot {
+  background: var(--text-subtle);
+  box-shadow: none;
+  animation: none;
 }
 
 .profile-x-progression {
@@ -685,7 +708,7 @@
 
 @media (max-width: 640px) {
   .profile-x-banner {
-    height: calc(var(--profile-header-height, 240px) * 0.66);
+    height: 10rem;
   }
 
   .profile-x-identity-bar {
