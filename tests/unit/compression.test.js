@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   COMPRESSION, canRasterize, compressionGain, estimatedRasterBytes, hasTextLayer,
-  isLikelyScan, isUsefulLossless, isUsefulRaster, nextQuality, pageTextChars,
+  isLikelyScan, isUsefulImage, isUsefulLossless, isUsefulRaster, nextQuality, pageTextChars,
   rasterScale, samplePageNumbers,
 } from '../../public/compression-domain.js';
 
@@ -35,6 +35,8 @@ test('ganho e limites separam compressão sem perda de rasterização', () => {
   assert.equal(isUsefulLossless(100 * 1024, 95 * 1024), false);
   assert.equal(isUsefulRaster(10 * 1024 * 1024, 7 * 1024 * 1024), true);
   assert.equal(isUsefulRaster(10 * 1024 * 1024, 8.5 * 1024 * 1024), false);
+  assert.equal(isUsefulImage(100 * 1024, 80 * 1024), true);
+  assert.equal(isUsefulImage(100 * 1024, 95 * 1024), false);
 });
 
 test('escala de rasterização respeita DPI e teto de pixels', () => {

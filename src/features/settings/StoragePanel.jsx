@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { COMPRESSION } from '../../../public/compression-domain.js';
+import { COMPRESSION, isUsefulImage } from '../../../public/compression-domain.js';
 import { formatBytes } from '../../../public/pdf-domain.js';
 import { SOCIAL_IMAGE_BYTES, SOCIAL_PDF_BYTES } from '../../../public/social-domain.js';
+import { normalizeSlides } from '../../../public/slides-domain.js';
 import { api, apiError } from '../../lib/api.js';
 import { compressImage } from '../../lib/image-compress.js';
 import { analyzePdf, estimatePdfRaster, optimizePdfLossless, rasterizePdf } from '../library/pdf-compress.js';
@@ -15,7 +16,7 @@ function formatDate(iso) {
   return new Date(ts).toLocaleDateString('pt-BR');
 }
 
-export default function StoragePanel({ state, account, libraryActions, confirmSave, notify, open, go }) {
+export default function StoragePanel({ state, account, libraryActions, settingsActions, confirmSave, notify, open, go }) {
   const [storage, setStorage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -63,6 +64,30 @@ export default function StoragePanel({ state, account, libraryActions, confirmSa
         : (b.size - a.size) || String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
     ));
   }, [storage?.items, filter, query, sort]);
+
+  // Avatar, capa e imagens de slides não entram na cota, mas também podem ser
+  // recomprimidos sem trocar o material, o perfil ou a apresentação.
+  const mediaItems = useMemo(() => {
+    const list = [];
+    const profile = state?.profile || {};
+    if (profile.avatar) list.push({ id: 'avatar', kind: 'avatar', slot: 'avatar', name: 'Foto do perfil', label: 'Perfil · foto', url: profile.avatar });
+    if (profile.header) list.push({ id: 'header', kind: 'header', slot: 'header', name: 'Capa do perfil', label: 'Perfil · capa', url: profile.header });
+    for (const course of state?.courses || []) {
+      normalizeSlides(course.slides).forEach((slide, index) => {
+        if (!slide.image) return;
+        list.push({
+          id: `slide:${course.id}:${slide.id}`,
+          kind: 'slide',
+          courseId: course.id,
+          slideId: slide.id,
+          name: `${course.title} · ${slide.title || `Slide ${index + 1}`}`,
+          label: `Slide ${index + 1}`,
+          url: slide.image,
+        });
+      });
+    }
+    return list;
+  }, [state?.profile?.avatar, state?.profile?.header, state?.courses]);
 
   if (!account) {
     return <div className="cfg-stack">
@@ -124,7 +149,7 @@ export default function StoragePanel({ state, account, libraryActions, confirmSa
           return;
         }
         const result = await compressImage(file, { maxBytes: SOCIAL_IMAGE_BYTES, maxWidth: 1920, maxHeight: 1920, force: true });
-        if (!result.changed || result.after >= result.before) {
+        if (!result.changed || !isUsefulImage(result.before, result.after)) {
           notify('A imagem já está otimizada; não há redução disponível.');
           return;
         }
@@ -165,6 +190,55 @@ export default function StoragePanel({ state, account, libraryActions, confirmSa
       await uploadOptimized(item, result.blob, result.after, result.before);
     } catch (err) {
       setError(err.message || 'Não foi possível reduzir este PDF.');
+    } finally {
+      setOptimizingId('');
+    }
+  }
+
+  async function optimizeMedia(item) {
+    if (busyId || optimizingId) return;
+    setOptimizingId(item.id);
+    setError('');
+    try {
+      const response = await fetch(item.url, { credentials: 'same-origin' });
+      if (!response.ok) throw new Error('Não foi possível baixar esta imagem para otimizar.');
+      const blob = await response.blob();
+      if (blob.type === 'image/gif') {
+        notify('GIFs animados não são otimizados para não perder a animação.');
+        return;
+      }
+      const file = new File([blob], item.name || 'imagem', { type: blob.type || 'image/png' });
+      const result = await compressImage(file, {
+        maxBytes: SOCIAL_IMAGE_BYTES,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        force: true,
+      });
+      if (!result.changed || !isUsefulImage(result.before, result.after)) {
+        notify('Esta imagem já está otimizada; não há redução disponível.');
+        return;
+      }
+
+      const endpoint = item.kind === 'slide'
+        ? `/api/slides/media/${encodeURIComponent(item.courseId)}/${encodeURIComponent(item.slideId)}`
+        : `/api/profile/media/${encodeURIComponent(item.slot)}`;
+      const uploaded = await fetch(endpoint, {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': result.blob.type || 'application/octet-stream' },
+        body: result.blob,
+      });
+      const data = await uploaded.json().catch(() => null);
+      if (!uploaded.ok || !data?.url) throw new Error(data?.error || 'Não foi possível substituir esta imagem.');
+      if (item.kind === 'slide') {
+        if (!libraryActions.setSlideImage(item.courseId, item.slideId, data.url)) throw new Error('A imagem foi otimizada, mas a apresentação não pôde ser atualizada agora.');
+      } else {
+        if (!settingsActions?.updateProfile?.({ [item.slot]: data.url })) throw new Error('A imagem foi otimizada, mas o perfil não pôde ser atualizado agora.');
+      }
+      await confirmSave?.();
+      notify(`Imagem otimizada: ${formatBytes(result.before)} → ${formatBytes(result.after)}.`);
+    } catch (err) {
+      setError(err.message || 'Não foi possível otimizar esta imagem.');
     } finally {
       setOptimizingId('');
     }
@@ -306,13 +380,33 @@ export default function StoragePanel({ state, account, libraryActions, confirmSa
         <p className="quiet-note">Excluir um PDF por aqui remove também o material correspondente da sua Biblioteca e libera espaço imediatamente.</p>
       </div>
     </>}
+
+    {mediaItems.length > 0 && <div className="cfg-block" aria-labelledby="cfg-media-title">
+      <h3 id="cfg-media-title">Imagens de perfil e slides</h3>
+      <p className="quiet-note">Estas imagens não entram na cota de 10 MB. A otimização troca o arquivo no armazenamento e atualiza o perfil ou a apresentação sem alterar o conteúdo.</p>
+      <ul className="cfg-storage-list">
+        {mediaItems.map((item) => <li key={`${item.kind}-${item.id}`} className="cfg-storage-item">
+          <div className="cfg-storage-item-main is-media">
+            <div className="cfg-storage-item-info">
+              <strong>{item.name}</strong>
+              <span>{item.label} · fora da cota</span>
+            </div>
+            <div className="cfg-storage-actions">
+              <Button secondary disabled={Boolean(busyId || optimizingId)} onClick={() => optimizeMedia(item)}>
+                {optimizingId === item.id ? 'Otimizando…' : 'Otimizar'}
+              </Button>
+            </div>
+          </div>
+        </li>)}
+      </ul>
+    </div>}
   </div>;
 }
 
 
 export function StoragePage(props) {
   return <div className="personal-root">
-    <Heading title="Armazenamento">Espaço ocupado pelos seus PDFs da Biblioteca e anexos do Social.</Heading>
+    <Heading title="Armazenamento">Espaço ocupado pelos seus PDFs da Biblioteca e anexos do Social; também é possível otimizar imagens de perfil e slides.</Heading>
     <section className="card-surface cfg-panel" aria-label="Gerenciamento de armazenamento">
       <StoragePanel {...props}/>
     </section>
