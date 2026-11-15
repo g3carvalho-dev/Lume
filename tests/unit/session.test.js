@@ -161,3 +161,12 @@ test('sessão esquecida aberta vira registro com o tempo acumulado até o últim
   assert.equal(closeStaleSession(state, T0 + 41 * MINUTE), state);
   assert.equal(closeStaleSession(startSession(createInitialState(), {}, T0), T0 + 60 * MINUTE).studySessions.length, 0);
 });
+
+test('isSessionLive: só sessão ativa com batimento recente conta como estudando', async () => {
+  const { isSessionLive } = await import('../../public/session-domain.js');
+  const base = { status: 'active', lastTickAt: new Date(T0).toISOString() };
+  assert.equal(isSessionLive(base, T0 + 60 * 1000), true);
+  assert.equal(isSessionLive(base, T0 + 10 * 60 * 1000), false);
+  assert.equal(isSessionLive({ ...base, status: 'paused' }, T0 + 1000), false);
+  assert.equal(isSessionLive(null), false);
+});

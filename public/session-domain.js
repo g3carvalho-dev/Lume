@@ -169,6 +169,14 @@ export function reconcileSession(state, now = Date.now(), { staleMs = STALE_SESS
   };
 }
 
+// A pessoa só aparece "Estudando" com sessão ativa e batimento recente — a mesma
+// regra que os amigos veem. Sessão pausada ou esquecida não é estudo em curso.
+export function isSessionLive(session, now = Date.now(), { staleMs = STALE_SESSION_MS } = {}) {
+  if (!session || session.status !== 'active') return false;
+  const tick = Date.parse(session.lastTickAt);
+  return Number.isFinite(tick) && now - tick <= staleMs;
+}
+
 // Ao carregar, uma sessão ativa sem batimento há muito tempo (app fechado ou
 // computador dormindo com o leitor aberto) é encerrada com o que já tinha
 // acumulado até o último batimento. Sem isso o tempo ficava numa sessão pausada

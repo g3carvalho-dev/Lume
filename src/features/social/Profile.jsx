@@ -1,3 +1,4 @@
+import { isSessionLive } from '../../../public/session-domain.js';
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import Icon from '../../ui/Icon.jsx';
@@ -239,7 +240,7 @@ export default function Profile({ id, handle = '', state, actions, account, noti
         <div className="profile-x-identity">
           <div className="profile-x-title-row">
             <h1 id="profile-user-title" className="display profile-x-name">{user.name}</h1>
-            {(isSelf ? Boolean(state.activeSession) : studying.length > 0) && <span className="profile-x-live">
+            {(isSelf ? isSessionLive(state.activeSession) : studying.length > 0) && <span className="profile-x-live">
               <span className="companion-dot" aria-hidden="true"/>
               {isSelf ? `Estudando · ${state.activeSession.label}` : 'Estudando'}
             </span>}
