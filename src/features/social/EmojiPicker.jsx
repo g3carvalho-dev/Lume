@@ -40,30 +40,99 @@ function EmojiTab({ onEmoji }) {
   </div>;
 }
 
+const FAVORITES_KEY = 'lume.gif.favorites';
+
+function readFavorites() {
+  try {
+    const list = JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
+    return Array.isArray(list) ? list.filter((item) => item && typeof item.url === 'string' && typeof item.preview === 'string').slice(0, 30) : [];
+  } catch { return []; }
+}
+
+function saveFavorites(list) {
+  try { localStorage.setItem(FAVORITES_KEY, JSON.stringify(list.slice(0, 30))); } catch { /* favoritos são só uma conveniência */ }
+}
+
+// Ladrilho de tamanho fixo: o GIF preenche o quadro e o título fica por cima.
+function GifTile({ gif, onPick, favorite, onFavorite }) {
+  return <div className="sf-gif-cell">
+    <button type="button" className="sf-gif" aria-label={gif.title || 'GIF'} onClick={() => onPick(gif)}><img src={gif.preview} alt="" loading="lazy"/></button>
+    <button type="button" className={`sf-gif-star ${favorite ? 'is-on' : ''}`} aria-pressed={favorite} aria-label={favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'} onClick={() => onFavorite(gif)}><Icon name="star"/></button>
+  </div>;
+}
+
+function CategoryTile({ title, preview, icon, onOpen }) {
+  return <button type="button" className="sf-gif-category" onClick={onOpen}>
+    {preview ? <img src={preview} alt="" loading="lazy"/> : <span className="sf-gif-category-empty" aria-hidden="true"/>}
+    <span className="sf-gif-category-label">{icon && <Icon name={icon}/>}{title}</span>
+  </button>;
+}
+
+// Início: categorias com capa. Busca ou categoria escolhida: grade de resultados.
 function GifTab({ onGif }) {
   const [query, setQuery] = useState('');
-  const [state, setState] = useState({ loading: true, available: true, gifs: [], error: '' });
+  const [view, setView] = useState(null);
+  const [categories, setCategories] = useState({ loading: true, available: true, items: [] });
+  const [results, setResults] = useState({ loading: false, available: true, gifs: [], error: '' });
+  const [favorites, setFavorites] = useState(readFavorites);
+
   useEffect(() => {
     let alive = true;
-    setState((value) => ({ ...value, loading: true, error: '' }));
-    const timer = setTimeout(async () => {
-      const result = await api(`/api/social/gifs?q=${encodeURIComponent(query.trim())}`);
+    api('/api/social/gifs/categories').then((result) => {
       if (!alive) return;
-      if (!result.ok) setState({ loading: false, available: true, gifs: [], error: apiError(result) });
-      else setState({ loading: false, available: result.data.available, gifs: result.data.gifs, error: '' });
-    }, query ? 350 : 0);
+      setCategories(result.ok ? { loading: false, available: result.data.available, items: result.data.categories } : { loading: false, available: true, items: [] });
+    });
+    return () => { alive = false; };
+  }, []);
+
+  const text = query.trim();
+  const mode = text ? 'search' : view?.id === 'favorites' ? 'favorites' : view ? 'category' : 'home';
+  useEffect(() => {
+    if (mode === 'home' || mode === 'favorites') return undefined;
+    let alive = true;
+    setResults((value) => ({ ...value, loading: true, error: '' }));
+    const timer = setTimeout(async () => {
+      const path = mode === 'search' ? `/api/social/gifs?q=${encodeURIComponent(text)}` : view.trending ? '/api/social/gifs' : `/api/social/gifs?q=${encodeURIComponent(view.query)}`;
+      const result = await api(path);
+      if (!alive) return;
+      if (!result.ok) setResults({ loading: false, available: true, gifs: [], error: apiError(result) });
+      else setResults({ loading: false, available: result.data.available, gifs: result.data.gifs, error: '' });
+    }, mode === 'search' ? 350 : 0);
     return () => { alive = false; clearTimeout(timer); };
-  }, [query]);
+  }, [mode, text, view]);
+
+  function toggleFavorite(gif) {
+    const next = favorites.some((item) => item.url === gif.url)
+      ? favorites.filter((item) => item.url !== gif.url)
+      : [{ id: gif.id, title: gif.title, url: gif.url, preview: gif.preview }, ...favorites];
+    setFavorites(next);
+    saveFavorites(next);
+  }
+
+  const shown = mode === 'favorites' ? favorites : results.gifs;
+  const title = mode === 'search' ? `Resultados para “${text}”` : view?.title || '';
   return <div className="sf-picker-pane">
     <label className="sf-picker-search"><Icon name="search"/><span className="sr-only">Buscar GIF</span><input type="search" value={query} placeholder="Buscar GIF" onChange={(event) => setQuery(event.target.value)}/></label>
-    {!state.available
-      ? <p className="sf-picker-empty">A busca de GIFs ainda não está ativada neste ambiente.</p>
-      : state.error
-        ? <p className="sf-picker-empty" role="alert">{state.error}</p>
-        : <div className="sf-gif-grid" role="group" aria-label="GIFs">
-          {state.gifs.map((gif) => <button key={gif.id} type="button" className="sf-gif" aria-label={gif.title || 'GIF'} onClick={() => onGif(gif)}><img src={gif.preview} alt="" loading="lazy"/></button>)}
-          {!state.loading && state.gifs.length === 0 && <p className="sf-picker-empty">Nenhum GIF encontrado.</p>}
-        </div>}
+    {mode !== 'home' && <div className="sf-gif-head">
+      {!text && <button type="button" className="sf-link" onClick={() => setView(null)}><Icon name="back"/>Voltar</button>}
+      <strong>{title}</strong>
+    </div>}
+    {mode === 'home'
+      ? !categories.available
+        ? <p className="sf-picker-empty">A busca de GIFs ainda não está ativada neste ambiente.</p>
+        : <div className="sf-gif-grid" role="group" aria-label="Categorias de GIF">
+          <CategoryTile title="Favoritos" icon="star" preview={favorites[0]?.preview || ''} onOpen={() => setView({ id: 'favorites', title: 'Favoritos' })}/>
+          {categories.items.map((item) => <CategoryTile key={item.id} title={item.title} preview={item.preview} icon={item.trending ? 'trend' : ''} onOpen={() => setView(item)}/>)}
+        </div>
+      : mode !== 'favorites' && !results.available
+        ? <p className="sf-picker-empty">A busca de GIFs ainda não está ativada neste ambiente.</p>
+        : results.error && mode !== 'favorites'
+          ? <p className="sf-picker-empty" role="alert">{results.error}</p>
+          : <div className="sf-gif-grid" role="group" aria-label="GIFs">
+            {shown.map((gif) => <GifTile key={gif.url} gif={gif} onPick={onGif} favorite={favorites.some((item) => item.url === gif.url)} onFavorite={toggleFavorite}/>)}
+            {mode === 'favorites' && shown.length === 0 && <p className="sf-picker-empty">Marque a estrela de um GIF para guardá-lo aqui.</p>}
+            {mode !== 'favorites' && !results.loading && shown.length === 0 && <p className="sf-picker-empty">Nenhum GIF encontrado.</p>}
+          </div>}
     <small className="sf-picker-credit">GIFs por Giphy</small>
   </div>;
 }

@@ -2,7 +2,7 @@
 import { BASE_HEADERS, json } from '../http.js';
 import { SOCIAL_PDF_BYTES } from '../../public/social-domain.js';
 import { createSocialPost, listSocialPosts, deleteSocialPost, readSocialAttachment, reactToSocialPost, listSocialComments, createSocialComment, deleteSocialComment, reactToSocialComment, SocialError } from '../domain/social-feed.js';
-import { searchGifs } from '../domain/gifs.js';
+import { searchGifs, gifCategories } from '../domain/gifs.js';
 
 const FEED = { auth: 'Entre na sua conta para ver o Social.', origin: true };
 const write = { ...FEED, rateLimit: { key: ctx => `social|${ctx.user.id}`, limit: 60, message: 'Muitas publicações em pouco tempo. Aguarde um instante.', code: 'rate_limited' } };
@@ -38,5 +38,6 @@ export function socialFeedRoutes(router) {
   router.add('DELETE', '/api/social/posts/:postId/comments/:commentId', FEED, async ctx => json(await deleteSocialComment(ctx.db, ctx.user.id, ctx.params.postId, ctx.params.commentId)));
   router.add('PUT', '/api/social/posts/:postId/comments/:commentId/reaction', write, async ctx => json(await reactToSocialComment(ctx.db, ctx.user.id, ctx.params.postId, ctx.params.commentId, true, Date.now(), ctx.url.searchParams.get('emoji') || undefined)));
   router.add('DELETE', '/api/social/posts/:postId/comments/:commentId/reaction', FEED, async ctx => json(await reactToSocialComment(ctx.db, ctx.user.id, ctx.params.postId, ctx.params.commentId, false, Date.now(), ctx.url.searchParams.get('emoji') || undefined)));
+  router.add('GET', '/api/social/gifs/categories', FEED, async ctx => json(await gifCategories(ctx.env)));
   router.add('GET', '/api/social/gifs', { ...FEED, rateLimit: { key: ctx => `gifs|${ctx.user.id}`, limit: 60, message: 'Muitas buscas de GIF. Aguarde um instante.', code: 'rate_limited' } }, async ctx => json(await searchGifs(ctx.env, ctx.url.searchParams.get('q') || '')));
 }

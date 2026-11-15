@@ -160,11 +160,14 @@
 .sf-post-gif,
 .sf-comment-image {
   display: block;
+  width: auto;
+  height: auto;
   max-width: 100%;
   border-radius: var(--radius-md);
+  object-fit: contain;
 }
 .sf-post-gif {
-  max-height: 22rem;
+  max-height: 20rem;
 }
 .sf-comment-image {
   max-height: 11rem;
@@ -559,16 +562,39 @@
 }
 .sf-gif-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-auto-rows: max-content;
-  align-content: start;
-  gap: 0.35rem;
-  max-height: 14rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 6.5rem;
+  gap: 0.5rem;
+  max-height: 17rem;
   overflow-y: auto;
+  padding-right: 0.15rem;
 }
-.sf-gif {
+.sf-gif-grid > .sf-picker-empty {
+  grid-column: 1 / -1;
+  grid-row: auto;
+}
+.sf-gif-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+.sf-gif-head strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-gif-cell {
+  position: relative;
+  min-width: 0;
+}
+.sf-gif,
+.sf-gif-category {
+  position: relative;
   display: block;
-  min-height: 3rem;
+  width: 100%;
+  height: 100%;
   padding: 0;
   border: 0;
   border-radius: var(--radius-md);
@@ -576,9 +602,90 @@
   overflow: hidden;
   cursor: pointer;
 }
-.sf-gif img {
-  display: block;
+.sf-gif img,
+.sf-gif-category img {
+  position: absolute;
+  inset: 0;
   width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sf-gif-category::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, black 45%, transparent);
+  transition: background 0.16s ease;
+}
+.sf-gif-category:hover::after,
+.sf-gif-category:focus-visible::after {
+  background: color-mix(in srgb, black 25%, transparent);
+}
+.sf-gif-category-empty {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--lume-soft), var(--surface-2));
+}
+.sf-gif-category-label {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.4rem;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+  text-shadow: 0 1px 6px color-mix(in srgb, black 60%, transparent);
+}
+.sf-gif-category-label .icon {
+  width: 1rem;
+  height: 1rem;
+}
+.sf-gif:hover,
+.sf-gif:focus-visible,
+.sf-gif-category:focus-visible {
+  outline: 2px solid var(--lume);
+  outline-offset: -2px;
+}
+.sf-gif-star {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, black 55%, transparent);
+  color: #fff;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.16s ease;
+}
+.sf-gif-star .icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+.sf-gif-star.is-on {
+  color: var(--reward);
+}
+.sf-gif-star.is-on .icon {
+  fill: currentColor;
+}
+.sf-gif-cell:hover .sf-gif-star,
+.sf-gif-star:focus-visible,
+.sf-gif-star.is-on {
+  opacity: 1;
+}
+@media (hover: none) {
+  .sf-gif-star {
+    opacity: 0.85;
+  }
 }
 .sf-picker-credit {
   color: var(--text-subtle);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { applyMigrations, sqliteAdapter } from '../../api/adapters/sqlite.js';
-import { searchGifs } from '../../api/domain/gifs.js';
+import { searchGifs, gifCategories, GIF_CATEGORIES } from '../../api/domain/gifs.js';
 import { reactToSocialComment, createSocialPost, listSocialPosts, deleteSocialPost, reactToSocialPost, createSocialComment, listSocialComments, deleteSocialComment, readSocialAttachment } from '../../api/domain/social-feed.js';
 import { PDF_PLANS } from '../../public/pdf-domain.js';
 
@@ -161,4 +161,20 @@ test('busca de GIFs usa a chave do servidor e descarta endereços fora do proved
   assert.equal(result.gifs.length, 1);
   assert.match(called, /\/search\?/);
   assert.equal(JSON.stringify(result).includes('segredo'), false);
+});
+
+test('categorias de GIF trazem uma capa e reaproveitam o cache', async () => {
+  assert.deepEqual(await gifCategories({}), { available: false, categories: [] });
+  let calls = 0;
+  const fake = async () => { calls += 1; return { ok: true, json: async () => ({ data: [{ id: 'x', title: 't', images: { fixed_width: { url: 'https://media1.giphy.com/media/x/200w.gif' }, fixed_width_small: { url: 'https://media1.giphy.com/media/x/100w.gif' } } }] }) }; };
+  const cache = new Map();
+  const first = await gifCategories({ LUME_GIF_API_KEY: 'k' }, fake, { cache, now: 1000 });
+  assert.equal(first.categories.length, GIF_CATEGORIES.length);
+  assert.ok(first.categories.every((item) => item.preview.startsWith('https://media1.giphy.com/')));
+  assert.equal(calls, GIF_CATEGORIES.length);
+  await gifCategories({ LUME_GIF_API_KEY: 'k' }, fake, { cache, now: 2000 });
+  assert.equal(calls, GIF_CATEGORIES.length);
+  const failing = async () => { throw new Error('rede'); };
+  const degraded = await gifCategories({ LUME_GIF_API_KEY: 'k' }, failing, { cache: new Map(), now: 1000 });
+  assert.equal(degraded.categories[0].preview, '');
 });
