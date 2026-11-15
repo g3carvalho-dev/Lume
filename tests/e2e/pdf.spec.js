@@ -129,3 +129,54 @@ test('PDF recém-anexado fica não iniciado e o marca-texto marca, troca a cor e
   await expect(row.getByText(/6 páginas · não iniciado/)).toBeVisible();
   await expect(row.getByText('0%')).toBeVisible();
 });
+
+test('no celular, o leitor de PDF ocupa a tela sem controles sobrepostos e as telas não passam da largura', { tag: '@celular' }, async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'Layout de celular.');
+  await seedAccount(page, seeded());
+  // Nenhuma tela principal pode ficar mais larga que o celular.
+  for (const route of ['hoje', 'biblioteca', 'plano', 'agenda', 'tarefas', 'amigos', 'adicionar', 'perfil', 'configuracoes']) {
+    await page.goto(`/#${route}`);
+    await expect(page.locator('#main h1').first()).toBeVisible();
+    const [scroll, client] = await page.locator('#main').evaluate((node) => [node.scrollWidth, node.clientWidth]);
+    expect(scroll, `#${route} passa da largura (${scroll} > ${client})`).toBeLessThanOrEqual(client);
+  }
+
+  await page.goto('/#biblioteca');
+  await page.getByRole('button', { name: 'Anexar PDF', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.locator('input[type=file]').setInputFiles({ name: 'apostila-penal.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
+  await dialog.getByRole('button', { name: 'Anexar PDF' }).click();
+  await expect(dialog.locator('.pdf-page canvas')).toBeVisible();
+
+  // Tela cheia e painel fechado: a página vem primeiro.
+  const viewport = page.viewportSize();
+  const box = await dialog.boundingBox();
+  expect(Math.round(box.width)).toBe(viewport.width);
+  await expect(dialog.getByRole('complementary', { name: 'Painel do documento' })).toHaveCount(0);
+
+  // Nenhum controle da barra encosta em outro.
+  const controls = [
+    dialog.getByRole('button', { name: 'Voltar para a biblioteca' }),
+    dialog.getByRole('button', { name: 'Concluir leitura' }),
+    dialog.getByRole('button', { name: 'Página anterior' }),
+    dialog.getByLabel('Página atual'),
+    dialog.getByRole('button', { name: 'Próxima página' }),
+    dialog.getByRole('button', { name: 'Marca-texto', exact: true }),
+    dialog.getByRole('button', { name: 'Painel lateral' }),
+  ];
+  const boxes = await Promise.all(controls.map((control) => control.boundingBox()));
+  for (const [index, a] of boxes.entries()) {
+    expect(a.x).toBeGreaterThanOrEqual(0);
+    expect(a.x + a.width).toBeLessThanOrEqual(viewport.width);
+    for (const b of boxes.slice(index + 1)) {
+      const overlap = a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+      expect(overlap).toBe(false);
+    }
+  }
+  // A página do PDF usa quase toda a largura.
+  const canvas = await dialog.locator('.pdf-page canvas').boundingBox();
+  expect(canvas.width).toBeGreaterThan(viewport.width * 0.85);
+
+  await dialog.getByRole('button', { name: 'Painel lateral' }).click();
+  await expect(dialog.getByRole('complementary', { name: 'Painel do documento' })).toBeVisible();
+});

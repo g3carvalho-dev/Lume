@@ -26,7 +26,8 @@ dialog#dialog::backdrop {
 }
 .dialog-course-cover .cover {
   border-radius: 0;
-  max-height: 180px;
+  aspect-ratio: auto;
+  height: clamp(120px, 32vw, 180px);
 }
 .dialog-content, .session-content, .success-body {
   padding: 1.65rem;

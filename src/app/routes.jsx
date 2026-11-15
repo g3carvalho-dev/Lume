@@ -37,7 +37,7 @@ const Landing = lazy(() => import('../features/account/Landing.jsx'));
 export const SECTIONS = {
   hoje: { label: 'Início', icon: 'home', home: 'hoje' },
   biblioteca: { label: 'Biblioteca', icon: 'book', home: 'biblioteca' },
-  plano: { label: 'Plano de Estudos', icon: 'calendar', home: 'plano' },
+  plano: { label: 'Plano de Estudos', short: 'Plano', icon: 'calendar', home: 'plano' },
   foco: { label: 'Foco', icon: 'timer', home: 'foco' },
   amigos: { label: 'Social', icon: 'users', home: 'amigos' },
   // Perfil, Conquistas e Configurações abrem pelo menu da conta, não pelo cabeçalho.

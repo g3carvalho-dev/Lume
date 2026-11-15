@@ -479,3 +479,27 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* O menu "…" fica no canto do cartão: a linha de etiquetas e a porcentagem
+   reservam o espaço dele. */
+.course-card-wrap:not(.is-row) .stitch-course-top {
+  padding-right: 2.6rem;
+}
+/* Celular: tipos numa linha que rola; disciplina e filtro na linha de baixo. */
+@media (max-width: 820px) {
+  .library-filters .kind-tabs {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .library-filters .library-quick-right {
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+  .library-filters .subject-filter {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .library-filters .subject-filter select {
+    width: 100%;
+  }
+}
