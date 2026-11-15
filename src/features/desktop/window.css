@@ -17,6 +17,19 @@ html[data-desktop="true"] .entry-header button {
   -webkit-app-region: no-drag;
 }
 
+/* O leitor de PDF abre sobre a faixa de arrastar da janela: no Electron a area
+   de arrastar engole os cliques mesmo sob um dialogo, e os botoes nativos cobrem
+   o canto direito. Por isso o leitor comeca abaixo da barra de titulo. */
+html[data-desktop="true"] dialog#dialog:has(.pdf-reader) {
+  margin-top: 44px;
+  height: calc(100vh - 44px - 0.75rem);
+  max-height: calc(100vh - 44px - 0.75rem);
+}
+html[data-desktop="true"] .pdf-reader,
+html[data-desktop="true"] .pdf-reader * {
+  -webkit-app-region: no-drag;
+}
+
 /* Botao pequeno de atualizacao, so na janela do app. */
 .desktop-update {
   position: relative;
