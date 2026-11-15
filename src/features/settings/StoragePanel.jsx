@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { COMPRESSION } from '../../../public/compression-domain.js';
 import { formatBytes } from '../../../public/pdf-domain.js';
+import { SOCIAL_IMAGE_BYTES, SOCIAL_PDF_BYTES } from '../../../public/social-domain.js';
 import { api, apiError } from '../../lib/api.js';
+import { compressImage } from '../../lib/image-compress.js';
+import { analyzePdf, estimatePdfRaster, optimizePdfLossless, rasterizePdf } from '../library/pdf-compress.js';
 import Icon from '../../ui/Icon.jsx';
 import { Button, Heading } from '../../ui/ui.jsx';
 
@@ -19,7 +23,9 @@ export default function StoragePanel({ state, account, libraryActions, confirmSa
   const [sort, setSort] = useState('size');
   const [query, setQuery] = useState('');
   const [confirmItem, setConfirmItem] = useState(null);
+  const [optimizeOffer, setOptimizeOffer] = useState(null);
   const [busyId, setBusyId] = useState('');
+  const [optimizingId, setOptimizingId] = useState('');
 
   const load = useCallback(async () => {
     if (!account) return;
@@ -65,8 +71,107 @@ export default function StoragePanel({ state, account, libraryActions, confirmSa
     </div>;
   }
 
+  async function uploadOptimized(item, blob, after, before) {
+    const path = item.kind === 'library'
+      ? `/api/library/files/${encodeURIComponent(item.id)}/replace`
+      : `/api/storage/items/social/${encodeURIComponent(item.id)}/replace`;
+    const headers = {
+      'Content-Type': blob.type || (item.kind === 'library' ? 'application/pdf' : 'application/octet-stream'),
+    };
+    if (item.kind !== 'library') headers['X-File-Name'] = encodeURIComponent(item.name || 'anexo');
+    const response = await fetch(path, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers,
+      body: blob,
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(apiError({ data }) || 'Não foi possível substituir o anexo.');
+    if (item.kind === 'social') {
+      if (data.storage) setStorage(data.storage);
+      else await load();
+    } else {
+      const size = Number(data?.size || after);
+      if (item.materialId && size > 0) {
+        const applied = libraryActions.setPdfSize(item.materialId, size);
+        if (!applied) throw new Error('O PDF foi otimizado, mas a biblioteca não pôde ser atualizada agora.');
+        await confirmSave?.();
+      }
+      await load();
+    }
+    setOptimizeOffer(null);
+    notify(`${item.kind === 'library' ? 'PDF' : 'Anexo'} otimizado: ${formatBytes(before)} → ${formatBytes(after)}.`);
+  }
+
+  async function optimizeItem(item) {
+    if (busyId || optimizingId) return;
+    setOptimizingId(item.id);
+    setError('');
+    setOptimizeOffer(null);
+    try {
+      const url = item.kind === 'library'
+        ? `/api/library/files/${encodeURIComponent(item.id)}`
+        : `/api/social/posts/${encodeURIComponent(item.id)}/attachment`;
+      const response = await fetch(url, { credentials: 'same-origin' });
+      if (!response.ok) throw new Error('Não foi possível baixar o anexo para otimizar.');
+      const blob = await response.blob();
+      const type = item.kind === 'library' ? 'application/pdf' : (item.mimeType || blob.type || 'application/octet-stream');
+      const file = new File([blob], item.fileName || item.name || 'anexo', { type });
+
+      if (type.startsWith('image/')) {
+        if (type === 'image/gif') {
+          notify('GIFs animados não são otimizados para não perder a animação.');
+          return;
+        }
+        const result = await compressImage(file, { maxBytes: SOCIAL_IMAGE_BYTES, maxWidth: 1920, maxHeight: 1920, force: true });
+        if (!result.changed || result.after >= result.before) {
+          notify('A imagem já está otimizada; não há redução disponível.');
+          return;
+        }
+        await uploadOptimized(item, result.blob, result.after, result.before);
+        return;
+      }
+
+      const analysis = await analyzePdf(file);
+      const lossless = await optimizePdfLossless(file, analysis);
+      if (lossless && lossless.after < lossless.before) {
+        await uploadOptimized(item, lossless.blob, lossless.after, lossless.before);
+        return;
+      }
+      const target = item.kind === 'library' ? (storage?.fileBytes || 0) : SOCIAL_PDF_BYTES;
+      if (analysis.scan && analysis.pages <= COMPRESSION.pdfPagesLimit) {
+        const estimate = await estimatePdfRaster(file, analysis, { targetBytes: target });
+        if (estimate) {
+          setOptimizeOffer({ item, file, analysis, estimate, target });
+          return;
+        }
+      }
+      notify('Este PDF já está otimizado; não há redução segura disponível.');
+    } catch (err) {
+      setError(err.message || 'Não foi possível otimizar este anexo.');
+    } finally {
+      setOptimizingId('');
+    }
+  }
+
+  async function confirmRaster() {
+    if (!optimizeOffer || optimizingId) return;
+    const { item, file, analysis, target } = optimizeOffer;
+    setOptimizeOffer(null);
+    setOptimizingId(item.id);
+    setError('');
+    try {
+      const result = await rasterizePdf(file, analysis, { targetBytes: target });
+      await uploadOptimized(item, result.blob, result.after, result.before);
+    } catch (err) {
+      setError(err.message || 'Não foi possível reduzir este PDF.');
+    } finally {
+      setOptimizingId('');
+    }
+  }
+
   async function removeItem(item) {
-    if (busyId) return;
+    if (busyId || optimizingId) return;
     setBusyId(item.id);
     setError('');
     try {
@@ -167,9 +272,21 @@ export default function StoragePanel({ state, account, libraryActions, confirmSa
                     <div className="cfg-storage-actions">
                       {item.kind === 'library' && item.materialId && <Button secondary onClick={() => open({ type: 'pdf', id: item.materialId })}>Abrir</Button>}
                       {item.kind === 'social' && <Button secondary onClick={() => go('amigos')}>Ver no Social</Button>}
-                      <Button secondary className="is-danger-outline" disabled={Boolean(busyId)} onClick={() => setConfirmItem(confirming ? null : item)}>Excluir</Button>
+                      {(item.kind === 'social' || item.status === 'ready') && <Button secondary disabled={Boolean(busyId || optimizingId)} onClick={() => optimizeItem(item)}>
+                        {optimizingId === item.id ? 'Otimizando…' : 'Otimizar'}
+                      </Button>}
+                      <Button secondary className="is-danger-outline" disabled={Boolean(busyId || optimizingId)} onClick={() => setConfirmItem(confirming ? null : item)}>Excluir</Button>
                     </div>
                   </div>
+                  {optimizeOffer?.item.kind === item.kind && optimizeOffer?.item.id === item.id && <div className="cfg-storage-confirm" role="region" aria-label="Confirmar redução para digitalização">
+                    <p>
+                      Este PDF é uma digitalização. Reduzir para cerca de <span className="mono">{formatBytes(optimizeOffer.estimate.estimatedBytes)}</span> rasteriza as páginas e remove texto selecionável, busca e marca-texto do arquivo. O original será substituído; o sumário e as marcações salvos no Lume continuam.
+                    </p>
+                    <div className="cfg-storage-actions">
+                      <Button disabled={Boolean(optimizingId)} onClick={confirmRaster}>Reduzir digitalização</Button>
+                      <Button ghost disabled={Boolean(optimizingId)} onClick={() => setOptimizeOffer(null)}>Manter como está</Button>
+                    </div>
+                  </div>}
                   {confirming && <div className="cfg-storage-confirm" role="region" aria-label="Confirmar exclusão">
                     <p>
                       Excluir <strong>{item.name}</strong> libera <span className="mono">{formatBytes(item.size)}</span>.{' '}

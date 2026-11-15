@@ -272,6 +272,39 @@ export async function uploadPdf(db, bucket, userId, { fileId, name, bytes, now =
   return { id: fileId, name: cleanedName, size: view.byteLength };
 }
 
+// Substitui o objeto de um PDF já vinculado (otimização no Armazenamento). A
+// troca pode diminuir mesmo com a conta acima da cota; crescer só cabe no plano.
+export async function replacePdf(db, bucket, userId, fileId, { bytes, name = '', now = Date.now(), config = null } = {}) {
+  requireBucket(bucket);
+  const validId = validateFileId(fileId);
+  const current = await db.first('SELECT id,name,size,status FROM library_files WHERE user_id=? AND id=?', [userId, validId]);
+  if (!current) throw new FileError('PDF não encontrado.', 'file_not_found', 404);
+  if (current.status !== 'ready') throw new FileError('PDF ainda não confirmado.', 'file_not_ready', 409);
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  const plan = await storagePlan(db, userId, config);
+  if (view.byteLength > plan.fileBytes) {
+    throw new FileError(`O PDF ultrapassa o limite de ${formatBytes(plan.fileBytes)} por arquivo.`, 'file_too_large', 413);
+  }
+  if (!isPdf(view)) throw new FileError('O arquivo enviado não é um PDF.', 'not_pdf', 415);
+  const clean = cleanName(name || current.name);
+  const usage = await db.first(`SELECT
+      (SELECT COALESCE(SUM(size),0) FROM library_files WHERE user_id=? AND id!=?)
+      + (SELECT COALESCE(SUM(attachment_size),0) FROM social_posts WHERE user_id=? AND attachment_key IS NOT NULL AND attachment_size > 0)
+      AS used`, [userId, validId, userId]);
+  if (view.byteLength > Number(current.size) && Number(usage?.used || 0) + view.byteLength > plan.accountBytes) {
+    throw new FileError(`O armazenamento da conta (${formatBytes(plan.accountBytes)}) não comporta este PDF. Exclua anexos que não usa mais.`, 'storage_full', 413);
+  }
+  const previous = { size: Number(current.size), name: current.name };
+  await db.run("UPDATE library_files SET size=?, name=? WHERE user_id=? AND id=? AND status='ready'", [view.byteLength, clean, userId, validId]);
+  try {
+    await bucket.put(pdfKey(userId, validId), view, 'application/pdf');
+  } catch (error) {
+    await db.run('UPDATE library_files SET size=?, name=? WHERE user_id=? AND id=?', [previous.size, previous.name, userId, validId]);
+    throw error;
+  }
+  return { id: validId, name: clean, size: view.byteLength };
+}
+
 export async function readPdf(db, bucket, userId, fileId) {
   requireBucket(bucket);
   if (!await db.first('SELECT id FROM library_files WHERE user_id=? AND id=?', [userId, validateFileId(fileId)])) {

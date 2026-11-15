@@ -4,8 +4,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { applyMigrations, sqliteAdapter } from '../../api/adapters/sqlite.js';
 import { readConfig } from '../../api/config.js';
-import { uploadPdf } from '../../api/domain/library-files.js';
-import { createSocialPost } from '../../api/domain/social-feed.js';
+import { replacePdf, uploadPdf } from '../../api/domain/library-files.js';
+import { createSocialPost, readSocialAttachment, replaceSocialAttachment } from '../../api/domain/social-feed.js';
 import { applyLibraryActions } from '../../api/domain/library-actions.js';
 import { readLibrary } from '../../api/domain/library-store.js';
 import {
@@ -84,6 +84,44 @@ test('faixa padrão é 10 MB, criadora tem 1 GB e uso soma Biblioteca + Social s
   assert.equal(objects.size, 0);
 });
 
+test('substituir PDF e anexo otimizados atualiza objeto, tamanho e cota', async (t) => {
+  const { db, bucket, objects, config, ana } = fixture(t);
+  const smaller = PDF_BYTES.subarray(0, 128);
+
+  await uploadPdf(db, bucket, ana.id, { fileId: 'pdf-file-002', name: 'Apostila.pdf', bytes: PDF_BYTES, config });
+  const replaced = await replacePdf(db, bucket, ana.id, 'pdf-file-002', { bytes: smaller, config });
+  assert.equal(replaced.size, smaller.byteLength);
+  assert.equal(Buffer.from(objects.get('pdfs/ana-1/pdf-file-002.pdf')).toString('latin1'), Buffer.from(smaller).toString('latin1'));
+  assert.equal((await storageOverview(db, bucket, ana.id, config)).breakdown.libraryBytes, smaller.byteLength);
+  await assert.rejects(
+    () => replacePdf(db, bucket, 'bia-1', 'pdf-file-002', { bytes: PDF_BYTES, config }),
+    { code: 'file_not_found' },
+  );
+  await assert.rejects(
+    () => replacePdf(db, bucket, ana.id, 'pdf-file-002', { bytes: new Uint8Array([1, 2, 3]), config }),
+    { code: 'not_pdf' },
+  );
+
+  await createSocialPost(db, bucket, ana.id, { id: 'post-img-2', body: 'Mapa' }, { name: 'mapa.png', bytes: PNG_BYTES }, Date.now(), config);
+  const webp = new Uint8Array(12);
+  webp.set([0x52, 0x49, 0x46, 0x46], 0);
+  webp.set([0x57, 0x45, 0x42, 0x50], 8);
+  const social = await replaceSocialAttachment(db, bucket, ana.id, 'post-img-2', { bytes: webp, name: 'mapa.png', config });
+  assert.equal(social.attachment.type, 'image/webp');
+  assert.equal(social.attachment.name, 'mapa.webp');
+  assert.equal(objects.has('social/ana-1/post-img-2.png'), false);
+  assert.equal(objects.has('social/ana-1/post-img-2.webp'), true);
+  assert.equal((await readSocialAttachment(db, bucket, ana.id, 'post-img-2')).type, 'image/webp');
+  await assert.rejects(
+    () => replaceSocialAttachment(db, bucket, 'bia-1', 'post-img-2', { bytes: webp, config }),
+    { code: 'post_not_found' },
+  );
+  await assert.rejects(
+    () => replaceSocialAttachment(db, bucket, ana.id, 'post-img-2', { bytes: PDF_BYTES, config }),
+    { code: 'attachment_type_changed' },
+  );
+});
+
 test('controle da criadora ajusta cotas sem ID manual e redução bloqueia novos uploads sem apagar arquivos', async (t) => {
   const { db, sql, bucket, config, creator, ana } = fixture(t);
 
@@ -126,4 +164,8 @@ test('controle da criadora ajusta cotas sem ID manual e redução bloqueia novos
   assert.equal(overList.accounts.length, 1);
   assert.equal(overList.accounts[0].id, ana.id);
   assert.equal(overList.counts.over, 1);
+
+  // Mesmo acima da cota, a otimização pode substituir por um arquivo menor.
+  await replacePdf(db, bucket, ana.id, 'grande-001', { bytes: PDF_BYTES, config });
+  assert.equal((await storageOverview(db, bucket, ana.id, config)).overLimit, false);
 });

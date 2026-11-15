@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { applyMigrations, sqliteAdapter } from '../../api/adapters/sqlite.js';
 import { createSocialPost, listSocialPosts, deleteSocialPost, reactToSocialPost, createSocialComment, listSocialComments, deleteSocialComment, readSocialAttachment } from '../../api/domain/social-feed.js';
-import { SOCIAL_STORAGE_BYTES } from '../../public/social-domain.js';
+import { PDF_PLANS } from '../../public/pdf-domain.js';
 
 function fixture(t) {
   const sql = new DatabaseSync(':memory:');
@@ -88,7 +88,7 @@ test('valida limites, conquista própria e cota de anexos; falha de upload não 
   const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
   await assert.rejects(() => createSocialPost(db, { ...bucket, async put() { throw new Error('Falha no R2'); } }, 'ana', { id: 'failed' }, { name: 'a.png', bytes }), /Falha no R2/);
   assert.equal(sql.prepare("SELECT COUNT(*) AS total FROM social_posts WHERE id='failed'").get().total, 0);
-  sql.prepare("UPDATE social_posts SET attachment_size=? WHERE id='earned'").run(SOCIAL_STORAGE_BYTES);
+  sql.prepare("UPDATE social_posts SET attachment_size=? WHERE id='earned'").run(PDF_PLANS.free.accountBytes);
   await assert.rejects(() => createSocialPost(db, bucket, 'ana', { id: 'full' }, { name: 'a.png', bytes }), { code: 'post_not_reserved' });
 });
 

@@ -2,7 +2,7 @@
 // anexos. Desfazer amizade ou bloquear interrompe o acesso nos dois sentidos.
 import { AppError } from '../errors.js';
 import { sanitizeProfileImage } from '../../public/domain.js';
-import { socialText, socialFileName, SOCIAL_POST_LIMIT, SOCIAL_COMMENT_LIMIT, SOCIAL_PDF_BYTES, SOCIAL_STORAGE_BYTES, SOCIAL_PAGE_SIZE } from '../../public/social-domain.js';
+import { socialText, socialFileName, SOCIAL_POST_LIMIT, SOCIAL_COMMENT_LIMIT, SOCIAL_PDF_BYTES, SOCIAL_PAGE_SIZE } from '../../public/social-domain.js';
 import { detectImageType } from './media.js';
 import { isPdf, storagePlan } from './library-files.js';
 import { formatBytes } from '../../public/pdf-domain.js';
@@ -150,6 +150,65 @@ export async function createSocialPost(db, bucket, userId, input = {}, file = nu
     throw error;
   }
   return { id };
+}
+
+function withAttachmentExtension(name, ext) {
+  const clean = socialFileName(name || 'anexo');
+  const base = clean.replace(/\.[A-Za-z0-9]{1,8}$/, '') || 'anexo';
+  return `${base}.${ext}`;
+}
+
+// Substitui o anexo de uma publicação da própria pessoa (otimização no
+// Armazenamento). Mantém o tipo PDF ou imagem e permite diminuir mesmo com a
+// conta acima da cota; crescer só cabe no plano.
+export async function replaceSocialAttachment(db, bucket, userId, postId, { bytes, name = '', config = null } = {}) {
+  if (!bucket) throw new SocialError('Armazenamento indisponível. Tente novamente.', 'storage_unavailable', 503);
+  const id = idOf(postId);
+  const post = await db.first('SELECT * FROM social_posts WHERE id=? AND user_id=? AND ready=1', [id, userId]);
+  if (!post) throw new SocialError('Publicação não encontrada.', 'post_not_found', 404);
+  if (!post.attachment_key) throw new SocialError('Esta publicação não tem anexo.', 'no_attachment', 404);
+
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  const wasPdf = post.attachment_type === 'application/pdf';
+  let attachment;
+  if (isPdf(view)) {
+    if (!wasPdf) throw new SocialError('Mantenha o mesmo tipo de anexo da publicação.', 'attachment_type_changed');
+    if (view.byteLength > SOCIAL_PDF_BYTES) throw new SocialError('O PDF pode ter até 10 MB.', 'file_too_large', 413);
+    attachment = { type: 'application/pdf', ext: 'pdf' };
+  } else {
+    if (wasPdf) throw new SocialError('Mantenha o mesmo tipo de anexo da publicação.', 'attachment_type_changed');
+    const detected = detectImageType(view);
+    attachment = { type: detected.contentType, ext: detected.ext };
+  }
+
+  const plan = await storagePlan(db, userId, config);
+  const usage = await db.first(`SELECT
+      (SELECT COALESCE(SUM(attachment_size),0) FROM social_posts WHERE user_id=? AND id!=?)
+      + (SELECT COALESCE(SUM(size),0) FROM library_files WHERE user_id=?)
+      AS used`, [userId, id, userId]);
+  if (view.byteLength > Number(post.attachment_size) && Number(usage?.used || 0) + view.byteLength > plan.accountBytes) {
+    throw new SocialError(`O armazenamento da conta (${formatBytes(plan.accountBytes)}) não comporta este anexo. Exclua arquivos antigos para liberar espaço.`, 'storage_full', 413);
+  }
+
+  const key = `social/${idOf(userId)}/${id}.${attachment.ext}`;
+  const attachmentName = withAttachmentExtension(name || post.attachment_name, attachment.ext);
+  const previous = {
+    key: post.attachment_key,
+    name: post.attachment_name,
+    type: post.attachment_type,
+    size: Number(post.attachment_size || 0),
+  };
+  await db.run('UPDATE social_posts SET attachment_key=?, attachment_name=?, attachment_type=?, attachment_size=? WHERE id=? AND user_id=?',
+    [key, attachmentName, attachment.type, view.byteLength, id, userId]);
+  try {
+    await bucket.put(key, view, attachment.type);
+  } catch (error) {
+    await db.run('UPDATE social_posts SET attachment_key=?, attachment_name=?, attachment_type=?, attachment_size=? WHERE id=? AND user_id=?',
+      [previous.key, previous.name, previous.type, previous.size, id, userId]);
+    throw error;
+  }
+  if (previous.key !== key) await bucket.delete(previous.key).catch(() => {});
+  return { id, attachment: { name: attachmentName, type: attachment.type, size: view.byteLength } };
 }
 
 export async function deleteSocialPost(db, bucket, userId, postId) {

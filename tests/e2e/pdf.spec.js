@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createInitialState } from '../../public/domain.js';
 import { addSubject } from '../../public/subject-domain.js';
-import { penalPdf } from '../fixtures/sample-pdf.js';
+import { penalPdf, scannedPdf } from '../fixtures/sample-pdf.js';
 import { seedAccount, readAccount, E2E_ORIGIN } from './library-helpers.js';
 
 function seeded() {
@@ -128,4 +128,29 @@ test('PDF recém-anexado fica não iniciado e o marca-texto marca, troca a cor e
   const row = page.locator('.reading-row').filter({ hasText: 'Apostila de Processo Penal' });
   await expect(row.getByText(/6 páginas · não iniciado/)).toBeVisible();
   await expect(row.getByText('0%')).toBeVisible();
+});
+
+test('PDF digitalizado só é enviado depois de optar pela redução com perda', async ({ page }) => {
+  await seedAccount(page);
+  await page.goto('/#biblioteca');
+  await page.getByRole('button', { name: 'Anexar PDF', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  const source = scannedPdf();
+  expect(source.length).toBeGreaterThan(10 * 1024 * 1024);
+  await dialog.locator('input[type=file]').setInputFiles({ name: 'digitalizado.pdf', mimeType: 'application/pdf', buffer: source });
+
+  const option = dialog.getByRole('checkbox', { name: /Reduzir tamanho para digitalização/ });
+  await expect(option).toBeVisible({ timeout: 30000 });
+  await expect(option).not.toBeChecked();
+  const attach = dialog.getByRole('button', { name: 'Anexar PDF', exact: true });
+  await expect(attach).toBeDisabled();
+  await option.check();
+  await expect(attach).toBeEnabled();
+  await attach.click();
+
+  await expect(dialog.getByRole('heading', { name: 'Digitalizacao de teste' })).toBeVisible({ timeout: 30000 });
+  await expect(dialog.locator('.pdf-page canvas')).toBeVisible();
+  await expect(dialog.locator('.textLayer span')).toHaveCount(0);
+  const saved = await readAccount(page);
+  expect(saved.courses[0].pdf.size).toBeLessThan(10 * 1024 * 1024);
 });

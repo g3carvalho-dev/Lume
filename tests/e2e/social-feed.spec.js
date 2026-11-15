@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { seedAccount, E2E_ORIGIN } from './library-helpers.js';
-import { penalPdf } from '../fixtures/sample-pdf.js';
+import { penalPdf, scannedPdf } from '../fixtures/sample-pdf.js';
+import { noisePng } from '../fixtures/sample-image.js';
 
 const origin = E2E_ORIGIN;
 
@@ -95,6 +96,51 @@ test('PDF só é publicado após confirmação; falha preserva texto e anexo par
   expect(await photo.getByAltText('anotacoes.png').evaluate(image => image.naturalWidth)).toBe(1);
   const xp = await (await page.request.get('/api/xp', { headers: { origin } })).json();
   expect(xp.summary.totalXP).toBe(0);
+});
+
+test('foto grande do Social é otimizada antes de publicar', async ({ page }) => {
+  await seedAccount(page);
+  await page.goto('/#amigos');
+  await page.getByLabel('Sua publicação').fill('Foto grande do quadro.');
+  const source = noisePng();
+  expect(source.length).toBeGreaterThan(2 * 1024 * 1024);
+  await page.getByLabel('Anexar foto à publicação').setInputFiles({ name: 'foto-grande.png', mimeType: 'image/png', buffer: source });
+
+  await expect(page.locator('.social-draft-attachment')).toContainText('foto-grande.png');
+  await expect(page.getByText(/Imagem otimizada:/)).toBeVisible({ timeout: 30000 });
+  await page.getByRole('button', { name: 'Postar', exact: true }).click();
+
+  const post = page.getByRole('article').filter({ hasText: 'Foto grande do quadro.' });
+  await expect(post).toBeVisible({ timeout: 30000 });
+  const image = post.getByAltText('foto-grande.png');
+  await expect(image).toBeVisible();
+  expect(await image.evaluate((node) => node.naturalWidth)).toBe(1100);
+  const response = await page.request.get(await image.getAttribute('src'));
+  expect(response.headers()['content-type']).toMatch(/^image\/(webp|jpeg)$/);
+});
+
+test('PDF digitalizado do Social só publica depois de optar pela redução com perda', async ({ page }) => {
+  await seedAccount(page);
+  await page.goto('/#amigos');
+  await page.getByLabel('Sua publicação').fill('Digitalização do caderno.');
+  const source = scannedPdf();
+  expect(source.length).toBeGreaterThan(10 * 1024 * 1024);
+  await page.getByLabel('Anexar PDF à publicação').setInputFiles({ name: 'caderno.pdf', mimeType: 'application/pdf', buffer: source });
+
+  const option = page.getByRole('checkbox', { name: /Reduzir tamanho para digitalização/ });
+  await expect(option).toBeVisible({ timeout: 30000 });
+  await expect(option).not.toBeChecked();
+  const publish = page.getByRole('button', { name: 'Postar', exact: true });
+  await expect(publish).toBeDisabled();
+  await option.check();
+  await expect(publish).toBeEnabled();
+  await publish.click();
+
+  const post = page.getByRole('article').filter({ hasText: 'Digitalização do caderno.' });
+  await expect(post).toBeVisible({ timeout: 30000 });
+  const response = await page.request.get(await post.getByRole('link', { name: 'Abrir', exact: true }).getAttribute('href'));
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toBe('application/pdf');
 });
 
 test('compartilhar conquista validada não duplica a recompensa de estudo', async ({ page }) => {

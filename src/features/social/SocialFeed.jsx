@@ -3,11 +3,18 @@ import Icon from '../../ui/Icon.jsx';
 import { Button, PersonAvatar, Skeleton } from '../../ui/ui.jsx';
 import { api, apiError } from '../../lib/api.js';
 import { invalidateResources, useResource } from '../../lib/resources.js';
+import { COMPRESSION } from '../../../public/compression-domain.js';
 import { SOCIAL_POST_LIMIT, SOCIAL_COMMENT_LIMIT, SOCIAL_IMAGE_BYTES, SOCIAL_PDF_BYTES, socialText } from '../../../public/social-domain.js';
 import { formatBytes } from '../../../public/pdf-domain.js';
+import { compressImage } from '../../lib/image-compress.js';
+import { analyzePdf, estimatePdfRaster, optimizePdfLossless, pdfFileFrom, rasterizePdf } from '../library/pdf-compress.js';
 import { warmProfileProps } from './prefetch.js';
 
 const LABELS = { post: ['message', 'Entre amigos'], question: ['help', 'Dúvida rápida'], material: ['file', 'Material compartilhado'], image: ['image', 'Foto / Print'], achievement: ['trophy', 'Conquista'] };
+
+function isPdfFile(file) {
+  return Boolean(file && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '')));
+}
 
 export function SocialAvatar({ person, size = '' }) {
   return <PersonAvatar person={person} className={`social-avatar ${size}`}/>;
@@ -27,6 +34,12 @@ function Composer({ account, avatar, xp, onPosted }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState('');
+  const [analysis, setAnalysis] = useState(null);
+  const [compression, setCompression] = useState(null);
+  const [rasterPlan, setRasterPlan] = useState(null);
+  const [useRaster, setUseRaster] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
+  const [progress, setProgress] = useState(null);
   const requestId = useRef(crypto.randomUUID());
   const fileInput = useRef(null);
   const imageInput = useRef(null);
@@ -39,48 +52,154 @@ function Composer({ account, avatar, xp, onPosted }) {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  function choose(event) {
+  function clearAttachment() {
+    setFile(null);
+    setPreview('');
+    setAnalysis(null);
+    setCompression(null);
+    setRasterPlan(null);
+    setUseRaster(false);
+    setProgress(null);
+  }
+
+  async function choose(event) {
     const picked = event.target.files?.[0];
     event.target.value = '';
     if (!picked) return;
-    const pdf = picked.type === 'application/pdf';
-    if (!pdf && !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(picked.type)) { setError('Escolha um PDF, PNG, JPG, WebP ou GIF.'); return; }
-    if (picked.size > (pdf ? SOCIAL_PDF_BYTES : SOCIAL_IMAGE_BYTES)) { setError(pdf ? 'O PDF pode ter até 10 MB.' : 'A imagem pode ter até 2 MB.'); return; }
-    setFile(picked); setPickAchievement(false); setAchievementId(''); setError('');
+    const pdf = isPdfFile(picked);
+    if (!pdf && !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(picked.type)) {
+      setError('Escolha um PDF, PNG, JPG, WebP ou GIF.');
+      return;
+    }
+    const sourceLimit = pdf ? COMPRESSION.pdfSourceBytes : COMPRESSION.imageSourceBytes;
+    if (picked.size > sourceLimit) {
+      setError(pdf
+        ? `O PDF tem ${formatBytes(picked.size)}; para otimizar no navegador o máximo é ${formatBytes(sourceLimit)}.`
+        : `A imagem tem ${formatBytes(picked.size)}; para otimizar no navegador o máximo é ${formatBytes(sourceLimit)}.`);
+      return;
+    }
+
+    clearAttachment();
+    setPickAchievement(false);
+    setAchievementId('');
+    setError('');
+    setOptimizing(true);
+    try {
+      if (!pdf) {
+        const result = await compressImage(picked, {
+          maxBytes: SOCIAL_IMAGE_BYTES,
+          maxWidth: 1920,
+          maxHeight: 1920,
+          sourceBytes: COMPRESSION.imageSourceBytes,
+        });
+        const attachment = result.changed
+          ? new File([result.blob], picked.name, { type: result.blob.type || picked.type })
+          : picked;
+        setFile(attachment);
+        setCompression(result.changed ? {
+          kind: 'image',
+          before: result.before,
+          after: result.after,
+          gain: (result.before - result.after) / result.before,
+        } : null);
+        return;
+      }
+
+      setFile(picked);
+      const analyzed = await analyzePdf(picked);
+      setAnalysis(analyzed);
+      const lossless = await optimizePdfLossless(picked, analyzed);
+      if (lossless) setCompression({ ...lossless, kind: 'pdf' });
+      const bestSize = lossless?.after ?? picked.size;
+      if (analyzed.scan && analyzed.pages <= COMPRESSION.pdfPagesLimit && bestSize > SOCIAL_PDF_BYTES) {
+        const estimate = await estimatePdfRaster(picked, analyzed, { targetBytes: SOCIAL_PDF_BYTES });
+        if (estimate) setRasterPlan(estimate);
+      }
+    } catch (exception) {
+      setError(exception.message || 'Não foi possível otimizar este anexo.');
+      if (pdf) clearAttachment();
+    } finally {
+      setOptimizing(false);
+    }
   }
 
   async function submit(event) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || optimizing) return;
     setBusy(true); setError('');
     try {
+      let attachment = file;
+      if (isPdfFile(file)) {
+        if (useRaster && rasterPlan && analysis) {
+          setProgress({ done: 0, total: analysis.pages });
+          const raster = await rasterizePdf(file, analysis, {
+            targetBytes: SOCIAL_PDF_BYTES,
+            onProgress: (done, total) => setProgress({ done, total }),
+          });
+          attachment = pdfFileFrom(raster, file.name);
+        } else if (compression?.kind === 'pdf' && compression.blob) {
+          attachment = pdfFileFrom(compression, file.name);
+        }
+      }
+
+      const maxBytes = isPdfFile(file) ? SOCIAL_PDF_BYTES : SOCIAL_IMAGE_BYTES;
+      if (attachment && attachment.size > maxBytes) {
+        throw new Error(isPdfFile(file)
+          ? 'O PDF final passa de 10 MB. Marque a redução para digitalização ou escolha outro arquivo.'
+          : 'A imagem final passa de 2 MB. Escolha outra imagem.');
+      }
+
       const form = new FormData();
       form.set('id', requestId.current); form.set('body', body); form.set('kind', kind);
       if (achievementId) form.set('achievementId', achievementId);
-      if (file) form.set('attachment', file);
+      if (attachment) form.set('attachment', attachment);
       const response = await fetch('/api/social/posts', { method: 'POST', credentials: 'same-origin', body: form });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(apiError({ data }));
-      setBody(''); setFile(null); setAchievementId(''); setPickAchievement(false); setKind('post');
+      setBody(''); clearAttachment(); setAchievementId(''); setPickAchievement(false); setKind('post');
       requestId.current = crypto.randomUUID();
       onPosted();
     } catch (exception) { setError(exception.message); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setProgress(null); }
   }
+
+  const pdfSelected = isPdfFile(file);
+  const finalSize = pdfSelected
+    ? (useRaster && rasterPlan ? rasterPlan.estimatedBytes : compression?.kind === 'pdf' ? compression.after : file?.size || 0)
+    : file?.size || 0;
+  const finalLimit = pdfSelected ? SOCIAL_PDF_BYTES : SOCIAL_IMAGE_BYTES;
+  const canAttach = !file || finalSize <= finalLimit;
+  const rasterGain = rasterPlan ? Math.round(rasterPlan.gain * 100) : 0;
 
   return <section className="card-surface social-composer" aria-label="Criar publicação">
     <form onSubmit={submit}>
       <div className="social-compose-body">
         <SocialAvatar person={{ name: account.name, avatar }}/>
         <label className="field social-compose-field"><span className="sr-only">Sua publicação</span>
-          <textarea value={body} onChange={event => setBody(event.target.value)} placeholder="No que você está focando hoje? Conte para seus amigos…" rows={3} maxLength={SOCIAL_POST_LIMIT} disabled={busy}/>
+          <textarea value={body} onChange={event => setBody(event.target.value)} placeholder="No que você está focando hoje? Conte para seus amigos…" rows={3} maxLength={SOCIAL_POST_LIMIT} disabled={busy || optimizing}/>
         </label>
       </div>
       {file && <div className="social-draft-attachment">
         {preview ? <img className="social-draft-image" src={preview} alt="Prévia do anexo"/> : <Icon name="file"/>}
-        <span><strong>{file.name}</strong><small>{formatBytes(file.size)}</small></span>
-        <button type="button" className="icon-button" onClick={() => setFile(null)} disabled={busy} aria-label="Remover anexo"><Icon name="close"/></button>
+        <span>
+          <strong>{file.name}</strong>
+          <small>{compression ? `${formatBytes(compression.before)} → ${formatBytes(finalSize)}` : formatBytes(finalSize)}</small>
+        </span>
+        <button type="button" className="icon-button" onClick={clearAttachment} disabled={busy} aria-label="Remover anexo"><Icon name="close"/></button>
       </div>}
+      {optimizing && <p className="quiet-note" role="status">Otimizando anexo no seu navegador…</p>}
+      {progress && <p className="quiet-note" role="status">Comprimindo página {progress.done} de {progress.total}…</p>}
+      {compression?.kind === 'image' && <p className="quiet-note">Imagem otimizada: {formatBytes(compression.before)} → {formatBytes(compression.after)} ({Math.round(compression.gain * 100)}% menor).</p>}
+      {compression?.kind === 'pdf' && <p className="quiet-note">PDF otimizado sem perda: {formatBytes(compression.before)} → {formatBytes(compression.after)} ({Math.round(compression.gain * 100)}% menor).</p>}
+      {rasterPlan && <label className="compress-option">
+        <input type="checkbox" checked={useRaster} onChange={(event) => setUseRaster(event.target.checked)} disabled={busy || optimizing}/>
+        <span>Reduzir tamanho para digitalização
+          <small>Estimativa: {formatBytes(rasterPlan.estimatedBytes)} (cerca de {rasterGain}% menor). O texto deixa de ser selecionável; busca, marca-texto e sumário não funcionam.</small>
+        </span>
+      </label>}
+      {file && !canAttach && !optimizing && (rasterPlan
+        ? <p className="quiet-note">Marque a opção de digitalização para o anexo caber em {formatBytes(finalLimit)}.</p>
+        : <p className="form-error">O anexo passa de {formatBytes(finalLimit)} e a compressão sem perda não foi suficiente. Escolha outro arquivo.</p>)}
       {pickAchievement && <label className="field social-achievement-select">Conquista para compartilhar
         <select value={achievementId} disabled={busy} onChange={event => setAchievementId(event.target.value)}>
           <option value="">{achievements.length ? 'Escolha uma conquista' : 'Você ainda não tem conquistas validadas'}</option>
@@ -89,16 +208,16 @@ function Composer({ account, avatar, xp, onPosted }) {
       </label>}
       <div className="social-compose-footer">
         <div className="social-attach-actions">
-          <button type="button" className="chip-button" onClick={() => fileInput.current?.click()} disabled={busy}><Icon name="file"/>Arquivo / Resumo</button>
-          <button type="button" className="chip-button" aria-pressed={pickAchievement} onClick={() => { setPickAchievement(value => !value); setFile(null); setAchievementId(''); }} disabled={busy}><Icon name="trophy"/>Conquista</button>
-          <button type="button" className="chip-button" onClick={() => imageInput.current?.click()} disabled={busy}><Icon name="image"/>Foto / Print</button>
-          <label className="social-kind"><span className="sr-only">Tipo de publicação</span><select value={kind} onChange={event => setKind(event.target.value)} disabled={busy}><option value="post">Publicação</option><option value="question">Dúvida rápida</option></select></label>
+          <button type="button" className="chip-button" onClick={() => fileInput.current?.click()} disabled={busy || optimizing}><Icon name="file"/>Arquivo / Resumo</button>
+          <button type="button" className="chip-button" aria-pressed={pickAchievement} onClick={() => { setPickAchievement(value => !value); clearAttachment(); setAchievementId(''); }} disabled={busy || optimizing}><Icon name="trophy"/>Conquista</button>
+          <button type="button" className="chip-button" onClick={() => imageInput.current?.click()} disabled={busy || optimizing}><Icon name="image"/>Foto / Print</button>
+          <label className="social-kind"><span className="sr-only">Tipo de publicação</span><select value={kind} onChange={event => setKind(event.target.value)} disabled={busy || optimizing}><option value="post">Publicação</option><option value="question">Dúvida rápida</option></select></label>
         </div>
-        <Button type="submit" disabled={busy || (!socialText(body) && !file && !achievementId)}>{busy ? 'Publicando…' : 'Postar'}<Icon name="arrow"/></Button>
+        <Button type="submit" disabled={busy || optimizing || !canAttach || (!socialText(body) && !file && !achievementId)}>{busy ? (progress ? 'Comprimindo…' : 'Publicando…') : 'Postar'}<Icon name="arrow"/></Button>
       </div>
-      <input ref={fileInput} type="file" accept="application/pdf" className="sr-only" aria-label="Anexar PDF à publicação" onChange={choose} disabled={busy}/>
-      <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" aria-label="Anexar foto à publicação" onChange={choose} disabled={busy}/>
-      <div className="social-compose-hint"><span><Icon name="lock"/>Visível para seus amigos · anexos: PDF até 10 MB ou imagem até 2 MB</span><span>{body.length}/{SOCIAL_POST_LIMIT}</span></div>
+      <input ref={fileInput} type="file" accept="application/pdf" className="sr-only" aria-label="Anexar PDF à publicação" onChange={choose} disabled={busy || optimizing}/>
+      <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" aria-label="Anexar foto à publicação" onChange={choose} disabled={busy || optimizing}/>
+      <div className="social-compose-hint"><span><Icon name="lock"/>Visível para seus amigos · PDF até 30 MB (10 MB após otimizar) ou imagem até 12 MB (2 MB após otimizar)</span><span>{body.length}/{SOCIAL_POST_LIMIT}</span></div>
       {error && <p className="form-error" role="alert">{error}</p>}
     </form>
   </section>;

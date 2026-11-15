@@ -10,7 +10,7 @@ import { applyLibraryActions } from '../domain/library-actions.js';
 import { ensureXpSettings } from '../domain/xp.js';
 import { claimReminders } from '../domain/agenda.js';
 import {
-  AI_TEXT_LIMIT, FileError, aiAvailable, confirmPdfUpload, createPdfUploadUrl, discardPdf, identifyWithAI, readPdf, storagePlan, storageUsage, uploadPdf, validateFileId,
+  AI_TEXT_LIMIT, FileError, aiAvailable, confirmPdfUpload, createPdfUploadUrl, discardPdf, identifyWithAI, readPdf, replacePdf, storagePlan, storageUsage, uploadPdf, validateFileId,
 } from '../domain/library-files.js';
 import {
   generatePdfInsights, ocrPdfPages, readPdfInsights, savePdfMarkdown, streamPdfInsights,
@@ -115,6 +115,19 @@ export function libraryRoutes(router) {
     const file = await uploadPdf(ctx.db, ctx.media, ctx.user.id, { fileId, name, bytes, config: ctx.config });
     ctx.log('pdf_uploaded', { userId: ctx.user.id, bytes: file.size });
     return json(file, 201);
+  });
+  router.add('PUT', '/api/library/files/:fileId/replace', { ...account, rateLimit: FILE_ATTEMPTS }, async (ctx) => {
+    const fileId = validateFileId(ctx.params.fileId);
+    const plan = await storagePlan(ctx.db, ctx.user.id, ctx.config);
+    const tooLarge = () => new FileError(`O PDF ultrapassa o limite de ${formatBytes(plan.fileBytes)} por arquivo.`, 'file_too_large', 413);
+    const declared = Number(ctx.request.headers.get('content-length'));
+    if (Number.isFinite(declared) && declared > plan.fileBytes) throw tooLarge();
+    const bytes = await ctx.bytes(plan.fileBytes, tooLarge);
+    let name = '';
+    try { name = decodeURIComponent(ctx.request.headers.get('x-file-name') || ''); } catch { name = ''; }
+    const file = await replacePdf(ctx.db, ctx.media, ctx.user.id, fileId, { bytes, name, config: ctx.config });
+    ctx.log('pdf_replaced', { userId: ctx.user.id, bytes: file.size });
+    return json(file);
   });
   router.add('GET', '/api/library/files/:fileId', account, async (ctx) => {
     const object = await readPdf(ctx.db, ctx.media, ctx.user.id, ctx.params.fileId);

@@ -129,6 +129,20 @@ export function addPdfMaterial(state, { title, file, subjectId = '' }, id = cryp
   return { ...state, courses: [...state.courses, course], selectedCourseId: id };
 }
 
+// Atualiza só o tamanho depois de o objeto otimizado substituir o arquivo no
+// armazenamento. Páginas, sumário, leitura e marcações continuam os mesmos.
+export function setPdfSize(state, materialId, size) {
+  const bytes = Math.trunc(Number(size));
+  if (!Number.isInteger(bytes) || bytes <= 0) throw new Error('Tamanho do PDF inválido.');
+  const course = state.courses.find((item) => item.id === materialId);
+  if (!course?.pdf) throw new Error('Este material não é um PDF.');
+  if (course.pdf.size === bytes) return state;
+  return {
+    ...state,
+    courses: state.courses.map((item) => item.id === materialId ? { ...item, pdf: { ...item.pdf, size: bytes } } : item),
+  };
+}
+
 // Ponto de retomada por página. Sem mudança devolve o mesmo estado, para não
 // gravar de novo. A página mais adiante (maxPage) só cresce. Ficar na p. 1 sem
 // ter avançado não cria retomada. Avançar seleciona o material.
