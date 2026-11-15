@@ -9,7 +9,7 @@ import { profilePath, warmProfileProps } from './prefetch.js';
 import { SocialAvatar } from './SocialFeed.jsx';
 import SectionTabs from '../../app/SectionTabs.jsx';
 import { buildProfile } from '../../../public/profile-domain.js';
-import { MAX_PROFILE_BIO_LENGTH, studyRhythm } from '../../../public/domain.js';
+import { clampHeaderHeight, MAX_PROFILE_BIO_LENGTH, PROFILE_HEADER_HEIGHT, studyRhythm } from '../../../public/domain.js';
 import { LEVEL_XP } from '../../../public/xp-policy.js';
 import { prepareProfileImageBlob, uploadProfileBlob } from './profile-media.js';
 
@@ -38,6 +38,7 @@ export default function Profile({ id, handle = '', state, actions, account, noti
   const [tab, setTab] = useState('atividade');
   const [uploadError, setUploadError] = useState('');
   const [bioDraft, setBioDraft] = useState(() => state.profile?.bio || '');
+  const [heightDraft, setHeightDraft] = useState(null);
   const avatarInputRef = useRef(null);
   const headerInputRef = useRef(null);
 
@@ -113,6 +114,13 @@ export default function Profile({ id, handle = '', state, actions, account, noti
     notify(kind === 'avatar' ? 'Foto do perfil removida.' : 'Capa do perfil restaurada ao padrão.');
   }
 
+  function commitHeaderHeight() {
+    if (heightDraft === null) return;
+    const value = clampHeaderHeight(heightDraft);
+    if (value !== clampHeaderHeight(state.profile?.headerHeight)) actions?.updateProfile({ headerHeight: value });
+    setHeightDraft(null);
+  }
+
   function saveProfileText(event) {
     event.preventDefault();
     if (!actions?.updateProfile({ bio: bioDraft })) return;
@@ -135,7 +143,7 @@ export default function Profile({ id, handle = '', state, actions, account, noti
 
   const {
     user,
-    customization = { bio: '', avatar: '', header: '' },
+    customization = { bio: '', avatar: '', header: '', headerHeight: PROFILE_HEADER_HEIGHT.default },
     stats,
     studying = [],
     completed = [],
@@ -186,7 +194,10 @@ export default function Profile({ id, handle = '', state, actions, account, noti
       {/* Banner panorâmico com constelação celestial ou capa enviada */}
       <div
         className={`profile-x-banner ${customization.header ? 'has-custom-header' : ''}`}
-        style={customization.header ? { '--profile-header-image': `url(${customization.header})` } : undefined}
+        style={{
+          '--profile-header-height': `${isSelf && heightDraft !== null ? clampHeaderHeight(heightDraft) : clampHeaderHeight(customization.headerHeight)}px`,
+          ...(customization.header ? { '--profile-header-image': `url(${customization.header})` } : {}),
+        }}
       >
         {!customization.header && <svg className="profile-x-constellation" viewBox="0 0 800 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
           <polyline points={BANNER_CONSTELLATION.map((point) => point.join(',')).join(' ')} className="profile-x-constellation-line"/>
@@ -240,9 +251,9 @@ export default function Profile({ id, handle = '', state, actions, account, noti
         <div className="profile-x-identity">
           <div className="profile-x-title-row">
             <h1 id="profile-user-title" className="display profile-x-name">{user.name}</h1>
-            {(isSelf ? isSessionLive(state.activeSession) : studying.length > 0) && <span className="profile-x-live">
+            {(isSelf || studying.length > 0) && <span className="profile-x-live">
               <span className="companion-dot" aria-hidden="true"/>
-              {isSelf ? `Estudando · ${state.activeSession.label}` : 'Estudando'}
+              {isSelf ? (isSessionLive(state.activeSession) ? `Estudando · ${state.activeSession.label}` : 'Online') : 'Estudando'}
             </span>}
             {!isSelf && <span className="soft-badge tone-mint"><span className="soft-dot" aria-hidden="true"/>{view.viewer === 'public' ? 'Perfil público' : 'Perfil de amigo'}</span>}
           </div>
@@ -308,6 +319,24 @@ export default function Profile({ id, handle = '', state, actions, account, noti
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
       >
+        <div className="profile-x-height-control">
+          <label className="field" htmlFor="profile-header-height">
+            Altura da capa
+            <input
+              id="profile-header-height"
+              type="range"
+              min={PROFILE_HEADER_HEIGHT.min}
+              max={PROFILE_HEADER_HEIGHT.max}
+              step="10"
+              value={heightDraft ?? clampHeaderHeight(customization.headerHeight)}
+              onChange={(event) => setHeightDraft(Number(event.target.value))}
+              onPointerUp={commitHeaderHeight}
+              onKeyUp={commitHeaderHeight}
+              onBlur={commitHeaderHeight}
+            />
+          </label>
+          <button type="button" className="text-button" onClick={() => { setHeightDraft(null); actions?.updateProfile({ headerHeight: PROFILE_HEADER_HEIGHT.default }); }}>Altura padrão</button>
+        </div>
         <form className="profile-x-bio-form" onSubmit={saveProfileText}>
           <label className="field" htmlFor="profile-bio-input">
             Apresentação e metas

@@ -16,7 +16,7 @@
 /* Banner panorâmico com constelação ou imagem enviada */
 .profile-x-banner {
   position: relative;
-  height: 15rem;
+  height: var(--profile-header-height, 15rem);
   background:
     radial-gradient(60% 90% at 78% 24%, color-mix(in srgb, var(--lume) 16%, transparent), transparent 72%),
     radial-gradient(45% 75% at 18% 82%, color-mix(in srgb, var(--reward) 10%, transparent), transparent 72%),
@@ -236,6 +236,18 @@
   min-width: 0;
   overflow-wrap: anywhere;
   margin-left: var(--space-4);
+}
+
+.profile-x-height-control {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.profile-x-height-control .field {
+  flex: 1 1 14rem;
 }
 
 .profile-x-progression {
@@ -673,7 +685,7 @@
 
 @media (max-width: 640px) {
   .profile-x-banner {
-    height: 10rem;
+    height: calc(var(--profile-header-height, 240px) * 0.66);
   }
 
   .profile-x-identity-bar {

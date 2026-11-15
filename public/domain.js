@@ -275,8 +275,16 @@ export function studyRhythm(state) {
 export const MAX_PROFILE_IMAGE_LENGTH = 256;
 export const MAX_PROFILE_BIO_LENGTH = 240;
 
+export const PROFILE_HEADER_HEIGHT = { min: 120, max: 360, default: 240 };
+
+export function clampHeaderHeight(value) {
+  const number = Math.round(Number(value));
+  if (!Number.isFinite(number)) return PROFILE_HEADER_HEIGHT.default;
+  return Math.min(PROFILE_HEADER_HEIGHT.max, Math.max(PROFILE_HEADER_HEIGHT.min, number));
+}
+
 export function emptyProfileCard() {
-  return { bio: '', avatar: '', header: '' };
+  return { bio: '', avatar: '', header: '', headerHeight: PROFILE_HEADER_HEIGHT.default };
 }
 
 export function sanitizeProfileImage(value) {
@@ -295,6 +303,7 @@ export function normalizeProfileCard(value) {
     bio,
     avatar: sanitizeProfileImage(value.avatar),
     header: sanitizeProfileImage(value.header),
+    headerHeight: clampHeaderHeight(value.headerHeight ?? PROFILE_HEADER_HEIGHT.default),
   };
 }
 

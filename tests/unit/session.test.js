@@ -170,3 +170,12 @@ test('isSessionLive: só sessão ativa com batimento recente conta como estudand
   assert.equal(isSessionLive({ ...base, status: 'paused' }, T0 + 1000), false);
   assert.equal(isSessionLive(null), false);
 });
+
+test('perfil: altura da capa é limitada e tem padrão', async () => {
+  const { normalizeProfileCard } = await import('../../public/domain.js');
+  assert.equal(normalizeProfileCard({}).headerHeight, 240);
+  assert.equal(normalizeProfileCard({ headerHeight: 10 }).headerHeight, 120);
+  assert.equal(normalizeProfileCard({ headerHeight: 9999 }).headerHeight, 360);
+  assert.equal(normalizeProfileCard({ headerHeight: 'abc' }).headerHeight, 240);
+  assert.equal(normalizeProfileCard({ headerHeight: 300 }).headerHeight, 300);
+});
