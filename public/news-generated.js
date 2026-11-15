@@ -1,6 +1,14 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-9e18b41f",
+    "at": "2026-11-15T01:23:51.000Z",
+    "title": "Telas mais limpas",
+    "body": "Foco, Tarefas e Plano de Estudos perdem textos explicativos, e o \"Estudando\" do perfil ganha respiro ao lado do nome.",
+    "href": "#foco",
+    "area": "site"
+  },
+  {
     "id": "news-a472af07",
     "at": "2026-11-15T00:13:58.000Z",
     "title": "Novo visual do perfil",
