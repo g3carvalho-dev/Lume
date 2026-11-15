@@ -9,6 +9,7 @@ import { formatBytes } from '../../../public/pdf-domain.js';
 import { compressImage } from '../../lib/image-compress.js';
 import { analyzePdf, estimatePdfRaster, optimizePdfLossless, pdfFileFrom, rasterizePdf } from '../library/pdf-compress.js';
 import { warmProfileProps } from './prefetch.js';
+import EmojiButton from './EmojiPicker.jsx';
 
 const LABELS = { post: ['message', 'Entre amigos'], question: ['help', 'Dúvida rápida'], material: ['file', 'Material compartilhado'], image: ['image', 'Foto / Print'], achievement: ['trophy', 'Conquista'] };
 
@@ -29,6 +30,7 @@ function Composer({ account, avatar, xp, onPosted }) {
   const [body, setBody] = useState('');
   const [kind, setKind] = useState('post');
   const [file, setFile] = useState(null);
+  const [gif, setGif] = useState(null);
   const [pickAchievement, setPickAchievement] = useState(false);
   const [achievementId, setAchievementId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -80,6 +82,7 @@ function Composer({ account, avatar, xp, onPosted }) {
     }
 
     clearAttachment();
+    setGif(null);
     setPickAchievement(false);
     setAchievementId('');
     setError('');
@@ -153,10 +156,11 @@ function Composer({ account, avatar, xp, onPosted }) {
       form.set('id', requestId.current); form.set('body', body); form.set('kind', kind);
       if (achievementId) form.set('achievementId', achievementId);
       if (attachment) form.set('attachment', attachment);
+      if (gif) form.set('gifUrl', gif.url);
       const response = await fetch('/api/social/posts', { method: 'POST', credentials: 'same-origin', body: form });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(apiError({ data }));
-      setBody(''); clearAttachment(); setAchievementId(''); setPickAchievement(false); setKind('post');
+      setBody(''); clearAttachment(); setGif(null); setAchievementId(''); setPickAchievement(false); setKind('post');
       requestId.current = crypto.randomUUID();
       onPosted();
     } catch (exception) { setError(exception.message); }
@@ -171,14 +175,23 @@ function Composer({ account, avatar, xp, onPosted }) {
   const canAttach = !file || finalSize <= finalLimit;
   const rasterGain = rasterPlan ? Math.round(rasterPlan.gain * 100) : 0;
 
-  return <section className="card-surface social-composer" aria-label="Criar publicação">
+  const busyAny = busy || optimizing;
+  return <section className="card-surface social-composer sf-composer" aria-label="Criar publicação">
     <form onSubmit={submit}>
-      <div className="social-compose-body">
+      <div className="sf-composer-head">
         <SocialAvatar person={{ name: account.name, avatar }}/>
-        <label className="field social-compose-field"><span className="sr-only">Sua publicação</span>
-          <textarea value={body} onChange={event => setBody(event.target.value)} placeholder="No que você está focando hoje? Conte para seus amigos…" rows={3} maxLength={SOCIAL_POST_LIMIT} disabled={busy || optimizing}/>
+        <strong>{account.name}</strong>
+        <label className="sf-audience"><Icon name="users"/><span className="sr-only">Tipo de publicação</span>
+          <select value={kind} onChange={event => setKind(event.target.value)} disabled={busyAny}>
+            <option value="post">Entre amigos</option>
+            <option value="question">Dúvida rápida</option>
+          </select>
+          <Icon name="chevron-down"/>
         </label>
       </div>
+      <label className="field social-compose-field"><span className="sr-only">Sua publicação</span>
+        <textarea value={body} onChange={event => setBody(event.target.value)} placeholder="O que você quer compartilhar?" rows={3} maxLength={SOCIAL_POST_LIMIT} disabled={busyAny}/>
+      </label>
       {file && <div className="social-draft-attachment">
         {preview ? <img className="social-draft-image" src={preview} alt="Prévia do anexo"/> : <Icon name="file"/>}
         <span>
@@ -187,12 +200,17 @@ function Composer({ account, avatar, xp, onPosted }) {
         </span>
         <button type="button" className="icon-button" onClick={clearAttachment} disabled={busy} aria-label="Remover anexo"><Icon name="close"/></button>
       </div>}
+      {gif && <div className="social-draft-attachment">
+        <img className="social-draft-image" src={gif.preview} alt="Prévia do GIF"/>
+        <span><strong>GIF</strong><small>{gif.title || 'Anexado à publicação'}</small></span>
+        <button type="button" className="icon-button" onClick={() => setGif(null)} disabled={busy} aria-label="Remover GIF"><Icon name="close"/></button>
+      </div>}
       {optimizing && <p className="quiet-note" role="status">Otimizando anexo no seu navegador…</p>}
       {progress && <p className="quiet-note" role="status">Comprimindo página {progress.done} de {progress.total}…</p>}
       {compression?.kind === 'image' && <p className="quiet-note">Imagem otimizada: {formatBytes(compression.before)} → {formatBytes(compression.after)} ({Math.round(compression.gain * 100)}% menor).</p>}
       {compression?.kind === 'pdf' && <p className="quiet-note">PDF otimizado sem perda: {formatBytes(compression.before)} → {formatBytes(compression.after)} ({Math.round(compression.gain * 100)}% menor).</p>}
       {rasterPlan && <label className="compress-option">
-        <input type="checkbox" checked={useRaster} onChange={(event) => setUseRaster(event.target.checked)} disabled={busy || optimizing}/>
+        <input type="checkbox" checked={useRaster} onChange={(event) => setUseRaster(event.target.checked)} disabled={busyAny}/>
         <span>Reduzir tamanho para digitalização
           <small>Estimativa: {formatBytes(rasterPlan.estimatedBytes)} (cerca de {rasterGain}% menor). O texto deixa de ser selecionável; busca, marca-texto e sumário não funcionam.</small>
         </span>
@@ -206,71 +224,130 @@ function Composer({ account, avatar, xp, onPosted }) {
           {achievements.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
         </select>
       </label>}
-      <div className="social-compose-footer">
-        <div className="social-attach-actions">
-          <button type="button" className="chip-button" onClick={() => fileInput.current?.click()} disabled={busy || optimizing}><Icon name="file"/>Arquivo / Resumo</button>
-          <button type="button" className="chip-button" aria-pressed={pickAchievement} onClick={() => { setPickAchievement(value => !value); clearAttachment(); setAchievementId(''); }} disabled={busy || optimizing}><Icon name="trophy"/>Conquista</button>
-          <button type="button" className="chip-button" onClick={() => imageInput.current?.click()} disabled={busy || optimizing}><Icon name="image"/>Foto / Print</button>
-          <label className="social-kind"><span className="sr-only">Tipo de publicação</span><select value={kind} onChange={event => setKind(event.target.value)} disabled={busy || optimizing}><option value="post">Publicação</option><option value="question">Dúvida rápida</option></select></label>
+      <div className="sf-composer-bar">
+        <div className="sf-tools">
+          <button type="button" className="sf-tool" onClick={() => fileInput.current?.click()} disabled={busyAny}><Icon name="file"/>Arquivo</button>
+          <button type="button" className="sf-tool" onClick={() => imageInput.current?.click()} disabled={busyAny}><Icon name="image"/>Foto</button>
+          <button type="button" className="sf-tool" aria-pressed={pickAchievement} onClick={() => { setPickAchievement(value => !value); clearAttachment(); setGif(null); setAchievementId(''); }} disabled={busyAny}><Icon name="trophy"/>Conquista</button>
+          <EmojiButton className="sf-tool" label="Emoji" disabled={busyAny} onEmoji={(emoji) => setBody((value) => `${value}${emoji}`.slice(0, SOCIAL_POST_LIMIT))}><Icon name="smile"/>Emoji</EmojiButton>
+          <EmojiButton className="sf-tool" label="GIF" disabled={busyAny} onGif={(item) => { clearAttachment(); setPickAchievement(false); setAchievementId(''); setGif(item); }}><span className="sf-gif-tag">GIF</span>GIF</EmojiButton>
         </div>
-        <Button type="submit" disabled={busy || optimizing || !canAttach || (!socialText(body) && !file && !achievementId)}>{busy ? (progress ? 'Comprimindo…' : 'Publicando…') : 'Postar'}<Icon name="arrow"/></Button>
+        <span className="sf-count" aria-label={`${body.length} de ${SOCIAL_POST_LIMIT} caracteres`}>{body.length > SOCIAL_POST_LIMIT * 0.8 ? `${body.length}/${SOCIAL_POST_LIMIT}` : ''}</span>
+        <Button type="submit" disabled={busyAny || !canAttach || (!socialText(body) && !file && !achievementId && !gif)}>{busy ? (progress ? 'Comprimindo…' : 'Publicando…') : 'Publicar'}<Icon name="arrow"/></Button>
       </div>
-      <input ref={fileInput} type="file" accept="application/pdf" className="sr-only" aria-label="Anexar PDF à publicação" onChange={choose} disabled={busy || optimizing}/>
-      <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" aria-label="Anexar foto à publicação" onChange={choose} disabled={busy || optimizing}/>
-      <div className="social-compose-hint"><span><Icon name="lock"/>Visível para seus amigos · PDF até 30 MB (10 MB após otimizar) ou imagem até 12 MB (2 MB após otimizar)</span><span>{body.length}/{SOCIAL_POST_LIMIT}</span></div>
+      <input ref={fileInput} type="file" accept="application/pdf" className="sr-only" aria-label="Anexar PDF à publicação" onChange={choose} disabled={busyAny}/>
+      <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" aria-label="Anexar foto à publicação" onChange={choose} disabled={busyAny}/>
       {error && <p className="form-error" role="alert">{error}</p>}
     </form>
   </section>;
 }
 
-function Comments({ post, refresh }) {
-  const [cursor, setCursor] = useState('');
-  const [older, setOlder] = useState([]);
-  const path = `/api/social/posts/${post.id}/comments`;
-  const resource = useResource(`${path}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
+// Reações em emoji: cada emoji vira uma pílula com a contagem; a pessoa liga e
+// desliga o seu. O botão com carinha abre o seletor.
+function Reactions({ summary, onToggle, disabled, label }) {
+  return <div className="sf-reactions">
+    {summary.map((item) => <button key={item.emoji} type="button" className={`sf-reaction ${item.mine ? 'is-mine' : ''}`} aria-pressed={item.mine} aria-label={`${item.emoji} ${item.count}${item.mine ? ', você reagiu' : ''}`} disabled={disabled} onClick={() => onToggle(item.emoji, item.mine)}><span aria-hidden="true">{item.emoji}</span>{item.count}</button>)}
+    <EmojiButton className="sf-reaction sf-reaction-add" label={`Reagir${label ? ` a ${label}` : ''}`} disabled={disabled} align="left" onEmoji={(emoji) => onToggle(emoji, summary.some((item) => item.emoji === emoji && item.mine))}><Icon name="smile-plus"/></EmojiButton>
+  </div>;
+}
+
+function CommentForm({ post, path, parent = null, refresh, onDone, compact = false }) {
   const [body, setBody] = useState('');
+  const [gif, setGif] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const requestId = useRef(crypto.randomUUID());
-  const comments = [...older, ...(resource.data?.comments || [])];
-
   async function send(event) {
     event.preventDefault();
+    if (!socialText(body) && !gif) return;
     setBusy(true); setError('');
     try {
-      const result = await api(path, { method: 'POST', body: { id: requestId.current, body } });
+      const result = await api(path, { method: 'POST', body: { id: requestId.current, body, parentId: parent?.id, gifUrl: gif?.url } });
       if (!result.ok) throw new Error(apiError(result));
-      setBody(''); requestId.current = crypto.randomUUID();
-      // Volta à primeira página para evitar esconder comentários novos.
-      setCursor(''); setOlder([]);
-      invalidateResources(path); refresh();
+      setBody(''); setGif(null); requestId.current = crypto.randomUUID();
+      invalidateResources(path); refresh(); onDone?.();
     } catch (exception) { setError(exception.message); }
     finally { setBusy(false); }
   }
+  const name = parent ? parent.author.name : post.author.name;
+  return <form className={`sf-comment-form ${compact ? 'is-reply' : ''}`} onSubmit={send}>
+    {gif && <div className="sf-comment-gif"><img src={gif.preview} alt="Prévia do GIF"/><button type="button" className="icon-button" aria-label="Remover GIF" onClick={() => setGif(null)}><Icon name="close"/></button></div>}
+    <div className="sf-comment-input">
+      <label className="sf-comment-field"><span className="sr-only">{parent ? `Responder a ${name}` : `Comentar publicação de ${name}`}</span>
+        <textarea rows={1} value={body} maxLength={SOCIAL_COMMENT_LIMIT} autoFocus={compact} placeholder={parent ? `Responder a ${name}…` : 'Escreva um comentário…'} disabled={busy} onChange={event => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }}/>
+      </label>
+      <EmojiButton className="sf-icon-tool" label="Emoji no comentário" disabled={busy} align="right" onEmoji={(emoji) => setBody((value) => `${value}${emoji}`.slice(0, SOCIAL_COMMENT_LIMIT))}><Icon name="smile"/></EmojiButton>
+      <EmojiButton className="sf-icon-tool sf-icon-gif" label="GIF no comentário" disabled={busy} align="right" onGif={setGif}><span className="sf-gif-tag">GIF</span></EmojiButton>
+      <button type="submit" className="sf-icon-tool sf-send" aria-label={parent ? 'Enviar resposta' : 'Comentar'} disabled={busy || (!socialText(body) && !gif)}><Icon name="send"/></button>
+    </div>
+    {error && <p className="form-error" role="alert">{error}</p>}
+  </form>;
+}
+
+function CommentItem({ comment, post, path, refresh, busy, onRemove, onReact, onReply, isReply = false }) {
+  return <div className={`sf-comment ${isReply ? 'is-reply' : ''}`}>
+    <SocialAvatar person={comment.author} size="small"/>
+    <div className="sf-comment-main">
+      <div className="sf-bubble">
+        <div className="social-comment-heading"><strong>{comment.author.name}</strong><PostTime at={comment.at}/></div>
+        {comment.body && <p>{comment.body}</p>}
+        {comment.gif && <img className="sf-comment-image" src={comment.gif} alt="GIF" loading="lazy"/>}
+      </div>
+      <div className="sf-comment-actions">
+        <Reactions summary={comment.reactionSummary} disabled={busy} label={`comentário de ${comment.author.name}`} onToggle={(emoji, mine) => onReact(comment, emoji, mine)}/>
+        <button type="button" className="sf-link" onClick={() => onReply(comment)}>Responder</button>
+        {comment.canDelete && <button type="button" className="sf-link is-danger" aria-label={`Excluir comentário de ${comment.author.name}`} disabled={busy} onClick={() => onRemove(comment)}>Excluir</button>}
+      </div>
+    </div>
+  </div>;
+}
+
+function Comments({ post, refresh }) {
+  const [cursor, setCursor] = useState('');
+  const [older, setOlder] = useState([]);
+  const [replyTo, setReplyTo] = useState('');
+  const path = `/api/social/posts/${post.id}/comments`;
+  const resource = useResource(`${path}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const comments = [...older, ...(resource.data?.comments || [])];
+  const roots = comments.filter((comment) => !comment.parentId);
+  const repliesOf = (id) => comments.filter((comment) => comment.parentId === id);
 
   async function remove(comment) {
     setBusy(true); setError('');
     try {
       const result = await api(`${path}/${comment.id}`, { method: 'DELETE' });
       if (!result.ok) throw new Error(apiError(result));
-      setOlder(items => items.filter(item => item.id !== comment.id));
+      setOlder(items => items.filter(item => item.id !== comment.id && item.parentId !== comment.id));
       await resource.refresh(); refresh();
     } catch (exception) { setError(exception.message); }
     finally { setBusy(false); }
   }
 
-  return <div className="social-comments">
+  async function react(comment, emoji, mine) {
+    setBusy(true); setError('');
+    try {
+      const result = await api(`${path}/${comment.id}/reaction?emoji=${encodeURIComponent(emoji)}`, { method: mine ? 'DELETE' : 'PUT' });
+      if (!result.ok) throw new Error(apiError(result));
+      setOlder([]); setCursor('');
+      await resource.refresh();
+    } catch (exception) { setError(exception.message); }
+    finally { setBusy(false); }
+  }
+
+  const afterSend = () => { setCursor(''); setOlder([]); setReplyTo(''); };
+  return <div className="social-comments sf-comments">
     {resource.loading && !resource.data && <Skeleton rows={1} label="Carregando comentários…"/>}
-    {comments.map(comment => <div className="social-comment" key={comment.id}>
-      <SocialAvatar person={comment.author} size="small"/>
-      <div><div className="social-comment-heading"><strong>{comment.author.name}</strong><PostTime at={comment.at}/></div><p>{comment.body}</p></div>
-      {comment.canDelete && <button type="button" className="icon-button" aria-label={`Excluir comentário de ${comment.author.name}`} disabled={busy} onClick={() => remove(comment)}><Icon name="trash"/></button>}
+    {roots.map((comment) => <div className="sf-thread" key={comment.id}>
+      <CommentItem comment={comment} post={post} path={path} refresh={refresh} busy={busy} onRemove={remove} onReact={react} onReply={(target) => setReplyTo(target.id)}/>
+      {(repliesOf(comment.id).length > 0 || replyTo === comment.id) && <div className="sf-replies">
+        {repliesOf(comment.id).map((reply) => <CommentItem key={reply.id} comment={reply} post={post} path={path} refresh={refresh} busy={busy} isReply onRemove={remove} onReact={react} onReply={() => setReplyTo(comment.id)}/>)}
+        {replyTo === comment.id && <CommentForm post={post} path={path} parent={comment} compact refresh={refresh} onDone={afterSend}/>}
+      </div>}
     </div>)}
     {resource.data?.nextCursor && <button type="button" className="text-button" onClick={() => { setOlder(comments); setCursor(resource.data.nextCursor); }}>Mais comentários</button>}
-    <form className="social-comment-form" onSubmit={send}>
-      <label className="field"><span className="sr-only">Comentar publicação de {post.author.name}</span><textarea rows={2} value={body} maxLength={SOCIAL_COMMENT_LIMIT} placeholder="Deixe um comentário…" disabled={busy} onChange={event => setBody(event.target.value)}/></label>
-      <Button secondary type="submit" disabled={busy || !socialText(body)}>{busy ? 'Enviando…' : 'Comentar'}</Button>
-    </form>
+    <CommentForm post={post} path={path} refresh={refresh} onDone={afterSend}/>
     {(error || resource.error) && <p className="form-error" role="alert">{error || resource.error}</p>}
   </div>;
 }
@@ -279,14 +356,25 @@ function PostCard({ post, refresh, go }) {
   const [showComments, setShowComments] = useState(post.comments > 0);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [menu, setMenu] = useState(false);
   const [error, setError] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
+  const menuRoot = useRef(null);
   const [icon, label] = LABELS[post.kind] || LABELS.post;
 
-  async function react() {
+  useEffect(() => {
+    if (!menu) return undefined;
+    const outside = (event) => { if (!menuRoot.current?.contains(event.target)) setMenu(false); };
+    const escape = (event) => { if (event.key === 'Escape') setMenu(false); };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
+  }, [menu]);
+
+  async function react(emoji, mine) {
     setBusy(true); setError('');
     try {
-      const result = await api(`/api/social/posts/${post.id}/reaction`, { method: post.reacted ? 'DELETE' : 'PUT' });
+      const result = await api(`/api/social/posts/${post.id}/reaction?emoji=${encodeURIComponent(emoji)}`, { method: mine ? 'DELETE' : 'PUT' });
       if (!result.ok) throw new Error(apiError(result));
       await refresh();
     } catch (exception) { setError(exception.message); }
@@ -303,23 +391,27 @@ function PostCard({ post, refresh, go }) {
     finally { setBusy(false); }
   }
 
-  return <article className={`card-surface social-post is-${post.kind}`} aria-label={`Publicação de ${post.author.name}`}>
-    <header className="social-post-heading">
+  return <article className={`card-surface social-post sf-post is-${post.kind}`} aria-label={`Publicação de ${post.author.name}`}>
+    <header className="sf-post-head">
       <button type="button" className="social-author" {...warmProfileProps(post.author)} onClick={() => go(post.author.handle ? `perfil?u=${post.author.handle}` : post.canDelete ? 'perfil' : `perfil?id=${encodeURIComponent(post.author.id)}`)} aria-label={`Ver perfil de ${post.author.name}`}>
         <SocialAvatar person={post.author}/><span><strong>{post.author.name}</strong><PostTime at={post.at}/></span>
       </button>
-      <span className={`social-post-kind ${post.kind === 'achievement' ? 'is-reward' : ''}`}><Icon name={icon}/>{label}</span>
-      {post.canDelete && <button type="button" className="icon-button" onClick={() => setConfirming(value => !value)} aria-label="Excluir publicação" disabled={busy}><Icon name="trash"/></button>}
+      {post.kind !== 'post' && <span className={`social-post-kind ${post.kind === 'achievement' ? 'is-reward' : ''}`}><Icon name={icon}/>{label}</span>}
+      {post.canDelete && <span className="sf-menu" ref={menuRoot}>
+        <button type="button" className="icon-button" aria-label="Mais ações da publicação" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(value => !value)} disabled={busy}><Icon name="more"/></button>
+        {menu && <div className="sf-menu-list" role="menu"><button type="button" role="menuitem" className="sf-menu-item is-danger" onClick={() => { setMenu(false); setConfirming(true); }}><Icon name="trash"/>Excluir publicação</button></div>}
+      </span>}
     </header>
     {post.body && <p className="social-post-body">{post.body}</p>}
+    {post.gif && <img className="sf-post-gif" src={post.gif} alt="GIF da publicação" loading="lazy"/>}
     {post.attachment && (post.attachment.type.startsWith('image/')
       ? imageFailed ? <p className="quiet-note">Imagem indisponível.</p> : <a href={post.attachment.url} target="_blank" rel="noreferrer" className="social-post-image"><img src={post.attachment.url} alt={post.attachment.name} loading="lazy" onError={() => setImageFailed(true)}/></a>
       : <div className="social-file"><span className="social-file-icon"><Icon name="file"/></span><span className="social-file-copy"><strong>{post.attachment.name}</strong><small>PDF · {formatBytes(post.attachment.size)}</small></span><div className="social-file-actions"><a className="button secondary" href={post.attachment.url} target="_blank" rel="noreferrer">Abrir</a><a className="button secondary" href={`${post.attachment.url}?download=1`} download><Icon name="download"/>Baixar</a></div></div>)}
     {post.achievement && <div className="social-achievement"><span className="social-achievement-icon"><Icon name="trophy"/></span><div><span className="metric-label">Conquista validada</span><strong>{post.achievement.title}</strong><p>{post.achievement.criterion}</p></div><Icon name="check"/></div>}
     {post.kind === 'achievement' && !post.achievement && <p className="quiet-note">Esta conquista foi corrigida e não está mais disponível.</p>}
-    <div className="social-post-actions">
-      <button type="button" className={`social-reaction ${post.reacted ? 'is-selected' : ''}`} aria-pressed={post.reacted} onClick={react} disabled={busy}><Icon name={post.kind === 'achievement' ? 'spark' : 'heart'}/>{post.kind === 'achievement' ? 'Parabenizar' : 'Curtir'}<span>{post.reactions}</span></button>
-      <button type="button" className="text-button" aria-expanded={showComments} onClick={() => setShowComments(value => !value)}><Icon name="message"/>{post.comments} {post.comments === 1 ? 'comentário' : 'comentários'}</button>
+    <div className="sf-post-actions">
+      <Reactions summary={post.reactionSummary || []} disabled={busy} label={`publicação de ${post.author.name}`} onToggle={react}/>
+      <button type="button" className="sf-link sf-comment-toggle" aria-expanded={showComments} onClick={() => setShowComments(value => !value)}><Icon name="message"/>Comentar<span> · {post.comments} {post.comments === 1 ? 'comentário' : 'comentários'}</span></button>
     </div>
     {confirming && <div className="social-delete-confirm"><p>Excluir esta publicação e seus comentários?</p><div className="action-row"><Button className="danger-button" onClick={remove} disabled={busy}>Sim, excluir publicação</Button><Button secondary onClick={() => setConfirming(false)} disabled={busy}>Manter publicação</Button></div></div>}
     {error && <p className="form-error" role="alert">{error}</p>}

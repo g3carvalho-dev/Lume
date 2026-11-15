@@ -12,12 +12,15 @@ import SocialFeed, { SocialAvatar } from './SocialFeed.jsx';
 // aceita o convite de quem chegou por um link (#amigos?convite=). Não existe busca por e-mail. Ser amigo não compartilha biblioteca, progresso
 // nem XP — isso depende do perfil e das escolhas de quem é dono dos dados.
 
+const FRIENDS_SHOWN = 4;
+
 export default function Friends({ account, state, xp, inviteCode = '', notify, go }) {
   const resource = useResource('/api/friends', { enabled: Boolean(account) });
   const data = resource.data;
   const [code, setCode] = useState(inviteCode);
   const [actionError, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [allFriends, setAllFriends] = useState(false);
 
   const load = useCallback(async () => {
     if (!account) return;
@@ -59,8 +62,8 @@ export default function Friends({ account, state, xp, inviteCode = '', notify, g
   }
 
   return <div className="social-root">
-    <Heading eyebrow="amigos, mensagens e ranking" title="Social" actions={<span className="social-friend-count"><Icon name="users"/>{data ? `${data.friends.length} ${data.friends.length === 1 ? 'amizade' : 'amizades'}` : account ? 'Carregando amigos…' : 'Entre amigos'}</span>}>
-      Tire dúvidas, compartilhe resumos e veja quem está estudando agora.
+    <Heading title="Social">
+      Compartilhe seus estudos e converse com seus amigos.
     </Heading>
     <SectionTabs route="amigos"/>
     {!account
@@ -73,16 +76,16 @@ export default function Friends({ account, state, xp, inviteCode = '', notify, g
         <SocialFeed account={account} avatar={state?.profile?.avatar} xp={xp} notify={notify} go={go}/>
         <aside className="social-sidebar" aria-label="Amigos e convites">
           <section className="card-surface social-panel" aria-labelledby="social-friends-title">
-            <div className="social-panel-heading"><h2 id="social-friends-title" className="title"><Icon name="users"/>Amigos</h2><span className="social-count">{data?.friends.length || 0}</span></div>
+            <div className="social-panel-heading"><h2 id="social-friends-title" className="title"><Icon name="users"/>Amigos · {data?.friends.length || 0}</h2>{data?.friends.length > FRIENDS_SHOWN && <button type="button" className="text-link" aria-expanded={allFriends} onClick={() => setAllFriends((value) => !value)}>{allFriends ? 'Ver menos' : 'Ver todos'}</button>}</div>
             {!data && !resource.error && <Skeleton label="Carregando sua lista de amigos…" rows={3}/>}
             {data?.friends.length === 0 && <p className="social-sidebar-empty">Ninguém por aqui ainda. Um convite já começa a lista.</p>}
             {data?.friends.length > 0 && <ul className="social-friend-list">
-              {data.friends.map(friend => <li key={friend.id}>
+              {(allFriends ? data.friends : data.friends.slice(0, FRIENDS_SHOWN)).map(friend => <li key={friend.id}>
                 <button type="button" className="social-friend-profile" {...warmProfileProps(friend)} onClick={() => go(friend.handle ? `perfil?u=${friend.handle}` : `perfil?id=${encodeURIComponent(friend.id)}`)} aria-label={`Ver perfil de ${friend.name}`}>
                   <SocialAvatar person={friend}/><span><strong>{friend.name}</strong><small>Amigos desde {new Date(friend.since).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</small></span>
                 </button>
                 <button type="button" className="icon-button" onClick={() => go(`mensagens?com=${encodeURIComponent(friend.id)}`)} aria-label={`Conversar com ${friend.name}`} title="Enviar mensagem"><Icon name="message"/></button>
-                <button type="button" className="icon-button" onClick={() => remove(friend)} disabled={busy} aria-label={`Remover ${friend.name} da lista`} title="Remover amizade"><Icon name="close"/></button>
+                <button type="button" className="icon-button social-friend-remove" onClick={() => remove(friend)} disabled={busy} aria-label={`Remover ${friend.name} da lista`} title="Remover amizade"><Icon name="close"/></button>
               </li>)}
             </ul>}
             {resource.error && <div className="form-error form-error-block" role="alert">{resource.error}<Button secondary onClick={load}>Tentar novamente</Button></div>}
@@ -101,8 +104,8 @@ export default function Friends({ account, state, xp, inviteCode = '', notify, g
           </section>}
 
           <section className="card-surface social-panel social-ranking-link">
-            <span className="social-ranking-icon"><Icon name="podium"/></span><h2 className="title">Ranking entre amigos</h2>
-            <p>Veja as classificações por nível, cursos concluídos e empenho.</p>
+            <div className="social-panel-heading"><h2 className="title"><span className="social-ranking-icon"><Icon name="podium"/></span>Ranking entre amigos</h2></div>
+            <p>Nível · Cursos concluídos · Empenho</p>
             <Button secondary onClick={() => go('ranking')}>Ver ranking<Icon name="arrow"/></Button>
           </section>
 

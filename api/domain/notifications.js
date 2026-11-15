@@ -39,11 +39,12 @@ export async function listNotifications(db, userId, now = Date.now()) {
       [userId, userId, floor, userId, NOTIFICATION_LIMIT],
     ),
     db.all(
-      `SELECT r.post_id, r.user_id AS person_id, u.name, ${avatar}, r.created_at AS at
+      `SELECT r.post_id, r.user_id AS person_id, u.name, ${avatar}, MIN(r.created_at) AS at
          FROM social_reactions r JOIN social_posts p ON p.id = r.post_id
          JOIN users u ON u.id = r.user_id LEFT JOIN account_documents d ON d.user_id = r.user_id
         WHERE p.user_id = ? AND r.user_id <> ? AND r.created_at >= ? AND ${NOT_BLOCKED('r.user_id')}
-        ORDER BY r.created_at DESC LIMIT ?`,
+        GROUP BY r.post_id, r.user_id
+        ORDER BY MIN(r.created_at) DESC LIMIT ?`,
       [userId, userId, floor, userId, NOTIFICATION_LIMIT],
     ),
     db.first('SELECT seen_at FROM notification_reads WHERE user_id = ?', [userId]),
@@ -53,7 +54,7 @@ export async function listNotifications(db, userId, now = Date.now()) {
     ...friends.map((row) => ({ id: `friend-${row.person_id}`, kind: 'friend', at: row.at, person: person(row), title: `${row.name} agora é seu amigo`, href: `#perfil?id=${encodeURIComponent(row.person_id)}` })),
     ...invites.map((row) => ({ id: `collab-${row.id}`, kind: 'collaboration', at: row.at, person: person(row), title: `${row.name} convidou você para colaborar`, body: `${row.step_title} · ${row.course_title}`, href: '#amigos' })),
     ...comments.map((row) => ({ id: `comment-${row.id}`, kind: 'comment', at: row.at, person: person(row), title: `${row.name} comentou sua publicação`, body: row.body.slice(0, 120), href: '#amigos' })),
-    ...reactions.map((row) => ({ id: `reaction-${row.post_id}-${row.person_id}`, kind: 'reaction', at: row.at, person: person(row), title: `${row.name} curtiu sua publicação`, href: '#amigos' })),
+    ...reactions.map((row) => ({ id: `reaction-${row.post_id}-${row.person_id}`, kind: 'reaction', at: row.at, person: person(row), title: `${row.name} reagiu à sua publicação`, href: '#amigos' })),
     ...LUME_NEWS.map((news) => ({ id: news.id, at: news.at, title: news.title, body: news.body, area: news.area, kind: 'news', href: `#novidades?id=${encodeURIComponent(news.id)}` })),
   ];
   return notificationFeed(items, { seenAt: read?.seen_at || null, since: account?.created_at || null, now });

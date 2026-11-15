@@ -5,6 +5,12 @@ import { noisePng } from '../fixtures/sample-image.js';
 
 const origin = E2E_ORIGIN;
 
+// Procura o emoji pelo nome no seletor aberto e o escolhe.
+async function pickEmoji(page, name) {
+  await page.getByRole('searchbox', { name: 'Buscar emoji' }).fill(name);
+  await page.getByRole('button', { name, exact: true }).click();
+}
+
 test('Social publica, comenta, reage e persiste; desfazer amizade revoga o feed', async ({ page, browser }, testInfo) => {
   await seedAccount(page);
   const context = await browser.newContext({ baseURL: origin, extraHTTPHeaders: { origin } });
@@ -22,22 +28,23 @@ test('Social publica, comenta, reage e persiste; desfazer amizade revoga o feed'
     await expect(page.getByRole('complementary', { name: 'Amigos e convites' }).getByText('Bia Almeida', { exact: true })).toBeVisible();
     await page.getByLabel('Sua publicação').fill('Alguém tem uma dica para revisar determinantes? Hoje vou fechar o capítulo 3.');
     await page.getByLabel('Tipo de publicação').selectOption('question');
-    await page.getByRole('button', { name: 'Postar', exact: true }).click();
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
     const mine = page.getByRole('article').filter({ hasText: 'Alguém tem uma dica para revisar determinantes?' });
     await expect(mine).toBeVisible();
     await expect(mine.getByText('Dúvida rápida', { exact: true })).toBeVisible();
     await expect(page.getByLabel('Sua publicação')).toHaveValue('');
     const theirs = page.getByRole('article').filter({ hasText: 'Terminei meu resumo' });
-    await theirs.getByRole('button', { name: /Curtir/ }).click();
-    await expect(theirs.getByRole('button', { name: /Curtir/ })).toHaveAttribute('aria-pressed', 'true');
-    await theirs.getByRole('button', { name: '0 comentários', exact: true }).click();
+    await theirs.getByRole('button', { name: 'Reagir a publicação de Bia Almeida' }).click();
+    await pickEmoji(page, 'coração vermelho');
+    await expect(theirs.getByRole('button', { name: /^❤️ 1/ })).toHaveAttribute('aria-pressed', 'true');
+    await theirs.getByRole('button', { name: 'Comentar · 0 comentários', exact: true }).click();
     await theirs.getByLabel('Comentar publicação de Bia Almeida').fill('Quero revisar! Vou começar pelos exemplos do capítulo.');
     await theirs.getByRole('button', { name: 'Comentar', exact: true }).click();
     await expect(theirs.getByText('Quero revisar! Vou começar pelos exemplos do capítulo.')).toBeVisible();
     expect((await (await guest.get(`/api/social/posts/${friendPost}/comments`)).json()).comments).toHaveLength(1);
     await page.reload();
     await expect(mine).toBeVisible();
-    await expect(theirs.getByRole('button', { name: /Curtir/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(theirs.getByRole('button', { name: /^❤️ 1/ })).toHaveAttribute('aria-pressed', 'true');
     await expect(theirs.getByText('Quero revisar! Vou começar pelos exemplos do capítulo.')).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Seções de Social' }).getByRole('link', { name: 'Mensagens', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Ver ranking', exact: true })).toBeVisible();
@@ -53,10 +60,12 @@ test('Social publica, comenta, reage e persiste; desfazer amizade revoga o feed'
     const guestFeed = await (await guest.get('/api/social/feed')).json();
     expect(guestFeed.posts).toHaveLength(1);
     expect(guestFeed.posts[0].id).toBe(friendPost);
-    await mine.getByRole('button', { name: 'Excluir publicação', exact: true }).click();
+    await mine.getByRole('button', { name: 'Mais ações da publicação' }).click();
+    await mine.getByRole('menuitem', { name: 'Excluir publicação', exact: true }).click();
     await mine.getByRole('button', { name: 'Manter publicação', exact: true }).click();
     await expect(mine).toBeVisible();
-    await mine.getByRole('button', { name: 'Excluir publicação', exact: true }).click();
+    await mine.getByRole('button', { name: 'Mais ações da publicação' }).click();
+    await mine.getByRole('menuitem', { name: 'Excluir publicação', exact: true }).click();
     await mine.getByRole('button', { name: 'Sim, excluir publicação', exact: true }).click();
     await expect(mine).toHaveCount(0);
     await expect(page.getByText('As próximas conversas começam aqui.')).toBeVisible();
@@ -69,12 +78,12 @@ test('PDF só é publicado após confirmação; falha preserva texto e anexo par
   await page.getByLabel('Sua publicação').fill('Meu resumo da semana.');
   await page.getByLabel('Anexar PDF à publicação').setInputFiles({ name: 'resumo-penal.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
   await page.route('**/api/social/posts', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Envio indisponível no teste.' }) }), { times: 1 });
-  await page.getByRole('button', { name: 'Postar', exact: true }).click();
+  await page.getByRole('button', { name: 'Publicar', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Envio indisponível no teste.');
   await expect(page.getByLabel('Sua publicação')).toHaveValue('Meu resumo da semana.');
   await expect(page.locator('.social-draft-attachment')).toContainText('resumo-penal.pdf');
   await expect(page.getByRole('article')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Postar', exact: true }).click();
+  await page.getByRole('button', { name: 'Publicar', exact: true }).click();
   const post = page.getByRole('article').filter({ hasText: 'Meu resumo da semana.' });
   await expect(post).toBeVisible();
   const attachment = post.getByRole('link', { name: 'Abrir', exact: true });
@@ -90,7 +99,7 @@ test('PDF só é publicado após confirmação; falha preserva texto e anexo par
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==', 'base64');
   await page.getByLabel('Anexar foto à publicação').setInputFiles({ name: 'anotacoes.png', mimeType: 'image/png', buffer: png });
   await expect(page.getByAltText('Prévia do anexo')).toBeVisible();
-  await page.getByRole('button', { name: 'Postar', exact: true }).click();
+  await page.getByRole('button', { name: 'Publicar', exact: true }).click();
   const photo = page.getByRole('article').filter({ hasText: 'Foto das minhas anotações.' });
   await expect(photo.getByAltText('anotacoes.png')).toBeVisible();
   expect(await photo.getByAltText('anotacoes.png').evaluate(image => image.naturalWidth)).toBe(1);
@@ -108,7 +117,7 @@ test('foto grande do Social é otimizada antes de publicar', async ({ page }) =>
 
   await expect(page.locator('.social-draft-attachment')).toContainText('foto-grande.png');
   await expect(page.getByText(/Imagem otimizada:/)).toBeVisible({ timeout: 30000 });
-  await page.getByRole('button', { name: 'Postar', exact: true }).click();
+  await page.getByRole('button', { name: 'Publicar', exact: true }).click();
 
   const post = page.getByRole('article').filter({ hasText: 'Foto grande do quadro.' });
   await expect(post).toBeVisible({ timeout: 30000 });
@@ -130,7 +139,7 @@ test('PDF digitalizado do Social só publica depois de optar pela redução com 
   const option = page.getByRole('checkbox', { name: /Reduzir tamanho para digitalização/ });
   await expect(option).toBeVisible({ timeout: 30000 });
   await expect(option).not.toBeChecked();
-  const publish = page.getByRole('button', { name: 'Postar', exact: true });
+  const publish = page.getByRole('button', { name: 'Publicar', exact: true });
   await expect(publish).toBeDisabled();
   await option.check();
   await expect(publish).toBeEnabled();
@@ -161,8 +170,49 @@ test('compartilhar conquista validada não duplica a recompensa de estudo', asyn
   const select = page.getByLabel('Conquista para compartilhar');
   await expect(select.locator('option:not([value=""])').first()).toBeAttached();
   await select.selectOption(await select.locator('option:not([value=""])').first().getAttribute('value'));
-  await page.getByRole('button', { name: 'Postar', exact: true }).click();
+  await page.getByRole('button', { name: 'Publicar', exact: true }).click();
   await expect(page.getByRole('article').getByText('Conquista validada', { exact: true })).toBeVisible();
   const xp = await (await page.request.get('/api/xp', { headers: { origin } })).json();
   expect(xp.summary.totalXP).toBe(100);
+});
+
+test('emojis em reações e no texto, respostas em fio e GIF indisponível sem chave', async ({ page, browser }) => {
+  await seedAccount(page);
+  const context = await browser.newContext({ baseURL: origin, extraHTTPHeaders: { origin } });
+  try {
+    const guest = context.request;
+    expect((await guest.post('/api/register', { data: { name: 'Gabriel Teste', email: `social-${crypto.randomUUID()}@example.test`, password: 'senha-de-teste-123' } })).status()).toBe(201);
+    const invite = await (await page.request.post('/api/friends/invite', { headers: { origin } })).json();
+    expect((await guest.post('/api/friends/accept', { data: { code: invite.code } })).ok()).toBe(true);
+    const friendPost = crypto.randomUUID();
+    expect((await guest.post('/api/social/posts', { data: { id: friendPost, body: 'Uma pausa entre os estudos.' } })).status()).toBe(201);
+    expect((await guest.post(`/api/social/posts/${friendPost}/comments`, { data: { id: crypto.randomUUID(), body: 'Tá incrível demais!' } })).status()).toBe(201);
+
+    await page.goto('/#amigos');
+    const post = page.getByRole('article').filter({ hasText: 'Uma pausa entre os estudos.' });
+    // Duas reações diferentes na publicação, cada uma com a sua contagem.
+    await post.getByRole('button', { name: 'Reagir a publicação de Gabriel Teste' }).click();
+    await pickEmoji(page, 'sorriso feliz');
+    await post.getByRole('button', { name: 'Reagir a publicação de Gabriel Teste' }).click();
+    await pickEmoji(page, 'brilho');
+    await expect(post.getByRole('button', { name: /^😄 1/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(post.getByRole('button', { name: /^✨ 1/ })).toHaveAttribute('aria-pressed', 'true');
+    await post.getByRole('button', { name: /^😄 1/ }).click();
+    await expect(post.getByRole('button', { name: /^😄/ })).toHaveCount(0);
+
+    // Resposta ao comentário aparece dentro do fio, com emoji no texto.
+    await post.getByRole('button', { name: 'Responder', exact: true }).click();
+    const reply = post.getByLabel('Responder a Gabriel Teste');
+    await reply.fill('Obrigada!');
+    await post.locator('.sf-comment-form.is-reply').getByRole('button', { name: 'Emoji no comentário' }).click();
+    await pickEmoji(page, 'sorriso feliz');
+    await post.getByRole('button', { name: 'Enviar resposta' }).click();
+    await expect(post.locator('.sf-replies').getByText('Obrigada!😄')).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('article').filter({ hasText: 'Uma pausa entre os estudos.' }).locator('.sf-replies').getByText('Obrigada!😄')).toBeVisible();
+
+    // Sem chave do provedor, a aba de GIFs explica em vez de falhar.
+    await page.getByRole('button', { name: 'GIF', exact: true }).first().click();
+    await expect(page.getByText('A busca de GIFs ainda não está ativada neste ambiente.')).toBeVisible();
+  } finally { await context.close(); }
 });
