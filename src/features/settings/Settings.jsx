@@ -185,6 +185,12 @@ export function Preferences({ state, actions, libraryActions, confirmSave, notif
             <p className="cfg-lead">{studyRhythm(state).title}</p>
             <LinkButton onClick={onPersonalize}>Revisar respostas iniciais</LinkButton>
           </div>
+          <Toggle
+            title="Registrar tempo ao ler PDFs"
+            hint="O leitor inicia uma sessão de leitura automática, pausa após 5 minutos sem interação e pode ser pausada ou encerrada no próprio leitor."
+            checked={state.preferences.readingTimer !== false}
+            onChange={(value) => preference('readingTimer', value)}
+          />
           <label className="cfg-row">
             <span className="cfg-row-copy"><strong>Plano semanal</strong><span>Passos sugeridos, sem obrigação.</span></span>
             <select className="cfg-select" value={goal} onChange={(event) => preference('weeklyGoal', Number(event.target.value))}>

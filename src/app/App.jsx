@@ -110,6 +110,13 @@ export default function App() {
     }
     previousRoute.current = route;
   }, [route, state.preferences.theme, state.preferences.textSize]);
+  // Uma sessão ativa continua sendo gravada mesmo fora da tela de Foco ou do
+  // leitor: sem isso, trocar de tela podia perder o tempo até o último batimento.
+  useEffect(() => {
+    if (!state.activeSession || state.activeSession.status !== 'active') return undefined;
+    const beat = setInterval(() => model.progressActions.touchSession(), 60000);
+    return () => clearInterval(beat);
+  }, [state.activeSession?.id, state.activeSession?.status, model.progressActions]);
   // Status do Discord no aplicativo: aula ou PDF aberto e sessão de foco. A página
   // renova a cada 20 s; se ela parar, o aplicativo volta ao roteiro sozinho.
   const modalRef = useRef(null);

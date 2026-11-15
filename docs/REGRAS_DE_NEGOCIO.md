@@ -116,7 +116,7 @@ Consulte também:
    - **Entrega de projeto (`project_step`):** `150 XP` (1 vez por unidade elegível).
    - **Apresentação de slides concluída (`slides_complete`):** `80 XP` (1 vez por apresentação, exigindo >= 80% de cobertura + último slide).
    - **Subtarefa concluída (`subtask_complete`):** `10 XP` (1 vez por `subtaskId` na vida da conta, respeitando o teto diário de **50 XP/dia** em `SUBTASK_DAILY_CAP_XP`).
-   - **Bloco de tempo de foco (`study_time_block`):** `30 XP` a cada **25 minutos elegíveis** (`TIME_BLOCK_MINUTES = 25`), até o limite de **4 blocos por dia UTC (`120 XP/dia`)** (`TIME_DAILY_MAX_BLOCKS = 4`). Sobras de minutos acumulam entre sessões do mesmo dia, sem duplicar intervalos sobrepostos.
+   - **Bloco de tempo de estudo (`study_time_block`):** `30 XP` a cada **25 minutos elegíveis** (`TIME_BLOCK_MINUTES = 25`), até o limite de **4 blocos por dia local (`120 XP/dia`)** (`TIME_DAILY_MAX_BLOCKS = 4`, `DAILY_TIME_XP_CAP = 120`). Sobras de minutos acumulam entre sessões do mesmo dia, sem duplicar intervalos sobrepostos.
    - **Bônus de curso concluído (`course_complete_bonus`):** `300 XP` (1 vez por curso com **pelo menos 2 unidades**, quando todas as unidades incluídas foram concluídas por estudo elegível — `manual` ou `integration`).
    - **Bônus de disciplina concluída (`subject_complete_bonus`):** `200 XP` (1 vez por disciplina quando todas as unidades daquela disciplina são concluídas).
 3. **Curva de Níveis (`LEVEL_XP`):**
@@ -173,16 +173,17 @@ Consulte também:
 
 1. **Sessão de Estudo (`state.activeSession` e `state.studySessions`):**
    - Começar, pausar, retomar ou encerrar uma sessão declara tempo dedicado; começar outra sessão encerra e salva a anterior automaticamente.
-   - Abrir um PDF no leitor inicia uma sessão de leitura automática (`Leitura — <título>`), sem precisar do cronômetro de foco: ela pausa com a aba oculta e encerra ao fechar o leitor, passando pela mesma validação do servidor (blocos de 25 minutos, teto diário). Se já houver sessão em curso (foco), o leitor não abre outra e o tempo continua sendo dessa sessão.
-   - Sessões esquecidas abertas são pausadas ao carregar e limitadas ao teto de **12 horas** (`MAX_SESSION_SECONDS = 43200`) para não inflar o relógio.
-   - `minutesByDay` e `weeklyRhythm` somam os minutos declarados por dia local (incluindo a sessão ativa). Sem dados na semana anterior, a comparação percentual fica nula (não inventa porcentagem).
-2. **Preferências e Conforto Visual (`state.preferences`):** ajustadas em Configurações › Aparência (o atalho "Conforto visual" do cabeçalho e o diálogo de conforto foram retirados em 14/11/2026).
+   - Abrir um PDF no leitor inicia uma sessão de leitura automática (`Leitura — <título>`, `origin: 'reading'`), sem precisar do cronômetro de foco. O leitor mostra um indicador com o tempo e permite pausar/retomar; a sessão pausa após **5 minutos sem interação** e quando a aba fica oculta, e encerra ao fechar o leitor, passando pela mesma validação do servidor (blocos de 25 minutos, teto diário). Se já houver sessão de foco ativa, o leitor não abre outra e o tempo continua sendo dessa sessão. Se houver uma sessão pausada, o leitor pede uma escolha: retomar, encerrar e registrar a leitura, ou ler sem registrar.
+   - A preferência `preferences.readingTimer` permite desligar o registro automático de leitura. O batimento global mantém uma sessão ativa gravada ao trocar de tela; uma sessão esquecida aberta é encerrada ao carregar e limitada ao teto de **12 horas** (`MAX_SESSION_MS = 43.200.000`) para não inflar o relógio.
+   - `minutesByDay` e `weeklyRhythm` somam os minutos registrados por dia local (incluindo a sessão ativa). Sem dados na semana anterior, a comparação percentual fica nula (não inventa porcentagem).
+2. **Preferências e Conforto Visual (`state.preferences`):** ajustadas em Configurações › Aparência e › Ritmo de estudo (o atalho "Conforto visual" do cabeçalho e o diálogo de conforto foram retirados em 14/11/2026).
    - `palette`: **aposentada da interface (14/11/2026).** A identidade Norte tem uma só paleta; o campo continua aceito em `restoreState` (`'moderno'` ou `'variante2'`) só para compatibilidade dos dados, não é oferecido em Configurações nem no Conforto visual e não muda as cores (`html[data-palette]` não é mais definido).
    - `theme`: `'dark'` (Escuro, padrão) ou `'light'` (Claro). Aplicado em `html[data-theme]`. Valores desconhecidos voltam para `'dark'`; não há tema "Suave" separado no código.
    - `density`: `'minimal'` (Essencial) ou `'balanced'` (Equilibrada).
    - `textSize`: `'normal'` (Padrão) ou `'large'` (Maior).
    - `motion`: `'normal'` ou `'reduced'` (Reduzir animações).
    - `soundscape`: `'off'` (Silêncio), `'rain'` (Chuva), `'pink'` (Ruído rosa) ou `'white'` (Ruído branco). Valores legados `'library'` e `'noise'` são convertidos automaticamente para `'pink'` e `'white'`.
+   - `readingTimer`: `true` (padrão) registra tempo ao abrir PDFs; `false` desliga o registro automático sem apagar o histórico existente.
 
 ---
 
