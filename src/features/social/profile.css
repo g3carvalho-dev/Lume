@@ -461,6 +461,101 @@
   padding: var(--space-5);
 }
 
+/* Atividade recente no estilo Steam */
+.profile-x-activity-wrap {
+  padding: var(--space-4) var(--space-6);
+}
+
+.steam-activity-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.steam-activity-card {
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated, color-mix(in srgb, var(--bg) 45%, var(--surface)));
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 0.85rem;
+}
+
+.steam-activity-top {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+}
+
+.steam-activity-thumb {
+  height: 64px;
+  aspect-ratio: auto;
+  border-radius: 10px;
+}
+
+.steam-activity-heading {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.steam-activity-heading .title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.steam-activity-heading small {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.steam-activity-meta {
+  text-align: right;
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.steam-activity-meta strong {
+  color: var(--text);
+}
+
+.steam-activity-progress {
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.steam-activity-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.steam-activity-progress-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.steam-activity-progress-head .icon {
+  color: var(--lume);
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.steam-activity-step {
+  color: var(--text-subtle);
+  font-size: 0.76rem;
+}
+
 /* Conquistas */
 .profile-x-badge-grid {
   display: grid;
@@ -594,8 +689,17 @@
   .profile-x-feed-item,
   .profile-x-milestone,
   .profile-x-badge-grid,
-  .profile-x-friends {
+  .profile-x-friends,
+  .profile-x-activity-wrap {
     padding-inline: var(--space-4);
+  }
+
+  .steam-activity-top {
+    grid-template-columns: 1fr;
+  }
+
+  .steam-activity-meta {
+    text-align: left;
   }
 
   .profile-x-feed-item {

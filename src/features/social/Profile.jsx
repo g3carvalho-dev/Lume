@@ -34,7 +34,7 @@ function formatBioLines(bio) {
 
 export default function Profile({ id, handle = '', state, actions, account, notify, go, xp }) {
   const [editing, setEditing] = useState(false);
-  const [tab, setTab] = useState('estudando');
+  const [tab, setTab] = useState('atividade');
   const [uploadError, setUploadError] = useState('');
   const [bioDraft, setBioDraft] = useState(() => state.profile?.bio || '');
   const avatarInputRef = useRef(null);
@@ -56,7 +56,7 @@ export default function Profile({ id, handle = '', state, actions, account, noti
 
   useEffect(() => {
     setEditing(false);
-    setTab('estudando');
+    setTab('atividade');
   }, [id, handle]);
 
   // Aba Amigos: a lista do próprio perfil usa o id da conta; a de outra pessoa, o id ou o @usuário.
@@ -154,8 +154,8 @@ export default function Profile({ id, handle = '', state, actions, account, noti
   const [starX, starY] = BANNER_CONSTELLATION[BANNER_CONSTELLATION.length - 1];
 
   const tabs = [
-    { id: 'estudando', label: 'Estudando' },
     { id: 'atividade', label: 'Atividade' },
+    { id: 'estudando', label: 'Estudando' },
     { id: 'conquistas', label: 'Conquistas' },
     ...(friendsPath ? [{ id: 'amigos', label: 'Amigos' }] : []),
   ];
@@ -375,28 +375,36 @@ export default function Profile({ id, handle = '', state, actions, account, noti
                 : 'Histórico de passos oculto'}
             </span>
           </div>
-          {recentActivity.length > 0 ? <div className="profile-x-showcase-list">
-            {recentActivity.map((item) => <article key={item.id} className="profile-x-feed-item">
-              <Cover art={item.art} className="profile-x-cover"/>
-              <div className="profile-x-feed-body">
-                <div className="profile-x-feed-top">
-                  <span className={`course-status status-${item.status}`}>{STATUS_LABEL[item.status] || item.status}</span>
-                  <span className="mono profile-x-feed-meta">
-                    {item.lastAt
-                      ? new Date(item.lastAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
-                      : 'Na biblioteca'}
-                    {item.durationMinutes ? ` · ${item.durationMinutes} min` : ''}
-                  </span>
+          <div className="profile-x-activity-wrap">
+            {recentActivity.length > 0 ? <div className="steam-activity-list">
+              {recentActivity.map((item) => <article key={item.id} className="steam-activity-card">
+                <div className="steam-activity-top">
+                  <Cover art={item.art} className="steam-activity-thumb"/>
+                  <div className="steam-activity-heading">
+                    <h2 className="title">{item.title}</h2>
+                    <small>{item.type} · {STATUS_LABEL[item.status] || item.status}</small>
+                  </div>
+                  <div className="steam-activity-meta">
+                    {item.durationMinutes && <strong>{item.durationMinutes} min declarados</strong>}
+                    <small>
+                      {item.lastAt
+                        ? `Último registro em ${new Date(item.lastAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`
+                        : 'Progresso na biblioteca'}
+                    </small>
+                  </div>
                 </div>
-                <h2 className="title profile-x-feed-title">{item.title}</h2>
-                {item.progress && <div className="profile-x-feed-progress">
+
+                {item.progress && <div className="steam-activity-progress">
+                  <div className="steam-activity-progress-head">
+                    <span><Icon name="trophy"/>Etapas concluídas</span>
+                    <strong>{item.progress.done} de {item.progress.total} · {item.progress.percent}%</strong>
+                  </div>
                   <Progress value={item.progress.done} max={item.progress.total || 1} tone={item.status === 'completed' ? 'mint' : 'lume'} label={`Progresso de ${item.title}`}/>
-                  <span className="mono profile-x-feed-meta">{item.progress.done} de {item.progress.total} · {item.progress.percent}%</span>
+                  {item.lastLabel && <small className="steam-activity-step">Último passo: {item.lastLabel}</small>}
                 </div>}
-                {item.lastLabel && <small className="profile-x-last-step">Último passo: {item.lastLabel}</small>}
-              </div>
-            </article>)}
-          </div> : <p className="profile-x-empty inline-note"><Icon name="clock"/><span>Nenhuma atividade recente compartilhada nas últimas semanas.</span></p>}
+              </article>)}
+            </div> : <p className="inline-note"><Icon name="clock"/><span>Nenhuma atividade recente compartilhada nas últimas semanas.</span></p>}
+          </div>
         </div>}
 
         {tab === 'conquistas' && <div className="profile-x-tab-panel">
