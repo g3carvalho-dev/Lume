@@ -1,6 +1,30 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-ad535ea6",
+    "at": "2026-11-16T02:04:04.000Z",
+    "title": "Adicionar amigos ficou mais simples",
+    "body": "Busque pelo @usuário ou copie um link de convite em um clique, numa tela só.",
+    "href": "#adicionar",
+    "area": "site",
+    "details": [
+      "O convite é criado e copiado com um único botão",
+      "Solicitações recebidas e enviadas só aparecem quando há pedidos"
+    ]
+  },
+  {
+    "id": "news-653daa8b",
+    "at": "2026-11-16T01:49:18.000Z",
+    "title": "Atualização automática do aplicativo",
+    "body": "O Lume de desktop baixa a versão nova sozinho e se atualiza por cima da atual, sem deixar a antiga instalada.",
+    "href": "#aplicativo",
+    "area": "desktop",
+    "details": [
+      "Procura atualização ao abrir e a cada 6 horas",
+      "Botão Reiniciar e atualizar instala em silêncio e reabre o Lume"
+    ]
+  },
+  {
     "id": "news-12bcb68d",
     "at": "2026-11-15T23:54:13.000Z",
     "title": "Menu mais curto e timer discreto",
@@ -179,42 +203,6 @@ export const GENERATED_NEWS = [
     "details": [
       "Sem foto, continuam as iniciais.",
       "O cabeçalho agora cobre a largura toda da tela, sem o canto vazio no topo direito."
-    ]
-  },
-  {
-    "id": "news-4d137377",
-    "at": "2026-11-14T19:59:44.000Z",
-    "title": "Nova tela de entrada",
-    "body": "Login e cadastro agora seguem a Identidade Norte, com layout em duas colunas e leitura mais limpa.",
-    "href": "#login",
-    "area": "site",
-    "details": [
-      "Cartão de entrada mais enxuto, prévia de constelação e semana em pontos, e campos de senha e privacidade alinhados."
-    ]
-  },
-  {
-    "id": "news-17ea328e",
-    "at": "2026-11-14T19:59:26.000Z",
-    "title": "Discord mostra o que você estuda",
-    "body": "O status do Discord agora mostra a aula (ex.: Falência, aula 9), o PDF que você lê e a sessão de foco com o tempo focado.",
-    "href": "#aplicativo",
-    "area": "desktop",
-    "details": [
-      "Aula aberta aparece como \"Estudando curso\" com o número da aula.",
-      "PDF aberto mostra a página atual.",
-      "A sessão de foco mostra o relógio e, em pausa, os minutos focados."
-    ]
-  },
-  {
-    "id": "news-9594ebf2",
-    "at": "2026-11-14T18:57:10.000Z",
-    "title": "Adicionar amigo pelo perfil",
-    "body": "Agora dá para enviar um pedido de amizade direto do perfil de quem ainda não é seu amigo.",
-    "href": "#amigos",
-    "area": "site",
-    "details": [
-      "Botão Adicionar amigo no perfil público de outras pessoas",
-      "Se a pessoa já te enviou um pedido, o botão aceita a amizade"
     ]
   }
 ];

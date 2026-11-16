@@ -40,6 +40,7 @@ function SlideForm({ initial = { title: '', body: '' }, onSubmit, onCancel, subm
 function SlideImageControl({ courseId, slide, actions, notify }) {
   const input = useRef(null);
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState('');
   async function upload(event) {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -47,8 +48,11 @@ function SlideImageControl({ courseId, slide, actions, notify }) {
     if (!file.type.startsWith('image/')) { notify('Escolha uma imagem PNG, JPG, WebP ou GIF.'); return; }
     if (file.size > COMPRESSION.imageSourceBytes) { notify('A imagem é grande demais (máximo 12 MB).'); return; }
     setBusy(true);
+    let localUrl = '';
     try {
       const optimized = await compressImage(file, { maxBytes: 2 * 1024 * 1024, maxWidth: 1920, maxHeight: 1920 });
+      localUrl = URL.createObjectURL(optimized.blob);
+      setPreview(localUrl);
       const response = await fetch(`/api/slides/media/${encodeURIComponent(courseId)}/${encodeURIComponent(slide.id)}`, {
         method: 'PUT',
         credentials: 'same-origin',
@@ -62,27 +66,32 @@ function SlideImageControl({ courseId, slide, actions, notify }) {
     } catch (exception) {
       notify(exception.message || 'Não foi possível enviar a imagem do slide.');
     } finally {
+      setPreview('');
+      if (localUrl) URL.revokeObjectURL(localUrl);
       setBusy(false);
     }
   }
   async function remove() {
-    setBusy(true);
+    const previousUrl = slide.image;
+    if (!actions.setSlideImage(courseId, slide.id, '')) return;
+    notify('Imagem removida do slide.');
     try {
-      await fetch(`/api/slides/media/${encodeURIComponent(courseId)}/${encodeURIComponent(slide.id)}`, {
+      const response = await fetch(`/api/slides/media/${encodeURIComponent(courseId)}/${encodeURIComponent(slide.id)}`, {
         method: 'DELETE',
         credentials: 'same-origin',
       });
-      if (!actions.setSlideImage(courseId, slide.id, '')) return;
-      notify('Imagem removida do slide.');
-    } finally {
-      setBusy(false);
+      if (!response.ok) throw new Error('Não foi possível remover a imagem do slide.');
+    } catch (exception) {
+      actions.setSlideImage(courseId, slide.id, previousUrl);
+      notify(exception.message || 'Não foi possível remover a imagem do slide.');
     }
   }
+  const shown = preview || slide.image;
   return <div className="slide-image-control">
-    {slide.image ? <img src={slide.image} alt={`Imagem do slide ${slide.title}`}/> : <span className="slide-image-empty"><Icon name="image"/></span>}
+    {shown ? <img src={shown} alt={`Imagem do slide ${slide.title}`}/> : <span className="slide-image-empty"><Icon name="image"/></span>}
     <input ref={input} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" onChange={upload} aria-label={`Escolher imagem para o slide ${slide.title}`}/>
-    <button type="button" className="text-button" onClick={() => input.current?.click()} disabled={busy}>{busy ? 'Enviando…' : slide.image ? 'Trocar imagem' : 'Adicionar imagem'}</button>
-    {slide.image && <button type="button" className="text-button" onClick={remove} disabled={busy}>Remover imagem</button>}
+    <button type="button" className="text-button" onClick={() => input.current?.click()} disabled={busy}>{busy ? 'Enviando…' : shown ? 'Trocar imagem' : 'Adicionar imagem'}</button>
+    {shown && <button type="button" className="text-button" onClick={remove} disabled={busy}>Remover imagem</button>}
   </div>;
 }
 

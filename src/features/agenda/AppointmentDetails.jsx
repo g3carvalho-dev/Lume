@@ -17,10 +17,9 @@ export default function AppointmentDetails({ item, state, actions, taskActions, 
   const conflicts = conflictsFor(item, state.agenda || []);
   const locked = busy || Boolean(saveError);
   async function run(action) {
-    setError(''); setBusy(true);
-    try { const result = await action(); if (result && result.state) await confirmSave(); }
+    setError('');
+    try { await action(); }
     catch (e) { setError(e.message); }
-    finally { setBusy(false); }
   }
   return <AgendaPanel title={item.title} onClose={onClose} busy={busy}>
     <div className="agenda-details">

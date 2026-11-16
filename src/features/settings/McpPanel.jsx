@@ -43,18 +43,21 @@ export default function McpPanel({ account, notify, go }) {
   }
 
   async function revokeToken() {
-    setBusy(true);
     setError('');
+    const previous = resource.data;
+    const previousFresh = freshToken;
+    setFreshToken('');
+    resource.mutate((current) => current ? { ...current, hasToken: false, tokenPrefix: '' } : current);
     try {
       const result = await api('/api/mcp/token', { method: 'DELETE' });
       if (!result.ok) throw new Error(apiError(result));
-      setFreshToken('');
-      await resource.refresh();
       notify('Chave MCP revogada. Agentes externos não têm mais acesso.');
+      resource.refresh();
     } catch (err) {
+      if (previous) resource.mutate(previous);
+      setFreshToken(previousFresh);
       setError(err.message);
-    } finally {
-      setBusy(false);
+      notify(err.message);
     }
   }
 

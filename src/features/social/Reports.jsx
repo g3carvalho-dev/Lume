@@ -22,18 +22,23 @@ export default function Reports({ account, notify }) {
   </div>;
 
   async function review(report, next) {
-    setBusy(report.id); setError('');
+    setError('');
+    const previous = resource.data;
+    resource.mutate((current) => current ? {
+      ...current,
+      open: current.open + (next === 'open' ? 1 : report.status === 'open' ? -1 : 0),
+      reports: (current.reports || []).filter((item) => item.id !== report.id),
+    } : current);
     try {
       const result = await api(`/api/reports/${encodeURIComponent(report.id)}`, { method: 'PATCH', body: { status: next } });
       if (!result.ok) throw new Error(apiError(result));
       notify(next === 'open' ? 'Denúncia reaberta.' : next === 'reviewed' ? 'Denúncia marcada como analisada.' : 'Denúncia arquivada.');
       invalidateResources('/api/reports');
       invalidateResources('/api/notifications');
-      await resource.refresh();
     } catch (exception) {
+      if (previous) resource.mutate(previous);
       setError(exception.message);
-    } finally {
-      setBusy('');
+      notify(exception.message);
     }
   }
 

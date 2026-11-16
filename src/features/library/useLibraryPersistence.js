@@ -12,6 +12,7 @@ export function useLibraryPersistence(notify, onSaved) {
   const [syncStatus, setSyncStatus] = useState('local');
   const [saveError, setSaveError] = useState('');
   const current = useRef(state);
+  const confirmed = useRef(state);
   const connected = useRef(false);
   const revision = useRef(0);
   const generation = useRef(0);
@@ -44,6 +45,7 @@ export function useLibraryPersistence(notify, onSaved) {
       throw new Error(message);
     }
     revision.current = result.data.revision;
+    confirmed.current = result.data.state;
     publish(result.data.state);
     connected.current = true;
     setSyncStatus('saved');
@@ -63,6 +65,7 @@ export function useLibraryPersistence(notify, onSaved) {
       if (token !== generation.current) return;
       if (!result.ok) throw Object.assign(new Error(apiError(result)), { status: result.status });
       revision.current = result.data.revision;
+      confirmed.current = result.data.state;
       if (order === sequence.current) {
         publish(result.data.state);
         setSyncStatus('saved');
@@ -78,10 +81,17 @@ export function useLibraryPersistence(notify, onSaved) {
       generation.current += 1;
       const rejected = error.status >= 400 && error.status < 500 && ![408, 429].includes(error.status);
       failed.current = rejected ? null : body;
+      if (rejected && error.status !== 409) {
+        publish(confirmed.current);
+        blocked.current = '';
+        setSaveError('');
+        setSyncStatus('saved');
+        notify(error.message);
+        return;
+      }
       const message = error.status === 409
         ? 'A biblioteca mudou. Recarregue os dados e repita sua ação.'
-        : rejected ? `${error.message} Recarregue os dados antes de continuar.`
-          : 'Não foi possível confirmar a gravação. Tente novamente antes de continuar.';
+        : 'Não foi possível confirmar a gravação. Tente novamente antes de continuar.';
       blocked.current = message;
       setSaveError(message);
       setSyncStatus('error');
@@ -127,7 +137,9 @@ export function useLibraryPersistence(notify, onSaved) {
     failed.current = null;
     blocked.current = '';
     setSaveError('');
-    publish(createInitialState());
+    const initial = createInitialState();
+    confirmed.current = initial;
+    publish(initial);
     setSyncStatus('local');
   }, [invalidate, publish]);
 

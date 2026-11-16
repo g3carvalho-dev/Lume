@@ -60,10 +60,16 @@ export function CollaborationPanel({ course, account, notify }) {
   }
 
   async function cancel(id) {
+    const previous = invitesResource.data;
+    invitesResource.mutate((current) => current ? { ...current, sent: (current.sent || []).filter((item) => item.id !== id) } : current);
     const result = await api(`/api/collaboration/invites/${encodeURIComponent(id)}`, { method: 'DELETE' });
-    if (!result.ok) { notify(apiError(result)); return; }
+    if (!result.ok) {
+      if (previous) invitesResource.mutate(previous);
+      notify(apiError(result));
+      return;
+    }
     notify('Convite cancelado.');
-    await load();
+    load();
   }
 
   if (course.type !== 'project') return null;
@@ -105,10 +111,19 @@ export function CollaborationInbox({ account, notify }) {
   const resource = useResource('/api/collaboration/invites', { enabled: Boolean(account) });
   const { data, error } = resource;
   async function respond(id, accept) {
+    const previous = resource.data;
+    resource.mutate((current) => current ? {
+      ...current,
+      received: (current.received || []).map((item) => (item.id === id ? { ...item, status: accept ? 'accepted' : 'declined' } : item)),
+    } : current);
     const result = await api(`/api/collaboration/invites/${encodeURIComponent(id)}/respond`, { method: 'POST', body: { accept } });
-    if (!result.ok) { notify(apiError(result)); return; }
+    if (!result.ok) {
+      if (previous) resource.mutate(previous);
+      notify(apiError(result));
+      return;
+    }
     notify(accept ? 'Você aceitou ajudar. O projeto não foi copiado e nenhum XP foi concedido.' : 'Convite recusado.');
-    await resource.refresh();
+    resource.refresh();
   }
   if (!account) return null;
   const pending = (data?.received || []).filter((invite) => invite.status === 'pending');
