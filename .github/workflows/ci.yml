@@ -30,11 +30,12 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
-      - name: Testes de domínio, autenticação, importação, Companion e amigos
-        run: npm test
-
+      # O build vem antes: o contrato da API serve dist/ (ex.: /@usuario) e dá 404 sem ele.
       - name: Build estático
         run: npm run build
+
+      - name: Testes de domínio, autenticação, importação, Companion e amigos
+        run: npm test
 
       - name: Instalar navegador dos testes
         run: npx playwright install chromium
