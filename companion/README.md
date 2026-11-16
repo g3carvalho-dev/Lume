@@ -25,10 +25,13 @@ continua disponível para diagnóstico.
   aberto. Sem batimento por 90 segundos, a presença expira sozinha.
 - Mostra quantas aulas faltam por curso e o roteiro por prioridade
   (continuidade, primeiro passo, proximidade do fim, ordem da biblioteca).
-- Botão de atualização consulta a última release `companion-v*` no GitHub, baixa
-  o instalador compatível (`Lume-setup.exe` no Windows; `Lume.AppImage` ou
-  `Lume.deb` no Linux) com progresso e abre o arquivo/pasta. A configuração em
-  `%APPDATA%\Lume\companion.json` (Windows) ou `~/.config/Lume/companion.json`
+- Atualiza sozinho: procura versão nova ao abrir e a cada 6 horas, baixa em segundo plano
+  (só a diferença, quando possível) e mostra **Reiniciar e atualizar**. O Lume fecha, instala
+  **por cima** da versão atual em silêncio e reabre — sem instalador para conduzir à mão e sem
+  sobrar instalação antiga. Vale para o Windows instalado e para o AppImage
+  (`electron-updater`, lendo `latest.yml`/`latest-linux.yml` da release). O pacote `.deb` e a
+  execução fora do instalador usam o caminho manual (`update.mjs`: baixa e abre o arquivo). A
+  configuração em `%APPDATA%Lumecompanion.json` (Windows) ou `~/.config/Lume/companion.json`
   (Linux) é preservada.
 
 ## O que ele não faz

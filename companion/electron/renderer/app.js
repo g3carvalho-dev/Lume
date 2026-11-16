@@ -1,4 +1,4 @@
-// Interface da janela. Recebe estado pronto do processo principal; nÃ£o acessa
+// Interface da janela. Recebe estado pronto do processo principal; não acessa
 // rede, sistema de arquivos nem o token do dispositivo.
 
 const $ = (id) => document.getElementById(id);
@@ -20,7 +20,7 @@ function show(id, visible) {
 
 function elapsed(since) {
   const start = Date.parse(since);
-  if (!Number.isFinite(start)) return 'â€”';
+  if (!Number.isFinite(start)) return '—';
   const total = Math.max(0, Math.floor((Date.now() - start) / 1000));
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
@@ -50,15 +50,15 @@ function renderPresence() {
   const active = Boolean(state.detected) && !state.paused;
   $('presence-dot').className = `dot ${active ? 'on' : state.paused ? 'paused' : ''}`;
   $('presence-app').textContent = state.paused
-    ? 'PresenÃ§a pausada'
+    ? 'Presença pausada'
     : state.detected?.label || 'Nenhum aplicativo da lista';
   $('presence-meta').textContent = state.paused
-    ? 'Nada estÃ¡ sendo enviado ao Lume.'
+    ? 'Nada está sendo enviado ao Lume.'
     : state.detected
-      ? `${CATEGORY_LABEL[state.detected.category] || 'Outra atividade'} Â· ${state.deviceName || 'este computador'}`
+      ? `${CATEGORY_LABEL[state.detected.category] || 'Outra atividade'} · ${state.deviceName || 'este computador'}`
       : 'Aguardando um aplicativo autorizado.';
-  $('presence-time').textContent = active && state.since ? elapsed(state.since) : 'â€”';
-  $('pause').textContent = state.paused ? 'Retomar presenÃ§a' : 'Pausar presenÃ§a';
+  $('presence-time').textContent = active && state.since ? elapsed(state.since) : '—';
+  $('pause').textContent = state.paused ? 'Retomar presença' : 'Pausar presença';
 }
 
 function renderPlan() {
@@ -75,7 +75,7 @@ function renderPlan() {
     const title = document.createElement('strong');
     title.textContent = step.title;
     const meta = document.createElement('small');
-    meta.textContent = [step.courseTitle, step.discipline, step.reason?.label].filter(Boolean).join(' Â· ');
+    meta.textContent = [step.courseTitle, step.discipline, step.reason?.label].filter(Boolean).join(' · ');
     item.append(title, meta);
     steps.append(item);
   }
@@ -110,46 +110,52 @@ function renderUpdate() {
   const info = state.update || {};
   const status = info.status || 'idle';
   const current = info.currentVersion || '';
+  const native = info.mode === 'native';
+  const linux = state?.platform === 'linux';
   const line = $('update-line');
   const action = $('update-action');
   const note = $('update-note');
 
-  if (status === 'checking') line.textContent = 'Procurando atualizaÃ§Ã£oâ€¦';
-  else if (status === 'current') line.textContent = `VersÃ£o ${current} Ã© a mais recente.`;
-  else if (status === 'available') line.textContent = `VersÃ£o ${info.latest} disponÃ­vel. VocÃª estÃ¡ na ${current}.`;
-  else if (status === 'downloading') line.textContent = `Baixando a versÃ£o ${info.latest}â€¦${info.progress ? ` ${info.progress}%` : ''}`;
-  else if (status === 'ready') line.textContent = `Instalador da versÃ£o ${info.latest} pronto para abrir.`;
-  else if (status === 'installing') line.textContent = 'Instalador aberto.';
-  else if (status === 'error') line.textContent = 'NÃ£o foi possÃ­vel verificar agora.';
-  else line.textContent = current ? `VersÃ£o ${current}` : 'VersÃ£o desconhecida';
+  if (status === 'checking') line.textContent = 'Procurando atualização…';
+  else if (status === 'current') line.textContent = `Versão ${current} é a mais recente.`;
+  else if (status === 'available') line.textContent = `Versão ${info.latest} disponível. Você está na ${current}.`;
+  else if (status === 'downloading') line.textContent = `Baixando a versão ${info.latest || 'nova'}…${info.progress ? ` ${info.progress}%` : ''}`;
+  else if (status === 'ready') line.textContent = native ? `Versão ${info.latest} pronta para instalar.` : `Instalador da versão ${info.latest} pronto para abrir.`;
+  else if (status === 'installing') line.textContent = native ? 'Atualizando… o Lume reabre sozinho.' : 'Instalador aberto.';
+  else if (status === 'error') line.textContent = 'Não foi possível atualizar agora.';
+  else line.textContent = current ? `Versão ${current}` : 'Versão desconhecida';
 
   const labels = {
-    idle: 'Verificar atualizaÃ§Ã£o',
-    checking: 'Procurandoâ€¦',
+    idle: 'Verificar atualização',
+    checking: 'Procurando…',
     current: 'Verificar de novo',
     available: 'Baixar e instalar',
-    downloading: 'Baixandoâ€¦',
-    ready: 'Abrir instalador',
-    installing: 'Abrir novamente',
+    downloading: 'Baixando…',
+    ready: native ? 'Reiniciar e atualizar' : 'Abrir instalador',
+    installing: native ? 'Atualizando…' : 'Abrir novamente',
     error: 'Tentar de novo',
   };
   action.textContent = labels[status] || labels.idle;
-  action.disabled = busy || status === 'checking' || status === 'downloading';
+  action.disabled = busy || status === 'checking' || status === 'downloading' || (native && status === 'installing');
 
-  const linux = state?.platform === 'linux';
   const notes = {
-    ready: linux
-      ? 'Arquivo salvo na pasta de Downloads. A conta conectada continua valendo.'
-      : 'O instalador vai abrir. Feche o Lume e conclua. A conta conectada continua valendo.',
-    installing: linux
-      ? (info.file?.endsWith('.AppImage')
+    ready: native
+      ? 'O Lume fecha, instala por cima da versão atual e abre de novo. Sua conta e o pareamento continuam valendo.'
+      : (linux
+        ? 'Arquivo salvo na pasta de Downloads. A conta conectada continua valendo.'
+        : 'O instalador vai abrir. Feche o Lume e conclua. A conta conectada continua valendo.'),
+    installing: native
+      ? 'Não feche o computador: a troca leva alguns segundos.'
+      : (linux
+        ? (info.file?.endsWith('.AppImage')
           ? 'Arquivo aberto na pasta de Downloads. Execute a nova versão do AppImage.'
           : 'Instalador aberto. Conclua a atualização e abra o Lume novamente.')
-      : 'Feche o Lume para a instalaÃ§Ã£o concluir e abra de novo depois.',
+        : 'Feche o Lume para a instalação concluir e abra de novo depois.'),
+    downloading: native ? 'O download acontece em segundo plano; você pode continuar usando o Lume.' : '',
     error: info.error || '',
     available: linux
       ? 'Será baixado o pacote compatível (.AppImage ou .deb) na pasta de Downloads.'
-      : 'O arquivo ainda nÃ£o tem assinatura digital: o Windows pode pedir confirmaÃ§Ã£o.',
+      : 'O arquivo ainda não tem assinatura digital: o Windows pode pedir confirmação.',
   };
   note.textContent = notes[status] || '';
   note.classList.toggle('hidden', !note.textContent);
@@ -158,7 +164,7 @@ function renderUpdate() {
 function render() {
   if (!state) return;
   $('device').textContent = state.paired
-    ? `${state.deviceName || 'este computador'}${state.paused ? ' Â· pausado' : ''}`
+    ? `${state.deviceName || 'este computador'}${state.paused ? ' · pausado' : ''}`
     : 'Desconectado';
   renderStatus();
   show('pair', !state.paired);
@@ -195,7 +201,7 @@ $('pair-form').addEventListener('submit', (event) => {
   const code = $('pair-code').value.trim();
   const name = $('pair-name').value.trim();
   const apiUrl = $('pair-api').value.trim();
-  if (!code) { renderError('Informe o cÃ³digo mostrado no Lume.'); return; }
+  if (!code) { renderError('Informe o código mostrado no Lume.'); return; }
   run('pair', { code, name, apiUrl }).then(() => {
     if (state?.paired) {
       $('pair-code').value = '';
@@ -209,7 +215,7 @@ $('discord-toggle').addEventListener('click', () => run('toggle-discord'));
 $('refresh').addEventListener('click', () => run('refresh'));
 $('open-settings').addEventListener('click', () => run('open-settings'));
 $('unpair').addEventListener('click', () => {
-  if (confirm('Desconectar este computador? A presenÃ§a deixa de ser enviada atÃ© um novo pareamento.')) run('unpair');
+  if (confirm('Desconectar este computador? A presença deixa de ser enviada até um novo pareamento.')) run('unpair');
 });
 $('open').addEventListener('click', () => run('open-lume'));
 $('update-action').addEventListener('click', () => {
@@ -232,4 +238,4 @@ window.companion.onState((value) => {
 
 setInterval(() => { if (state?.detected && !state.paused) $('presence-time').textContent = elapsed(state.since); }, 1000);
 
-window.companion.action('state').then((value) => { state = value; render(); }).catch(() => renderError('NÃ£o foi possÃ­vel carregar o estado do Companion.'));
+window.companion.action('state').then((value) => { state = value; render(); }).catch(() => renderError('Não foi possível carregar o estado do Companion.'));

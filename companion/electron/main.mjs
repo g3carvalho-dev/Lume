@@ -13,7 +13,9 @@ import {
 } from '../core.mjs';
 import { createIpcDiscordClient } from '../discord-client.mjs';
 import { createDiscordPresence, normalizeStudy, resolveDiscordSettings } from '../discord-presence.mjs';
+import electronUpdater from 'electron-updater';
 import { checkForUpdate, downloadInstaller, RELEASES_PAGE } from '../update.mjs';
+import { createUpdater, nativeUpdatesSupported } from '../updater.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const assets = app.isPackaged ? join(process.resourcesPath, 'assets') : join(here, '..', 'assets');
@@ -61,9 +63,29 @@ function setStudy(value) {
 }
 
 let discordStatus = { enabled: true, configured: false, status: 'unconfigured' };
-let updateInfo = {
-  status: 'idle', currentVersion: '', latest: null, assetName: '', progress: 0, error: null, file: null, page: RELEASES_PAGE,
-};
+const nativeUpdates = nativeUpdatesSupported({ packaged: app.isPackaged });
+const updater = createUpdater({
+  autoUpdater: nativeUpdates ? electronUpdater.autoUpdater : null,
+  currentVersion: app.getVersion(),
+  native: nativeUpdates,
+  releasesPage: RELEASES_PAGE,
+  onChange: () => { broadcast(); buildMenu(); },
+  // Deixa o Lume sair de verdade (sem esconder na bandeja) para o instalador trocar os arquivos.
+  beforeInstall: () => { quitting = true; },
+  fallback: {
+    checkForUpdate,
+    downloadInstaller,
+    destDir: () => (process.platform === 'linux' ? app.getPath('downloads') : ''),
+    openInstaller: async (file) => {
+      if (process.platform === 'linux' && /.AppImage$/i.test(file)) { shell.showItemInFolder(file); return; }
+      const failure = await shell.openPath(file);
+      if (failure) {
+        if (process.platform === 'linux') shell.showItemInFolder(file);
+        else throw new Error(failure);
+      }
+    },
+  },
+});
 
 if (process.platform === 'win32') app.setAppUserModelId('com.lume.app');
 
@@ -93,6 +115,7 @@ if (!app.requestSingleInstanceLock()) {
       });
     }
     discordStatus = discordGuess();
+    if (!smoke) updater.start();
 
     try {
       tray = new Tray(trayImage(state));
@@ -186,6 +209,15 @@ function trayLabel(value) {
   return 'Lume — aguardando um aplicativo da lista';
 }
 
+function updateMenuItem() {
+  const update = updater.getInfo();
+  if (update.status === 'ready') {
+    return { label: `Reiniciar e atualizar para ${update.latest}`, click: () => { installUpdate().catch(() => showPanel()); } };
+  }
+  if (update.status === 'downloading') return { label: `Baixando a versão ${update.latest || 'nova'}…`, enabled: false };
+  return { label: 'Verificar atualização', click: () => { showPanel(); checkUpdate().catch(() => {}); } };
+}
+
 function buildMenu() {
   if (!tray) return;
   const items = [
@@ -193,7 +225,7 @@ function buildMenu() {
     { type: 'separator' },
     { label: 'Abrir o Lume', click: () => showMain() },
     { label: 'Presença e pareamento', click: () => showPanel() },
-    { label: 'Verificar atualização', click: () => { showPanel(); checkUpdate().catch(() => {}); } },
+    updateMenuItem(),
     { label: 'Abrir no navegador', click: () => shell.openExternal(state.apiUrl || readConfig().apiUrl) },
   ];
   if (state.paired) {
@@ -232,7 +264,7 @@ function discordGuess() {
 }
 
 function snapshot() {
-  return { ...state, platform: process.platform, discord: discordStatus, update: { ...updateInfo, currentVersion: app.getVersion() } };
+  return { ...state, platform: process.platform, discord: discordStatus, update: updater.getInfo() };
 }
 
 function broadcast() {
@@ -242,75 +274,15 @@ function broadcast() {
   }
   if (panelWindow && !panelWindow.isDestroyed()) panelWindow.webContents.send('state', snapshot());
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('lume:update-status', { ...updateInfo, currentVersion: app.getVersion(), platform: process.platform });
+    mainWindow.webContents.send('lume:update-status', { ...updater.getInfo(), platform: process.platform });
   }
 }
 
 // ---------- Atualização ----------
 
-async function checkUpdate() {
-  updateInfo = { ...updateInfo, status: 'checking', error: null, progress: 0 };
-  broadcast();
-  try {
-    const result = await checkForUpdate({ current: app.getVersion() });
-    updateInfo = {
-      ...updateInfo,
-      status: result.available ? 'available' : 'current',
-      latest: result.latest,
-      assetName: result.assetName || '',
-      installerUrl: result.installerUrl || null,
-      size: result.size || 0,
-      notes: result.notes || '',
-      page: result.page || RELEASES_PAGE,
-      file: null,
-      progress: 0,
-    };
-  } catch (error) {
-    updateInfo = { ...updateInfo, status: 'error', error: error.message || String(error) };
-  }
-  broadcast();
-  return snapshot();
-}
-
-async function downloadUpdate() {
-  if (!updateInfo.installerUrl) throw new Error('Verifique a atualização antes de baixar.');
-  updateInfo = { ...updateInfo, status: 'downloading', progress: 0, error: null };
-  broadcast();
-  try {
-    const destDir = process.platform === 'linux' ? app.getPath('downloads') : '';
-    const file = await downloadInstaller({
-      url: updateInfo.installerUrl,
-      version: updateInfo.latest,
-      assetName: updateInfo.assetName,
-      destDir,
-      onProgress: (percent) => {
-        updateInfo = { ...updateInfo, progress: percent ?? updateInfo.progress };
-        broadcast();
-      },
-    });
-    updateInfo = { ...updateInfo, status: 'ready', file, progress: 100 };
-  } catch (error) {
-    updateInfo = { ...updateInfo, status: 'error', error: error.message || String(error), progress: 0 };
-  }
-  broadcast();
-  return snapshot();
-}
-
-async function installUpdate() {
-  if (!updateInfo.file) throw new Error('Nenhum instalador baixado ainda.');
-  if (process.platform === 'linux' && /\.AppImage$/i.test(updateInfo.file)) {
-    shell.showItemInFolder(updateInfo.file);
-  } else {
-    const failure = await shell.openPath(updateInfo.file);
-    if (failure) {
-      if (process.platform === 'linux') shell.showItemInFolder(updateInfo.file);
-      else throw new Error(failure);
-    }
-  }
-  updateInfo = { ...updateInfo, status: 'installing' };
-  broadcast();
-  return snapshot();
-}
+function checkUpdate() { return updater.check().then(snapshot); }
+function downloadUpdate() { return updater.download().then(snapshot); }
+function installUpdate() { return updater.install().then(snapshot); }
 
 // ---------- Janelas ----------
 // A janela principal é o próprio Lume: o mesmo site publicado, na mesma origem,
@@ -457,7 +429,7 @@ ipcMain.handle('lume:update', async (_event, name) => {
   if (name === 'check') return checkUpdate();
   if (name === 'download') return downloadUpdate();
   if (name === 'install') return installUpdate();
-  return { ...updateInfo, currentVersion: app.getVersion() };
+  return updater.getInfo();
 });
 
 ipcMain.handle('action', async (_event, name, payload = {}) => {

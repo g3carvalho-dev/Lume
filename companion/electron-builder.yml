@@ -15,6 +15,7 @@ files:
   - core.mjs
   - domain.mjs
   - update.mjs
+  - updater.mjs
   - discord-presence.mjs
   - discord-client.mjs
   - package.json
@@ -27,6 +28,14 @@ extraResources:
       - "*.png"
   - from: build/icon.png
     to: assets/icon.png
+
+# Gera latest.yml / latest-linux.yml e grava app-update.yml no pacote: é por eles
+# que o electron-updater acha a versão nova e troca a instalação por cima.
+publish:
+  provider: github
+  owner: libonatii
+  repo: Lume
+  releaseType: release
 
 win:
   target:
@@ -42,6 +51,9 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: Lume
   artifactName: Lume-setup.${ext}
+  # Atualização silenciosa precisa achar e substituir a instalação existente.
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
 
 linux:
   target:

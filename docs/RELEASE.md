@@ -49,7 +49,7 @@ O workflow:
 1. Confere se a tag bate com `companion/package.json` (falha cedo se não bater).
 2. Roda `npm ci` em `companion/` no Windows e no Linux (`ubuntu-latest`).
 3. Gera o instalador NSIS (`Lume-setup.exe`) e os pacotes Linux (`Lume.AppImage` e `Lume.deb`).
-4. Cria a release com notas automáticas e envia `.exe`, `.blockmap`, `.AppImage` e `.deb`.
+4. Cria a release com notas automáticas e envia `.exe`, `.blockmap`, `.AppImage`, `.deb` e **`latest.yml`/`latest-linux.yml`**: são eles que fazem o app instalado se atualizar sozinho, por cima da versão atual. A release precisa ter esses arquivos, senão quem já instalou não recebe a atualização (a primeira versão com o novo updater ainda precisa ser instalada à mão).
 
 Também é possível disparar manualmente em *Actions → Companion release → Run
 workflow*, informando uma tag já existente.
@@ -87,6 +87,6 @@ Localmente, sem `PLAYWRIGHT_CHANNEL`, os testes usam o Chrome instalado.
 ## 6. Limites atuais
 
 - Windows x64 e Linux x64 (sem macOS).
-- Sem auto-update: cada versão é um instalador/pacote novo, e o app só avisa que há versão nova pela API de releases do GitHub (`companion/update.mjs`). Os arquivos `latest.yml` e `latest-linux.yml` **não** são gerados, porque o `electron-builder.yml` não tem bloco `publish`; para usar `electron-updater` depois, acrescente `publish: { provider: github }` e rode o build com `--publish never`.
+- Atualização automática: o app instalado (Windows e AppImage) lê `latest.yml`/`latest-linux.yml` da release mais recente, baixa em segundo plano e instala por cima em silêncio (`companion/updater.mjs`, `electron-updater`). O `.deb` e a execução fora do instalador usam o caminho manual de `companion/update.mjs`. `dist` roda com `--publish never`: quem publica é o workflow. Quem está numa versão sem o novo updater precisa instalar a primeira versão nova à mão, uma única vez.
 - `npm audit` acusa vulnerabilidades moderadas em dependências transitivas do
   `electron-builder`; nenhuma delas entra no app empacotado (são ferramentas de build).

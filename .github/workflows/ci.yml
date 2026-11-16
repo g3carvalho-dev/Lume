@@ -82,7 +82,8 @@ jobs:
             companion/domain.mjs \
             companion/discord-presence.mjs \
             companion/discord-client.mjs \
-            companion/update.mjs
+            companion/update.mjs 
+            companion/updater.mjs
           do
             node --check "$file"
           done
@@ -93,7 +94,7 @@ jobs:
         run: npm ci
 
       - name: Testes unitários do Companion
-        run: node --test companion/update.test.js companion/discord-presence.test.js tests/unit/companion.test.js tests/unit/desktop.test.js
+        run: node --test companion/update.test.js companion/updater.test.js companion/discord-presence.test.js tests/unit/companion.test.js tests/unit/desktop.test.js
 
       - name: Conferir a sintaxe da extensão do navegador
         if: matrix.os == 'windows-latest'
