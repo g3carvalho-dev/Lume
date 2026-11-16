@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
+import ExtensionInvite from './ExtensionInvite.jsx';
 import Icon from '../../ui/Icon.jsx';
 import { Button } from '../../ui/ui.jsx';
 import { api, apiError } from '../../lib/api.js';
@@ -267,18 +268,18 @@ export default function ImportCourse({ state, actions, close, notify, go, open, 
   const linkStep = phase === 'link' && <>
     <span className="eyebrow">Uma entrada só · o link ou a página</span>
     <h2 id="dialog-title" className="headline" ref={heading}>{updating ? 'Atualizar a grade do curso' : 'Cole o link do que você quer estudar'}</h2>
-    <p className="muted-text">O Lume identifica a plataforma e lê o que a página pública mostra. Curso que só aparece depois do login? Use a extensão do Lume na página do curso, aberta com a sua conta, ou copie a página e cole na aba “Colar a grade”: a sua sessão não é enviada.</p>
+    <p className="muted-text">Cole o endereço da página pública ou escolha “Colar a grade” para usar a página aberta na sua conta.</p>
     <div className="import-mode" role="tablist" aria-label="Forma de importar">
       <button role="tab" aria-selected={mode === 'link'} className="filter-btn" onClick={() => setMode('link')}><span>Link do curso</span></button>
       <button role="tab" aria-selected={mode === 'paste'} className="filter-btn" onClick={() => setMode('paste')}><span>Colar a grade</span></button>
     </div>
+    {mode === 'link' && <ExtensionInvite provider={detectedProvider}/>}
     {mode === 'link'
       ? <form className="form-stack" onSubmit={submitLink}>
         <label className="field">Link do curso
           <input name="import-url" type="text" inputMode="url" maxLength={2000} value={url} onChange={(event) => setUrl(event.target.value)} onPaste={handleUrlPaste} placeholder="https://…" autoComplete="off" required/>
         </label>
         {detectedProvider && detectedProvider.id !== 'unknown' && <p className="inline-note"><Icon name="check"/><span>{detectedProvider.label} detectado. Ao colar um link, a análise começa sozinha.</span></p>}
-        {detectedProvider && ['grancursos', 'estrategia'].includes(detectedProvider.id) && <p className="inline-note"><Icon name="help"/><span>{detectedProvider.label} só mostra as aulas depois do login, então o link sozinho não traz a grade. Use a extensão do Lume na página do curso, com a sua conta.</span></p>}
         <p className="quiet-note">Funciona com Gran Cursos, Estratégia, Alura, Rocketseat, Udemy, Coursera e outras fontes. A revisão mostra o que a página pública permitiu ler; o resto pode ser colado.</p>
         <Button className="full-width" type="submit"><Icon name="search"/>Analisar link</Button>
         <Button secondary className="full-width" type="button" onClick={detectAndAdd} disabled={!normalizeImportUrl(url)}><Icon name="spark"/>Detectar e adicionar</Button>
@@ -406,15 +407,7 @@ export default function ImportCourse({ state, actions, close, notify, go, open, 
     <h2 id="dialog-title" className="headline" ref={heading}>{errorTitle(error?.code)}</h2>
     <p className="dialog-text">{error?.message}</p>
     {error?.code === 'protected' || error?.code === 'no_syllabus' || error?.code === 'unparsed_text'
-      ? <div className="import-extension-help">
-        <p className="quiet-note">O Lume não contorna login nem controles de acesso, e o servidor só enxerga a página pública. Para ler as aulas de um curso logado, use a <strong>extensão do Lume</strong>:</p>
-        <ol className="quiet-note">
-          <li>Instale a extensão (pasta <code>extension/</code>; passo a passo em <code>extension/LEIAME.md</code>).</li>
-          <li>Abra a lista de aulas do curso na plataforma, com a sua conta.</li>
-          <li>Clique no ícone da extensão e em “Ler esta página e enviar”. A revisão abre aqui.</li>
-        </ol>
-        <p className="quiet-note">Sem a extensão, copie a página aberta (Ctrl+A, Ctrl+C) e cole na aba “Colar a grade”, ou cadastre o curso à mão.</p>
-      </div>
+      ? <ExtensionInvite provider={detectedProvider}/>
       : <p className="quiet-note">O link e o que você já escolheu continuam guardados nesta janela.</p>}
     <div className="dialog-actions">
       <Button onClick={() => runAnalysis(lastSource.current || (mode === 'paste' ? { kind: 'text', text, title, url: url.trim() } : { kind: 'url', url: url.trim() }))}><Icon name="return"/>Tentar de novo</Button>

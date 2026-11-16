@@ -1,3 +1,5 @@
+import { writeFile } from 'node:fs/promises';
+import { PROVIDERS } from '../public/providers/registry.js';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 
@@ -8,6 +10,11 @@ import { fileURLToPath } from 'node:url';
 // falha se ele estiver desatualizado.
 
 export const BANNER = '// Gerado por scripts/build-extension.mjs a partir de extension/src/capture.js. Não edite: rode npm run extension:build.';
+
+export function platformModule() {
+  const platforms = PROVIDERS.map(({ id, label, hosts }) => ({ id, label, hosts }));
+  return `// Gerado do registro de provedores por npm run extension:build.\nexport const platforms = ${JSON.stringify(platforms, null, 2)};\n`;
+}
 
 export async function buildCapture({ outfile = fileURLToPath(new URL('../extension/capture.js', import.meta.url)), write = true } = {}) {
   const result = await build({
@@ -27,6 +34,7 @@ export async function buildCapture({ outfile = fileURLToPath(new URL('../extensi
 }
 
 if (import.meta.url === `file:///${process.argv[1]?.replaceAll('\\', '/').replace(/^\//, '')}` || process.argv[1]?.endsWith('build-extension.mjs')) {
+  await writeFile(new URL('../extension/platforms.js', import.meta.url), platformModule());
   await buildCapture();
   console.log('extension/capture.js atualizado.');
 }

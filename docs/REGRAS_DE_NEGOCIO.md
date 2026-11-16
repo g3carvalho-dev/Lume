@@ -264,6 +264,7 @@ Consulte também:
    - `public/providers/registry.js` é a única lista de domínios reconhecidos (`grancursos`, `estrategia`, `alura`, `rockeatseat`, `udemy`, `coursera`, `dio`, `hotmart`, `generic`).
    - Cada provedor declara suas capacidades reais (`syllabus`, `progress`, `resume`, `requiresLogin`). Fontes genéricas/desconhecidas **não** leem marcas de aula concluída.
    - O Lume nunca pede senha ou cookie de plataformas externas. Para cursos que exigem login, a pessoa usa a **extensão do navegador** (`extension/`) ou cola a página copiada da sua sessão.
+   - Em Biblioteca › Adicionar curso, o cartão da extensão oferece a ficha da loja, reconhece a versão anunciada pela ponte e orienta a colar a grade no celular, no aplicativo de desktop e nos navegadores sem suporte. O popup oferece a leitura nas plataformas do registro.
    - Toda importação ou captura da extensão passa pela tela de revisão antes de gravar na biblioteca.
    - Na reimportação de um mesmo curso (`adoptExistingIds`), unidades já existentes preservam seus IDs internos (casando por `externalId` ou título normalizado), concluindo como `origin: 'integration'` apenas as novas conclusões observadas e confirmadas na revisão (`observedCompletionIds`).
 2. **Backup e Mesclagem (`public/backup-domain.js`, `public/merge-domain.js`):**

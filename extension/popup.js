@@ -1,3 +1,5 @@
+import { platforms } from './platforms.js';
+
 const button = document.getElementById('read');
 const status = document.getElementById('status');
 const target = document.getElementById('target');
@@ -74,3 +76,15 @@ chrome.runtime.onMessage.addListener((message) => { if (message?.type === 'lume-
 
 button.addEventListener('click', read);
 completeButton.addEventListener('click', complete);
+
+async function showPlatform() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.url || !/^https?:/i.test(tab.url)) return;
+  const host = new URL(tab.url).hostname;
+  const provider = platforms.find(({ hosts }) => hosts.some(domain => host === domain || host.endsWith(`.${domain}`)));
+  if (!provider) return;
+  document.getElementById('platform').textContent = provider.label;
+  document.getElementById('hint').textContent = 'Abra a lista de aulas e mantenha este painel aberto até a revisão aparecer no Lume.';
+  document.getElementById('actions').hidden = false;
+}
+showPlatform().catch(() => say('Abra novamente o painel na página do curso.'));

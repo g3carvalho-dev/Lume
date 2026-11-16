@@ -1,13 +1,10 @@
 // Entrega a leitura ao Lume. Fica aqui, e não no popup, porque o popup fecha
 // assim que a aba do Lume ganha o foco.
-const LUME_URLS = {
-  published: 'https://lumeacademy.site',
-  local: 'http://localhost:4173',
-};
-
 async function lumeBase() {
   const { lumeTarget } = await chrome.storage.local.get('lumeTarget');
-  return LUME_URLS[lumeTarget] || LUME_URLS.published;
+  const origins = chrome.runtime.getManifest().host_permissions;
+  const local = lumeTarget === 'local' && origins.find(pattern => pattern.startsWith('http:'));
+  return new URL(local || origins.find(pattern => pattern.startsWith('https:'))).origin;
 }
 
 async function findOrOpenLume(base) {

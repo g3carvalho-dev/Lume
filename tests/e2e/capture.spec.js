@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { test, expect } from '@playwright/test';
-import { seedAccount, readAccount } from './library-helpers.js';
+import { seedAccount, readAccount, addMaterial } from './library-helpers.js';
 import { createInitialState, STORAGE_KEY } from '../../public/domain.js';
 
 // Leitor da extensão (extension/capture.js) contra páginas de exemplo no formato
@@ -128,6 +128,35 @@ async function openLume(page) {
   await page.goto('/#biblioteca');
   await expect(page.getByRole('heading', { name: 'Biblioteca', exact: true })).toBeVisible();
 }
+
+test('a oferta de instalação verifica a versão novamente e mantém a opção de colar', async ({ page }) => {
+  await openLume(page);
+  await addMaterial(page, 'Adicionar curso');
+  const card = page.getByRole('region', { name: 'Extensão do Lume' });
+  await expect(card.getByRole('link', { name: 'Instalar a extensão' })).toBeVisible();
+  await page.evaluate(() => {
+    window.addEventListener('message', event => {
+      if (event.data?.source === 'lume' && event.data.type === 'ping') {
+        window.postMessage({ source: 'lume-extension', type: 'hello', version: '0.2.1' }, location.origin);
+      }
+    });
+  });
+  await card.getByRole('button', { name: 'Já instalei' }).click();
+  await expect(card.getByRole('link', { name: 'Atualizar a extensão' })).toBeVisible();
+  await page.evaluate(() => window.postMessage({ source: 'lume-extension', type: 'hello', version: '0.3.0' }, location.origin));
+  await expect(card.getByRole('heading', { name: 'Extensão instalada' })).toBeVisible();
+  await expect(card.getByRole('listitem')).toHaveCount(3);
+  await page.getByRole('tab', { name: 'Colar a grade' }).click();
+  await expect(page.getByLabel('Grade do curso', { exact: true })).toBeVisible();
+});
+
+test('no aplicativo de desktop a oferta orienta a colar a grade', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { value: 'Chrome/157 Electron/43' }));
+  await openLume(page);
+  await addMaterial(page, 'Adicionar curso');
+  await expect(page.getByText(/funciona no Chrome e no Edge do computador/)).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Instalar a extensão' })).toHaveCount(0);
+});
 
 function captured(done) {
   const lesson = (title, completed, n) => ({ title, url: `https://www.udemy.com/course/react-do-zero/learn/lecture/${n}`, duration: 300, completed });

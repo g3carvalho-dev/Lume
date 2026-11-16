@@ -4,7 +4,9 @@ Lê, na página que você abriu com a sua conta, os nomes das aulas, as duraçõ
 envia ao Lume para revisão. Serve para plataformas que só mostram a grade depois do login (Gran, Estratégia,
 Udemy, Alura, Coursera, Rocketseat e outras).
 
-**Status:** protótipo. Testado com páginas de exemplo e com um trecho real do painel do Gran. A leitura do Gran pela API foi conferida com uma conta real em 01/11/2026, mas a extensão ainda não foi carregada num Chrome. As outras plataformas ainda não foram vistas com contas reais. Não está publicado na loja. Não é o aplicativo de desktop do Lume (ver [aplicativo de desktop](../companion/README.md)): ele só lê cursos na página aberta.
+**Status:** protótipo. Testado com páginas de exemplo e com um trecho real do painel do Gran. A leitura do Gran pela API foi conferida com uma conta real em 01/11/2026. Em 16/11/2026, a versão 0.3.0 foi carregada no Chrome 157. As outras plataformas ainda não foram vistas com contas reais. Não está publicado na loja. Não é o aplicativo de desktop do Lume (ver [aplicativo de desktop](../companion/README.md)): ele só lê cursos na página aberta.
+
+O fluxo **Biblioteca › Adicionar curso** oferece a instalação pela loja no Chrome e no Edge do computador. Ao voltar, clique em **Já instalei** para verificar a versão. Se acabou de instalar com a página já aberta, recarregue também a aba do Lume.
 
 ## Instalar (modo desenvolvedor)
 
@@ -16,7 +18,7 @@ Udemy, Alura, Coursera, Rocketseat e outras).
 
 1. Entre no Lume (no endereço publicado ou em `localhost:4173`) e na plataforma do curso.
 2. Na plataforma, abra a tela com o índice do curso (módulos e aulas).
-3. Clique no ícone e em **Ler esta página e enviar**. A extensão abre e fecha as seções para ler os nomes. No Gran,
+3. Clique no ícone e em **Ler este curso**. A extensão abre e fecha as seções para ler os nomes. No Gran,
    ela pede a grade às mesmas rotas que a página usa e não precisa abrir nada; cada aula do Gran vira uma aula no
    Lume.
 4. O Lume abre a revisão. Confira, ajuste a seleção e adicione.
