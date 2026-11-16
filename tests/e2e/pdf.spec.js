@@ -234,7 +234,7 @@ test('no celular, o leitor de PDF ocupa a tela sem controles sobrepostos e as te
   test.skip(!isMobile, 'Layout de celular.');
   await seedAccount(page, seeded());
   // Nenhuma tela principal pode ficar mais larga que o celular.
-  for (const route of ['hoje', 'biblioteca', 'plano', 'agenda', 'tarefas', 'amigos', 'adicionar', 'perfil', 'configuracoes']) {
+  for (const route of ['hoje', 'biblioteca', 'plano', 'agenda', 'tarefas', 'amigos', 'perfil', 'configuracoes']) {
     await page.goto(`/#${route}`);
     await expect(page.locator('#main h1').first()).toBeVisible();
     const [scroll, client] = await page.locator('#main').evaluate((node) => [node.scrollWidth, node.clientWidth]);

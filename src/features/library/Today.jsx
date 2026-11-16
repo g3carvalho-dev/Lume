@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom';
 import { studyRhythm, hasPreparation } from '../../../public/domain.js';
 import { materialLesson } from '../../../public/material-model.js';
 import { isImportedCourse } from '../../../public/import-domain.js';
+import { openMessagesDock } from '../social/dock-bus.js';
 import { nextAction } from '../../../public/study-plan.js';
 import { focusedTask, isOverdue, priorityLabel, taskAgenda } from '../../../public/tasks-domain.js';
 import { formatMinutes, localDay } from '../../../public/session-domain.js';
@@ -420,9 +421,9 @@ function ActiveRail({ wide, account, go, friends, activeFriends, loaded, onHide 
                     <span className="active-status">{activity.label}</span>
                   </span>
                 </a>
-                <a className="active-msg" href={`#mensagens?com=${encodeURIComponent(friend.id)}`} aria-label={`Mensagem para ${friend.name}`} title={`Mensagem para ${friend.name}`}>
+                <button type="button" className="active-msg" onClick={() => openMessagesDock({ contactId: friend.id })} aria-label={`Mensagem para ${friend.name}`} title={`Mensagem para ${friend.name}`}>
                   <Icon name="message"/>
-                </a>
+                </button>
               </div>
               {studying && <div className="active-card-body">
                 <span className="active-tile" aria-hidden="true"><Icon name="book"/></span>

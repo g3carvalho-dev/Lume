@@ -7,6 +7,7 @@ import { invalidateResources, useResource } from '../../lib/resources.js';
 import { api, apiError } from '../../lib/api.js';
 import { profilePath, warmProfileProps } from './prefetch.js';
 import { SocialAvatar } from './SocialFeed.jsx';
+import { openMessagesDock } from './dock-bus.js';
 import SectionTabs from '../../app/SectionTabs.jsx';
 import { buildProfile } from '../../../public/profile-domain.js';
 import { HEADER_ZOOM, MAX_PROFILE_BIO_LENGTH, normalizeHeaderFrame, studyRhythm } from '../../../public/domain.js';
@@ -340,7 +341,7 @@ export default function Profile({ id, handle = '', state, actions, account, noti
             <Icon name="edit"/>{editing ? 'Fechar edição' : 'Editar perfil'}
           </Button>}
           {!isSelf && view.viewer === 'public' && account && <AddFriendButton person={user} notify={notify} onChanged={remote.refresh}/>}
-          {!isSelf && view.viewer !== 'public' && account && <Button secondary onClick={() => go(`mensagens?com=${encodeURIComponent(user.id)}`)}>
+          {!isSelf && view.viewer !== 'public' && account && <Button secondary onClick={() => openMessagesDock({ contactId: user.id })}>
             <Icon name="message"/>Mensagem
           </Button>}
           {!isSelf && view.viewer !== 'public' && account && <Button secondary onClick={unfriend}>

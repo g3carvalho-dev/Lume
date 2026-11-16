@@ -63,11 +63,6 @@ export default function Shell({ route, model, children, hideTabs = false, onHelp
     hidePopover(accountPopoverRef);
   }, [route]);
 
-  // Mesmo recurso da tela de Mensagens: um intervalo só, e ler uma conversa
-  // atualiza o contador na hora.
-  const unreadSummary = useResource('/api/messages/unread', { interval: 45000, enabled: Boolean(model.account) });
-  const unread = model.account && unreadSummary.data?.notifications !== false ? Number(unreadSummary.data?.unread) || 0 : 0;
-
   if (entry && stitchEntry) {
     return <div className="entry-shell stitch-entry-shell">
       <main id="main" tabIndex={-1} className="entry-main stitch-entry-main">{children}</main>
@@ -88,7 +83,7 @@ export default function Shell({ route, model, children, hideTabs = false, onHelp
     <header className="topbar app-header">
       <div className="app-header-inner">
         <a href="#hoje" className="brand" aria-label="Lume — página inicial"><Logo size={22}/><span className="brand-name">Lume</span></a>
-        <nav className="nav" aria-label="Navegação">{links.map(([key, path, icon, label, short]) => <a key={key} href={`#${path}`} className={`nav-link ${section === key ? 'active' : ''}`} aria-current={section === key ? 'page' : undefined} aria-label={key === 'amigos' && unread > 0 ? `${label} (${unread} mensagens não lidas)` : short ? label : undefined}>{section === key && <motion.span className="nav-highlight" layoutId="active-navigation" transition={{ duration: .3, ease: [.22, 1, .36, 1] }}/>}<Icon name={icon}/><span className="nav-label"><span className="nav-label-full">{label}</span>{short && <span className="nav-label-short" aria-hidden="true">{short}</span>}</span>{key === 'amigos' && unread > 0 && <span className="nav-badge" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}</a>)}</nav>
+        <nav className="nav" aria-label="Navegação">{links.map(([key, path, icon, label, short]) => <a key={key} href={`#${path}`} className={`nav-link ${section === key ? 'active' : ''}`} aria-current={section === key ? 'page' : undefined} aria-label={short || undefined}>{section === key && <motion.span className="nav-highlight" layoutId="active-navigation" transition={{ duration: .3, ease: [.22, 1, .36, 1] }}/>}<Icon name={icon}/><span className="nav-label"><span className="nav-label-full">{label}</span>{short && <span className="nav-label-short" aria-hidden="true">{short}</span>}</span></a>)}</nav>
         <div className="topbar-right">
           {model.account && (model.syncStatus === 'saving' || model.syncStatus === 'loading') && <span className={`sr-only sync-${model.syncStatus}`} role="status">{syncLabels[model.syncStatus]}</span>}
           {(!model.account || model.syncStatus === 'error') && <span className={`sync-chip sync-${model.account ? model.syncStatus : 'local'}`} role="status"><Icon name="cloud"/>{model.account ? syncLabels[model.syncStatus] : 'Prévia temporária'}</span>}
@@ -164,7 +159,7 @@ export default function Shell({ route, model, children, hideTabs = false, onHelp
         </div>
       </div>
     </header>
-    <main id="main" tabIndex={-1}>{!hideTabs && <SectionTabs route={route} unread={unread}/>}{children}</main>
+    <main id="main" tabIndex={-1}>{!hideTabs && <SectionTabs route={route}/>}{children}</main>
     <footer className="app-footer"><div className="app-footer-inner"><span className="app-footer-brand"><strong>Lume</strong><small>Seu norte para provas, trabalhos e entregas.</small></span><span className="app-footer-meta"><span>{today}</span><a className="text-link" href="#novidades"><Icon name="spark"/>Novidades</a></span></div></footer>
   </div>;
 }

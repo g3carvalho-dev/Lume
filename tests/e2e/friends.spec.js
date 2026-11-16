@@ -60,7 +60,8 @@ test('convite cria amizade entre duas contas sem compartilhar progresso', async 
   expect((await guestFriends.json()).friends).toHaveLength(1);
 
   // Quem convidou vê a amizade depois de recarregar.
-  await page.goto('/#mensagens');
+  await page.reload();
+  await page.getByRole('button', { name: /Abrir mensagens/ }).click();
   await expect(page.getByRole('button', { name: /Bia do teste/ })).toBeVisible();
 
   // O convite conta quantas pessoas entraram (a tela não lista mais o histórico de convites).
@@ -72,7 +73,8 @@ test('convite cria amizade entre duas contas sem compartilhar progresso', async 
   await page.goto(`/#perfil?id=${encodeURIComponent(own.friends[0].id)}`);
   await page.getByRole('button', { name: 'Desfazer amizade' }).click();
   await expect(page.getByRole('heading', { name: 'Social', exact: true })).toBeVisible();
-  await page.goto('/#mensagens');
+  await page.reload();
+  await page.getByRole('button', { name: /Abrir mensagens/ }).click();
   await expect(page.getByRole('button', { name: /Bia do teste/ })).toHaveCount(0);
   const guestAfter = await guest.get('/api/friends');
   expect((await guestAfter.json()).friends).toHaveLength(0);
@@ -113,16 +115,12 @@ test('link de convite preenche o código e a amizade não concede XP', async ({ 
   await guest.dispose();
 });
 
-test('Adicionar amigos: busca e convite por link em uma tela simples', async ({ page, context }, testInfo) => {
+test('Conexões na dock flutuante: busca por @usuário e convite por link', async ({ page, context }, testInfo) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
   await register(page, testInfo, 'friend-add', 'Pessoa simples');
-  await page.goto('/#adicionar');
-  await expect(page.getByRole('heading', { name: 'Adicionar amigos', exact: true })).toBeVisible();
-  await expect(page.getByRole('searchbox').or(page.getByPlaceholder('@usuario'))).toBeVisible();
-  // Sem abas nem solicitações enquanto não há pedidos.
-  await expect(page.getByRole('tab')).toHaveCount(0);
-  await expect(page.getByText('Aguardando resposta')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Adicionar amigo ou ver pedidos' }).first().click();
+  await expect(page.getByPlaceholder('Buscar por @usuário exato…')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Copiar link' }).click();
+  await page.getByRole('button', { name: 'Link convite' }).click();
   await expect(page.getByText(/Link do convite copiado|Link: /)).toBeVisible();
 });
