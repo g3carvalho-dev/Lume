@@ -31,6 +31,8 @@ Atualizado em 15/11/2026. Este documento consolida **o que já existe e foi veri
 
 ---
 
+**Extensão, verificação local em 16/11/2026.** A versão descompactada 0.3.0 foi carregada no Chrome 157. Com uma conta descartável e todas as abas do Lume fechadas, o service worker obteve `authenticated: true` em `GET /api/me` usando `credentials: include` em localhost:4321. O aplicativo manteve o cookie HttpOnly e SameSite=Strict. Na aula real da Udemy, o vídeo fica no documento principal e a página consulta o currículo e os IDs das aulas concluídas por GET na mesma origem. No Gran, a página de videoaula expôs o reprodutor HTML5 no documento principal. A verificação dos players é distinta do teste de acompanhamento completo.
+
 ## 2. O que falta verificar em produção (`lumeacademy.site`)
 
 1. **Arquivos da biblioteca e mídia de perfil:**
