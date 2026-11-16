@@ -23,7 +23,7 @@ test('conectar programa, ver presença local e revogar o acesso', async ({ page,
   const sameOrigin = { origin: baseURL };
   await register(page, testInfo, 'companion');
   await page.goto('/#aplicativo');
-  await expect(page.getByRole('heading', { name: 'Presença no desktop' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Aplicativo de desktop' }).first()).toBeVisible();
   await expect(page.getByText('Nenhum programa conectado ainda.')).toBeVisible();
 
   await page.getByRole('button', { name: 'Conectar um programa' }).click();

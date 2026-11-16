@@ -15,9 +15,9 @@ function stateWithCourse() {
   return { ...applyCourseImport({ ...createInitialState(), onboarded: true }, payload), onboarded: true };
 }
 
-// Menu "…" do cartão do curso: excluir com confirmação.
+// Excluir material: pelo editor, só depois da confirmação.
 
-test('o menu "…" do cartão exclui o curso só depois da confirmação', { tag: '@celular' }, async ({ page }) => {
+test('excluir o material pelo editor só acontece depois da confirmação', { tag: '@celular' }, async ({ page }) => {
   const state = stateWithCourse();
   expect(state.courses.length).toBeGreaterThan(0);
   const target = state.courses[0];
@@ -25,22 +25,17 @@ test('o menu "…" do cartão exclui o curso só depois da confirmação', { tag
   await page.goto('/#biblioteca');
   await expect(page.getByRole('heading', { name: 'Biblioteca', exact: true })).toBeVisible();
 
-  const menu = page.getByRole('button', { name: `Mais ações de ${target.title}` });
-  await expect(menu).toHaveAttribute('aria-expanded', 'false');
-  await menu.click();
-  await expect(menu).toHaveAttribute('aria-expanded', 'true');
-  await page.getByRole('menuitem', { name: 'Excluir curso' }).click();
+  const card = page.getByRole('region', { name: 'Cursos e trilhas' }).getByRole('button', { name: new RegExp(target.title) });
+  await card.click();
+  await page.getByRole('button', { name: 'Editar material' }).first().click();
+  await page.getByRole('button', { name: 'Excluir material' }).click();
 
   // Confirmação: nada some antes dela.
-  await expect(page.getByRole('heading', { name: 'Excluir este curso?' })).toBeVisible();
-  await page.getByRole('button', { name: 'Manter curso' }).click();
-  await expect(menu).toBeVisible();
+  await page.getByRole('button', { name: 'Manter material' }).click();
+  expect((await readAccount(page)).courses.map((course) => course.id)).toContain(target.id);
 
-  await menu.click();
-  await page.getByRole('menuitem', { name: 'Excluir curso' }).click();
-  await page.getByRole('button', { name: 'Sim, excluir curso' }).click();
-  await expect(page.getByRole('button', { name: `Mais ações de ${target.title}` })).toHaveCount(0);
-  const left = (await readAccount(page)).courses.map((course) => course.id);
-  expect(left).not.toContain(target.id);
-  expect(left).toHaveLength(state.courses.length - 1);
+  await page.getByRole('button', { name: 'Excluir material' }).click();
+  await page.getByRole('button', { name: 'Sim, excluir' }).click();
+  await expect.poll(async () => (await readAccount(page)).courses.map((course) => course.id)).not.toContain(target.id);
+  expect((await readAccount(page)).courses).toHaveLength(state.courses.length - 1);
 });
