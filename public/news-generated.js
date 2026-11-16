@@ -1,6 +1,32 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-043e0d8b",
+    "at": "2026-11-16T23:32:21.000Z",
+    "title": "Disciplinas numa aba da Biblioteca",
+    "body": "Veja o que está em andamento e o que já terminou em cada disciplina, crie novas num painel simples e vincule PDFs pela aba Materiais.",
+    "href": "#disciplinas",
+    "area": "site",
+    "details": [
+      "Aba Disciplinas separada em Em andamento e Concluídas",
+      "Painel da disciplina com continuar, materiais, editar e excluir",
+      "Editor de material com etapas mais claras e campos opcionais recolhidos"
+    ]
+  },
+  {
+    "id": "news-a2a50cff",
+    "at": "2026-11-16T23:14:08.000Z",
+    "title": "Perfil em duas colunas",
+    "body": "Atividade por material, suas publicações com uma fixada no topo e privacidade por seção: escolha quem vê publicações, atividade, conquistas e amigos.",
+    "href": "#perfil",
+    "area": "site",
+    "details": [
+      "Atividade única por material, com tempo das últimas duas semanas, progresso e último passo",
+      "Novo bloco de nível com a estrela, cargo e barra de XP",
+      "Perfil aberto ou privado, e cada seção em Todos, Só amigos ou Só eu"
+    ]
+  },
+  {
     "id": "news-40fd23c7",
     "at": "2026-11-16T05:05:00.000Z",
     "title": "Tempo de leitura dos PDFs",
