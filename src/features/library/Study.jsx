@@ -8,7 +8,7 @@ import { slidePositionLabel, slidesSummary } from '../../../public/slides-domain
 import Icon from '../../ui/Icon.jsx';
 import { Button, Empty, Heading, Progress, ease, enter } from '../../ui/ui.jsx';
 import { isCompleted } from '../../../public/progress-domain.js';
-import { materialStanding, subjectOf, subjectsOverview } from '../../../public/subject-domain.js';
+import { materialStanding, subjectOf } from '../../../public/subject-domain.js';
 
 const statuses = { all: 'Todos', active: 'Em andamento', new: 'Para começar', paused: 'Em pausa', completed: 'Concluídos' };
 
@@ -174,7 +174,6 @@ export function Library({ state, open, actions }) {
   const trails = courses.filter((course) => !course.pdf && !done(course));
   const readings = courses.filter((course) => course.pdf && !done(course));
   const finished = courses.filter(done);
-  const subjects = subjectsOverview(state).filter((item) => item.subject && (!query || item.subject.title.toLocaleLowerCase('pt-BR').includes(query)));
   const filtering = Boolean(query) || filter !== 'all' || kind !== 'all' || Boolean(subjectFilter);
   // "Continuar de onde parei" segue a disciplina escolhida (regra em study-plan.js).
   const resume = resumeMaterial(state);
@@ -188,11 +187,11 @@ export function Library({ state, open, actions }) {
 
   return <div className="library-root">
     <Heading
-      eyebrow="materiais e disciplinas"
+      eyebrow="materiais"
       title="Biblioteca"
       actions={<AddMenu open={open}/>}
     >
-      Seus cursos, livros, PDFs e disciplinas organizados com o ponto exato de retomada.
+      Seus cursos, livros e PDFs com o ponto exato de retomada.
     </Heading>
 
     {state.courses.length > 0 && <LibraryFilters state={state} search={search} setSearch={setSearch} kind={kind} setKind={setKind} filter={filter} setFilter={setFilter} subjectFilter={subjectFilter} setSubjectFilter={setSubjectFilter}/>}
@@ -209,7 +208,7 @@ export function Library({ state, open, actions }) {
             <p className="muted-text">Todos os materiais de {resume.subjectDone.title} estão concluídos. Escolha um material de outra disciplina para continuar por ela.</p>
           </div>
           <div className="resume-actions">
-            <a className="button secondary" href={`#disciplinas?id=${encodeURIComponent(resume.subjectDone.id)}`}><Icon name="school"/>Abrir disciplina</a>
+            <Button secondary onClick={() => open({ type: 'subject', id: resume.subjectDone.id })}><Icon name="school"/>Abrir disciplina</Button>
           </div>
         </div>
       </section>}
@@ -239,20 +238,6 @@ export function Library({ state, open, actions }) {
       </section>}
 
       {filtering && <div role="status" className="search-result-count">{courses.length} {courses.length === 1 ? 'material encontrado' : 'materiais encontrados'}</div>}
-
-      {subjects.length > 0 && kind === 'all' && <section className="library-section" aria-labelledby="library-subjects-title">
-        <div className="library-section-head">
-          <span className="card-icon tone-mint"><Icon name="school"/></span>
-          <div><h2 id="library-subjects-title" className="title">Disciplinas</h2><p className="card-subtitle">Materiais agrupados e por onde retomar.</p></div>
-          <a className="text-link" href="#disciplinas">Organizar</a>
-        </div>
-        <div className="subject-card-grid">{subjects.map((item) => <a key={item.subject.id} className={`card-surface subject-tile color-${item.subject.color || 'lume'}`} href={`#disciplinas?id=${encodeURIComponent(item.subject.id)}`}>
-          <span className="subject-tile-meta"><span className="subject-tile-count">{item.total} {item.total === 1 ? 'material' : 'materiais'}{item.materials.some((material) => material.course.pdf) ? ` · ${item.materials.filter((material) => material.course.pdf).length} PDFs` : ''}</span><strong className="subject-tile-percent">{item.percent}%</strong></span>
-          <strong className="subject-tile-title">{item.subject.title}</strong>
-          <Progress value={item.percent} tone="mint" label={`Progresso em ${item.subject.title}`}/>
-          <span className="subject-tile-open"><Icon name="arrow"/></span>
-        </a>)}</div>
-      </section>}
 
       {trails.length > 0 && <section className="library-section" aria-labelledby="library-courses-title">
         <div className="library-section-head">

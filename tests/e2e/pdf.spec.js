@@ -50,9 +50,10 @@ test('anexar PDF, vincular à disciplina, ler no leitor e retomar na página dep
   await page.getByRole('dialog').getByRole('button', { name: 'Voltar para a biblioteca' }).click();
 
   await page.goto('/#disciplinas');
-  const card = page.locator('.subject-card').filter({ hasText: 'Processo Penal' });
-  await expect(card.getByText(/1 material · 0 concluídos · até p\. 4 de 6/)).toBeVisible();
-  await expect(card.getByRole('button', { name: /Continuar: Apostila de Processo Penal · p\. 4/ })).toBeVisible();
+  await page.getByRole('button', { name: /Processo Penal/ }).click();
+  const subjectPanel = page.getByRole('dialog');
+  await expect(subjectPanel.getByText(/0 de 1 material concluído · páginas abertas: até 4 de 6/)).toBeVisible();
+  await expect(subjectPanel.getByRole('button', { name: /Continuar: Apostila de Processo Penal · p\. 4/ })).toBeVisible();
 });
 
 test('leitor de PDF registra leitura automática, pausa por inatividade e retoma com interação', async ({ page }) => {

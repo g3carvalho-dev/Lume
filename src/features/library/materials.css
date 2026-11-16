@@ -23,35 +23,67 @@
 }
 .course-steps-head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+.course-steps-head .title { margin: 0; }
+.course-steps-editor .field-hint {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: 0.78rem;
 }
 .course-steps-edit-list {
   list-style: none;
   padding: 0;
   margin: 0;
   display: grid;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 .course-step-edit {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.55rem 0.65rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.55rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--surface-2);
+  background: var(--inner);
+  transition: border-color var(--dur-fast) ease;
 }
+.course-step-edit:focus-within { border-color: var(--lume); }
 .course-step-edit input {
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 2.25rem;
+  padding: 0.4rem 0.2rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-overflow: ellipsis;
 }
+.course-step-edit input:focus { outline: none; }
+.course-step-edit input::placeholder { color: var(--text-subtle); }
 .step-edit-actions {
   display: flex;
-  gap: 0.15rem;
+  gap: 0.1rem;
+  flex: none;
 }
+.step-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.5rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--lume);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.step-add:hover:not(:disabled) { background: var(--surface-2); }
+.step-add:disabled { opacity: 0.4; cursor: default; }
 .step-edit-actions .icon-button:disabled,
 .slide-editor-actions .icon-button:disabled {
   opacity: 0.35;
@@ -219,3 +251,15 @@
 .slides-viewer-actions .quiet-note {
   flex: 1 1 100%;
 }
+
+/* Campos opcionais do editor ficam recolhidos para a tela respirar. */
+.editor-more { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--inner); }
+.editor-more > summary {
+  padding: 0.7rem 0.9rem;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.editor-more[open] > summary { color: var(--text); }
+.editor-more-body { display: grid; gap: 1rem; padding: 0.2rem 0.9rem 1rem; }

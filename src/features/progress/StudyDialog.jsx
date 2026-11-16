@@ -15,6 +15,7 @@ import ImportCourse from '../library/ImportCourse.jsx';
 import CourseEditor, { ManualCourseForm } from '../library/CourseEditor.jsx';
 import { SlidesEditor, SlidesViewer } from '../library/Slides.jsx';
 import AttachPdf from '../library/AttachPdf.jsx';
+import SubjectDialog from '../library/Subjects.jsx';
 import PdfReader, { PdfDetails } from '../library/PdfReader.jsx';
 import { isCompleted } from '../../../public/progress-domain.js';
 
@@ -50,6 +51,9 @@ export default function StudyDialog({ modal, state, libraryActions, progressActi
   }
   if (modal.type === 'pdf-attach') {
     return <AttachPdf state={state} actions={libraryActions} close={close} notify={notify} open={open} go={go} account={account} subjectId={modal.subjectId || ''}/>;
+  }
+  if (modal.type === 'subject') {
+    return <SubjectDialog state={state} id={modal.id || ''} actions={libraryActions} open={open} close={close} notify={notify}/>;
   }
   if (modal.type === 'manual') {
     return <ManualCourseForm actions={libraryActions} close={close} notify={notify} open={open}/>;
