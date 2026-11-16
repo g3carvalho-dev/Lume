@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useXp } from '../features/progress/useXp.js';
 import { useAccountSession } from '../features/account/useAccountSession.js';
 import { useLibraryPersistence } from '../features/library/useLibraryPersistence.js';
@@ -17,6 +17,23 @@ export function useLume(notify) {
   const library = useLibraryPersistence(notify, refreshXP);
   const session = useAccountSession(account, setAccount, library);
   const { state, act, syncStatus, saveError, retrySave } = library;
+  // Outra aba ou o aplicativo de desktop podem ter gravado: ao voltar para esta
+  // aba, e a cada minuto com ela visível, a revisão é conferida antes de a pessoa
+  // agir, para a próxima gravação não esbarrar numa revisão antiga.
+  const { adopt } = library;
+  useEffect(() => {
+    if (!account) return undefined;
+    let last = 0;
+    const check = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - last < 5000) return;
+      last = Date.now();
+      adopt().catch(() => {});
+    };
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    const timer = setInterval(check, 60000);
+    return () => { window.removeEventListener('focus', check); document.removeEventListener('visibilitychange', check); clearInterval(timer); };
+  }, [account, adopt]);
   const planActions = useMemo(() => createPlanActions(act), [act]);
   const agendaActions = useMemo(() => createAgendaActions(act), [act]);
   const progressActions = useMemo(() => createProgressActions(act), [act]);
