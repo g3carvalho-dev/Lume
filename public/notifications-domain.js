@@ -1,4 +1,4 @@
-// Sino de notificações: amizades novas, convites de colaboração, interações nas
+// Sino de notificações: amizades novas, interações nas
 // suas publicações e novidades do Lume. Notificação é aviso, nunca recompensa:
 // ler ou abrir não gera XP.
 

@@ -52,8 +52,7 @@ test('mensagem direta entre amizades, não lida, bloqueio e desbloqueio', { tag:
   // Ana abre a conversa pela lista de amigos.
   await page.goto('/#mensagens');
   await page.getByRole('button', { name: /Bia Mensagens/ }).click();
-  await expect(page.getByRole('heading', { name: 'Mensagens', exact: true })).toBeVisible();
-  await expect(page.getByText('Comece uma conversa')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Conversa selecionada' })).toBeVisible();
   await page.getByLabel('Mensagem', { exact: true }).fill('Oi, vamos revisar constitucional?');
   await page.getByRole('button', { name: 'Enviar' }).click();
   await expect(page.getByRole('region', { name: 'Conversa selecionada' }).getByText('Oi, vamos revisar constitucional?')).toBeVisible();
@@ -70,20 +69,36 @@ test('mensagem direta entre amizades, não lida, bloqueio e desbloqueio', { tag:
 
   // Ana recarrega e vê a resposta.
   await page.reload();
-  await expect(page.getByRole('region', { name: 'Conversa selecionada' }).getByText('Vamos! Começo pelas questões.')).toBeVisible();
+  const thread = page.getByRole('region', { name: 'Conversa selecionada' });
+  await expect(thread.getByText('Vamos! Começo pelas questões.')).toBeVisible();
+
+  // Responder citando e reagir com um emoji da lista do Feed.
+  await thread.locator('.message-row.from-them').getByRole('button', { name: 'Responder' }).click();
+  await expect(page.getByText('Respondendo a Bia Mensagens')).toBeVisible();
+  await page.getByLabel('Mensagem', { exact: true }).fill('Combinado.');
+  await page.getByRole('button', { name: 'Enviar' }).click();
+  await expect(thread.locator('.message-row.from-me .mg-quote').last()).toContainText('Vamos! Começo pelas questões.');
+  await thread.locator('.message-row.from-them').getByRole('button', { name: 'Reagir' }).click();
+  await page.getByRole('searchbox', { name: 'Buscar emoji' }).fill('joinha');
+  await page.getByRole('button', { name: 'joinha curtir', exact: true }).click();
+  await expect(thread.getByRole('button', { name: /^👍 1, você reagiu/ })).toBeVisible();
+
+  // Silenciar pelo painel de detalhes.
+  await page.getByRole('button', { name: 'Detalhes da conversa' }).click();
+  const mute = page.getByRole('switch', { name: /Silenciar conversa/ });
+  await mute.click();
+  await expect(mute).toHaveAttribute('aria-checked', 'true');
 
   // Bloqueio interrompe a composição nos dois lados e preserva o histórico.
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: 'Mais ações da conversa' }).click();
-  await page.getByRole('menuitem', { name: 'Bloquear', exact: true }).click();
+  await page.getByRole('button', { name: /^Bloquear/ }).click();
   await expect(page.getByText('Desbloqueie para voltar a enviar mensagens.')).toBeVisible();
   await expect(page.getByLabel('Mensagem', { exact: true })).toHaveCount(0);
   await guestPage.reload();
   await expect(guestPage.getByText('Esta pessoa bloqueou novas mensagens.')).toBeVisible();
   await expect(guestPage.getByLabel('Mensagem', { exact: true })).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Mais ações da conversa' }).click();
-  await page.getByRole('menuitem', { name: 'Desbloquear', exact: true }).click();
+  await page.getByRole('button', { name: /^Desbloquear/ }).click();
   await expect(page.getByLabel('Mensagem', { exact: true })).toBeVisible();
   await guestPage.reload();
   await guestPage.getByRole('button', { name: /Ana Mensagens/ }).first().click();
@@ -233,9 +248,11 @@ test('conversa longa mantém a altura da tela e rola por dentro até a última m
   await expect(list.getByText('Mensagem número 40')).toBeVisible();
   const metrics = await page.evaluate(() => {
     const node = document.querySelector('.message-list');
-    return { overflow: node.scrollHeight > node.clientHeight + 40, atEnd: node.scrollHeight - node.scrollTop - node.clientHeight < 4, layout: document.querySelector('.messages-layout').getBoundingClientRect().height, viewport: innerHeight };
+    return { overflow: node.scrollHeight > node.clientHeight + 40, atEnd: node.scrollHeight - node.scrollTop - node.clientHeight < 4, layout: document.querySelector('.mg-shell').getBoundingClientRect().height, viewport: innerHeight, page: document.scrollingElement.scrollHeight };
   });
   expect(metrics.overflow).toBe(true);
   expect(metrics.atEnd).toBe(true);
   expect(metrics.layout).toBeLessThanOrEqual(Math.max(740, metrics.viewport));
+  // O corpo ocupa a altura restante da janela: a página não rola.
+  expect(metrics.page).toBeLessThanOrEqual(metrics.viewport + 1);
 });

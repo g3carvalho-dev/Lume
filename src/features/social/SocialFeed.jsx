@@ -8,7 +8,7 @@ import { SOCIAL_POST_LIMIT, SOCIAL_COMMENT_LIMIT, SOCIAL_IMAGE_BYTES, SOCIAL_PDF
 import { formatBytes } from '../../../public/pdf-domain.js';
 import { compressImage } from '../../lib/image-compress.js';
 import { analyzePdf, estimatePdfRaster, optimizePdfLossless, pdfFileFrom, rasterizePdf } from '../library/pdf-compress.js';
-import { warmProfileProps } from './prefetch.js';
+import { PersonButton } from './PersonCard.jsx';
 import EmojiButton from './EmojiPicker.jsx';
 import ReportDialog from './ReportDialog.jsx';
 
@@ -369,9 +369,9 @@ function CommentForm({ post, path, parent = null, me, mutateComments, mutatePost
   </form>;
 }
 
-function CommentItem({ comment, post, path, refresh, busy, onRemove, onReact, onReply, isReply = false }) {
+function CommentItem({ comment, post, path, refresh, busy, onRemove, onReact, onReply, go, isReply = false }) {
   return <div className={`sf-comment ${isReply ? 'is-reply' : ''}`}>
-    <SocialAvatar person={comment.author} size="small"/>
+    <PersonButton person={comment.author} go={go} className="sf-comment-who"><SocialAvatar person={comment.author} size="small"/></PersonButton>
     <div className="sf-comment-main">
       <div className="sf-bubble">
         <div className="social-comment-heading"><strong>{comment.author.name}</strong><PostTime at={comment.at}/></div>
@@ -387,7 +387,7 @@ function CommentItem({ comment, post, path, refresh, busy, onRemove, onReact, on
   </div>;
 }
 
-function Comments({ post, me, mutatePost, refresh }) {
+function Comments({ post, me, mutatePost, refresh, go }) {
   const [cursor, setCursor] = useState('');
   const [older, setOlder] = useState([]);
   const [replyTo, setReplyTo] = useState('');
@@ -439,9 +439,9 @@ function Comments({ post, me, mutatePost, refresh }) {
   return <div className="social-comments sf-comments">
     {resource.loading && !resource.data && <Skeleton rows={1} label="Carregando comentários…"/>}
     {roots.map((comment) => <div className="sf-thread" key={comment.id}>
-      <CommentItem comment={comment} post={post} path={path} refresh={refresh} busy={false} onRemove={remove} onReact={react} onReply={(target) => setReplyTo(target.id)}/>
+      <CommentItem comment={comment} post={post} path={path} refresh={refresh} go={go} busy={false} onRemove={remove} onReact={react} onReply={(target) => setReplyTo(target.id)}/>
       {(repliesOf(comment.id).length > 0 || replyTo === comment.id) && <div className="sf-replies">
-        {repliesOf(comment.id).map((reply) => <CommentItem key={reply.id} comment={reply} post={post} path={path} refresh={refresh} busy={false} isReply onRemove={remove} onReact={react} onReply={() => setReplyTo(comment.id)}/>)}
+        {repliesOf(comment.id).map((reply) => <CommentItem key={reply.id} comment={reply} post={post} path={path} refresh={refresh} go={go} busy={false} isReply onRemove={remove} onReact={react} onReply={() => setReplyTo(comment.id)}/>)}
         {replyTo === comment.id && <CommentForm post={post} path={path} parent={comment} me={me} mutateComments={resource.mutate} mutatePost={mutatePost} compact onDone={afterSend}/>}
       </div>}
     </div>)}
@@ -500,9 +500,9 @@ function PostCard({ post, me, mutatePost, removePost, restorePost, refresh, go, 
 
   return <article className={`card-surface social-post sf-post is-${post.kind}`} aria-label={`Publicação de ${post.author.name}`}>
     <header className="sf-post-head">
-      <button type="button" className="social-author" {...warmProfileProps(post.author)} onClick={() => go(post.author.handle ? `perfil?u=${post.author.handle}` : post.canDelete ? 'perfil' : `perfil?id=${encodeURIComponent(post.author.id)}`)} aria-label={`Ver perfil de ${post.author.name}`}>
+      <PersonButton person={{ ...post.author, isSelf: post.canDelete }} go={go} className="social-author" label={`Abrir cartão de ${post.author.name}`}>
         <SocialAvatar person={post.author}/><span><strong>{post.author.name}</strong><PostTime at={post.at}/></span>
-      </button>
+      </PersonButton>
       {post.kind !== 'post' && <span className={`social-post-kind ${post.kind === 'achievement' ? 'is-reward' : ''}`}><Icon name={icon}/>{label}</span>}
       <span className="sf-menu" ref={menuRoot}>
         <button type="button" className="icon-button" aria-label="Mais ações da publicação" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(value => !value)}><Icon name="more"/></button>
@@ -527,7 +527,7 @@ function PostCard({ post, me, mutatePost, removePost, restorePost, refresh, go, 
     </div>
     {confirming && <div className="social-delete-confirm"><p>Excluir esta publicação e seus comentários?</p><div className="action-row"><Button className="danger-button" onClick={remove}>Sim, excluir publicação</Button><Button secondary onClick={() => setConfirming(false)}>Manter publicação</Button></div></div>}
     {error && <p className="form-error" role="alert">{error}</p>}
-    {showComments && <Comments post={post} me={me} mutatePost={mutatePost} refresh={refresh}/>}
+    {showComments && <Comments post={post} me={me} mutatePost={mutatePost} refresh={refresh} go={go}/>}
   </article>;
 }
 

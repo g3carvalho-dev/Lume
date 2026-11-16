@@ -1,6 +1,17 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-c5115907",
+    "at": "2026-11-16T03:01:29.000Z",
+    "title": "Atualizações imediatas",
+    "body": "Ações mostram o resultado durante o envio e revertem a mudança quando o servidor recusa a operação.",
+    "href": "#hoje",
+    "area": "site",
+    "details": [
+      "Integra o PR #33 com atualizações na biblioteca, agenda, social e configurações."
+    ]
+  },
+  {
     "id": "news-ad535ea6",
     "at": "2026-11-16T02:04:04.000Z",
     "title": "Adicionar amigos ficou mais simples",
@@ -191,18 +202,6 @@ export const GENERATED_NEWS = [
     "area": "site",
     "details": [
       "Em telas largas, o painel fica fixo na borda direita em altura total fora da transição de página."
-    ]
-  },
-  {
-    "id": "news-6d5392f9",
-    "at": "2026-11-14T20:35:33.000Z",
-    "title": "Fotos dos amigos online",
-    "body": "Em \"Ativos agora\", os amigos online aparecem com a foto de perfil.",
-    "href": "#hoje",
-    "area": "site",
-    "details": [
-      "Sem foto, continuam as iniciais.",
-      "O cabeçalho agora cobre a largura toda da tela, sem o canto vazio no topo direito."
     ]
   }
 ];

@@ -230,37 +230,109 @@
   gap: 0.4rem;
 }
 
-/* Adicionar amigos: busca por @usuário, solicitações e convite por link. */
+/* Aba Amigos: lista de amigos, pedidos em destaque e "Encontrar pessoas". */
+.addfriend-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 22rem); gap: 1.5rem; align-items: start; }
+.addfriend-main, .addfriend-side { display: grid; gap: var(--space-5); min-width: 0; }
+.addfriend-side { position: sticky; top: 5rem; }
 .addfriend-badge { margin-left: var(--space-2); }
-.addfriend-card.addfriend-simple { gap: 0; padding: 0; max-width: 720px; }
-.addfriend-simple > .addfriend-block { padding: var(--space-5); }
-.addfriend-simple > .addfriend-block + .addfriend-block { border-top: 1px solid var(--border); }
-.addfriend-block { display: grid; gap: var(--space-4); min-width: 0; }
+.addfriend-highlight { border-color: color-mix(in srgb, var(--lume) 45%, var(--border)); background: color-mix(in srgb, var(--lume) 6%, var(--surface)); }
+.addfriend-highlight > .title { display: flex; align-items: center; gap: var(--space-2); }
+.addfriend-highlight > .title .icon { width: 1.1rem; height: 1.1rem; color: var(--lume); }
+.addfriend-block { display: grid; gap: var(--space-3); min-width: 0; }
+.addfriend-find .addfriend-block + .addfriend-block { padding-top: var(--space-4); border-top: 1px solid var(--border); }
+.addfriend-subtitle { margin: 0; font-size: 0.95rem; font-weight: 650; }
 .addfriend-block-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2) var(--space-4); }
-.addfriend-block-head .title { font-size: 1.15rem; margin: 0; }
-.addfriend-invite-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
-.addfriend-invite-row .title { font-size: 1.15rem; margin: 0 0 var(--space-1); }
-.addfriend-invite-row .quiet-note { margin: 0; }
-.addfriend-requests { display: grid; gap: var(--space-5); max-width: 720px; }
+.addfriend-block-head .title { display: flex; align-items: baseline; gap: var(--space-2); font-size: 1.25rem; margin: 0; }
+.addfriend-count { color: var(--text-subtle); font-size: 0.9rem; font-weight: 500; }
+.addfriend-invite-row { grid-template-columns: minmax(0, 1fr); }
+.addfriend-invite-row .quiet-note { margin: var(--space-1) 0 0; }
+.addfriend-invite-row .button { justify-self: start; }
 .addfriend-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); padding: var(--space-5); min-width: 0; }
-.addfriend-card > .title { font-size: 1.25rem; }
+.addfriend-card > .title { font-size: 1.25rem; margin: 0; }
 .addfriend-search { display: flex; gap: var(--space-3); align-items: center; }
 .addfriend-search-field { display: flex; flex: 1; align-items: center; gap: var(--space-3); min-width: 0; padding: 0 var(--space-4); border: 1px solid var(--border); border-radius: 12px; background: var(--inner); }
 .addfriend-search-field .icon { width: 1.1rem; height: 1.1rem; color: var(--text-subtle); flex: 0 0 auto; }
 .addfriend-search-field input { flex: 1; width: 100%; min-width: 0; border: 0; background: transparent; padding: 0.8rem 0; font-family: var(--font-mono); outline: none; }
 .addfriend-search-field:focus-within { border-color: var(--lume); }
-.addfriend-list { display: grid; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
-.addfriend-person { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
-.addfriend-person .social-avatar { width: 3rem; height: 3rem; }
+.addfriend-list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.addfriend-friends { gap: 0.25rem; }
+.addfriend-person { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.addfriend-person-who { display: flex; flex: 1; align-items: center; gap: var(--space-3); min-width: 0; padding: 0.4rem; margin: -0.4rem; border-radius: var(--radius-md); text-align: left; }
+.addfriend-person-who:hover { background: var(--surface-2); }
+.addfriend-person .social-avatar { width: 2.75rem; height: 2.75rem; flex: 0 0 auto; }
+.addfriend-friends .addfriend-person { padding: 0.35rem 0; }
 .addfriend-person-name { display: grid; flex: 1; min-width: 0; gap: 0.1rem; }
 .addfriend-person-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.addfriend-person-name small { color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; }
+.addfriend-person-name small { color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.addfriend-presence.is-studying { color: var(--lume); }
+.addfriend-presence.is-online { color: var(--text-muted); }
 .addfriend-person-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; align-items: center; }
 .addfriend-note { display: flex; align-items: center; gap: var(--space-3); margin: 0; color: var(--text-muted); font-size: 0.85rem; }
 .addfriend-note .icon { width: 1rem; height: 1rem; }
-@media (max-width: 860px) {
-  .addfriend-person { flex-wrap: wrap; }
-  .addfriend-person-actions { width: 100%; justify-content: flex-start; }
-  .addfriend-invite-row { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 980px) {
+  .addfriend-layout { grid-template-columns: minmax(0, 1fr); }
+  .addfriend-side { position: static; }
+}
+@media (max-width: 600px) {
+  .addfriend-highlight .addfriend-person, .addfriend-side .addfriend-person { flex-wrap: wrap; }
+  .addfriend-highlight .addfriend-person-actions, .addfriend-side .addfriend-person-actions { width: 100%; justify-content: flex-start; }
   .addfriend-invite-row .button { width: 100%; justify-content: center; }
 }
+
+/* Botão que abre o cartão rápido: herda a aparência do que envolve. */
+.person-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.person-button:hover strong { color: var(--lume); }
+.person-button:focus-visible { outline: 2px solid var(--lume); outline-offset: 3px; border-radius: var(--radius-md); }
+
+/* Cartão rápido da pessoa: flutua junto do nome; no celular, folha inferior. */
+.person-card {
+  position: fixed;
+  z-index: 80;
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface-2);
+  box-shadow: 0 18px 48px color-mix(in srgb, var(--bg) 70%, transparent);
+  color: var(--text);
+  outline: none;
+}
+.person-card-head { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.person-card-avatar { display: grid; place-items: center; flex: 0 0 auto; width: 3.5rem; height: 3.5rem; overflow: hidden; border-radius: 50%; background: color-mix(in srgb, var(--lume) 20%, var(--surface)); color: var(--text); font-weight: 700; }
+.person-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.person-card-who { display: grid; flex: 1; min-width: 0; gap: 0.15rem; }
+.person-card-who strong { font-family: var(--font-display); font-size: 1.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-card-who .mono { color: var(--text-subtle); font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; }
+.person-card-close { align-self: flex-start; margin: -0.4rem -0.4rem 0 0; }
+.person-card-stats { display: flex; gap: var(--space-3); margin: 0; }
+.person-card-stats > div { flex: 1; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-radius: 12px; background: var(--inner); }
+.person-card-stats dt { color: var(--text-subtle); font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.person-card-stats dd { margin: 0.15rem 0 0; color: var(--reward); font-family: var(--font-mono); font-size: 1.15rem; font-weight: 700; }
+.person-card-stats dd small { color: var(--text-subtle); font-size: 0.75rem; font-weight: 500; }
+.person-card-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.person-card-actions .button { flex: 1 1 auto; justify-content: center; }
+.person-card-backdrop { position: fixed; inset: 0; z-index: 79; background: color-mix(in srgb, var(--bg) 60%, transparent); }
+.person-card.is-sheet {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 20px 20px 0 0;
+  padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+}
+
+/* Lateral do Feed: quem está estudando agora (mesma peça do Início). */
+.social-studying { display: grid; gap: var(--space-4); }
+.social-studying .active-rail-foot { margin: 0; }

@@ -48,7 +48,7 @@ test('grupo entre amigos, denúncia enviada à criadora e acesso restrito', asyn
   await expect(create).toBeDisabled();
   await page.getByRole('checkbox').nth(1).check();
   await create.click();
-  await expect(page.getByRole('heading', { name: 'Turma de Direito', exact: true })).toBeVisible();
+  await expect(page.locator('.message-thread-head')).toContainText('Turma de Direito');
   await expect(page.getByRole('region', { name: 'Conversa selecionada' }).getByText('Ana Grupo criou o grupo.')).toBeVisible();
   await page.getByLabel('Mensagem', { exact: true }).fill('Bom dia, turma!');
   await page.getByRole('button', { name: 'Enviar' }).click();
@@ -79,8 +79,8 @@ test('grupo entre amigos, denúncia enviada à criadora e acesso restrito', asyn
   // Carla denuncia Ana na conversa direta e bloqueia ao mesmo tempo.
   await carlaPage.goto('/#mensagens');
   await carlaPage.getByRole('button', { name: /Ana Grupo/ }).first().click();
-  await carlaPage.getByRole('button', { name: 'Mais ações da conversa' }).click();
-  await carlaPage.getByRole('menuitem', { name: 'Denunciar' }).click();
+  await carlaPage.getByRole('button', { name: 'Detalhes da conversa' }).click();
+  await carlaPage.getByRole('button', { name: /^Denunciar/ }).click();
   await carlaPage.getByLabel('Assédio, ameaça ou ofensa').check();
   await carlaPage.getByLabel('Bloquear Ana Grupo também').check();
   await carlaPage.getByRole('button', { name: 'Enviar denúncia' }).click();
@@ -109,13 +109,18 @@ test('grupo entre amigos, denúncia enviada à criadora e acesso restrito', asyn
 
   // Ana sai do grupo como dona: a pessoa mais antiga que ficou assume.
   await page.goto('/#mensagens');
-  await page.getByRole('button', { name: /Turma de Direito/ }).click();
-  await page.getByRole('button', { name: 'Mais ações da conversa' }).click();
+  await page.getByRole('button', { name: /Turma de Direito/ }).first().click();
+  // Gestão no painel de detalhes: renomear no próprio lugar e depois sair.
+  await page.getByRole('button', { name: 'Detalhes do grupo', exact: true }).click();
+  await page.getByRole('button', { name: 'Renomear grupo Turma de Direito' }).click();
+  await page.getByLabel('Nome do grupo').fill('Direito Civil');
+  await page.getByRole('button', { name: 'Salvar nome' }).click();
+  await expect(page.getByRole('region', { name: 'Conversa selecionada' }).getByText('Ana Grupo mudou o nome do grupo para “Direito Civil”.')).toBeVisible();
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('menuitem', { name: 'Sair do grupo' }).click();
+  await page.getByRole('button', { name: /^Sair do grupo/ }).click();
   await expect(page.getByText('Escolha uma conversa')).toBeVisible();
   await biaPage.goto('/#mensagens');
-  await biaPage.getByRole('button', { name: /Turma de Direito/ }).click();
+  await biaPage.getByRole('button', { name: /Direito Civil/ }).click();
   await expect(biaPage.getByRole('region', { name: 'Conversa selecionada' }).getByText('Ana Grupo saiu do grupo.')).toBeVisible();
 
   await Promise.all([biaContext.close(), carlaContext.close(), creatorContext.close()]);

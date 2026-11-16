@@ -4,7 +4,7 @@ import { PersonAvatar } from '../../ui/ui.jsx';
 import { api } from '../../lib/api.js';
 import { useResource } from '../../lib/resources.js';
 
-const KIND_ICON = { friend: 'users', collaboration: 'steps', comment: 'message', reaction: 'heart', news: 'spark' };
+const KIND_ICON = { friend: 'users', comment: 'message', reaction: 'heart', news: 'spark' };
 
 function ago(at, now = Date.now()) {
   const minutes = Math.max(0, Math.round((now - Date.parse(at)) / 60000));
