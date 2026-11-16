@@ -73,7 +73,7 @@ jobs:
           path: |
             companion/release/Lume-setup.exe
             companion/release/Lume-setup.exe.blockmap
-          companion/release/latest.yml
+            companion/release/latest.yml
           retention-days: 14
 
   build-linux:
@@ -132,7 +132,7 @@ jobs:
           path: |
             companion/release/Lume.AppImage
             companion/release/Lume.deb
-          companion/release/latest-linux.yml
+            companion/release/latest-linux.yml
           retention-days: 14
 
   publish:
