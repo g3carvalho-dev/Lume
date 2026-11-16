@@ -1,0 +1,389 @@
+/* Ranking (identidade Norte): pódio, classificação completa em tabela e regras
+   recolhidas. Números em mono; o dourado marca só "você" e o primeiro lugar. */
+
+.rk-root {
+  display: grid;
+  gap: 1.25rem;
+}
+.rk-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.rk-header .lead {
+  margin: 0.35rem 0 0;
+}
+.rk-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.rk-scope .icon {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.rk-participation {
+  position: relative;
+  flex: 0 0 auto;
+}
+.rk-popover {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 0.75rem;
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 16px 40px color-mix(in srgb, black 40%, transparent);
+}
+.rk-popover .title {
+  margin: 0;
+  font-size: 1rem;
+}
+.rk-popover .muted-text {
+  margin: 0;
+  font-size: 0.85rem;
+}
+.rk-optin {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.25rem;
+}
+.rk-optin p {
+  flex: 1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.rk-optin strong {
+  color: var(--text);
+}
+
+/* Classificações */
+.rk-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.rk-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rk-tab .icon {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+.rk-tab:hover {
+  border-color: var(--border-strong);
+}
+.rk-tab[aria-selected='true'] {
+  border-color: transparent;
+  background: var(--text);
+  color: var(--bg);
+}
+.rk-subhead {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--text-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+.rk-subhead-label {
+  flex: 1;
+  min-width: 0;
+}
+.rk-period select {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+/* Pódio: 2º, 1º e 3º lado a lado; o primeiro é maior. */
+.rk-podium {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.rk-podium-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  flex: 1 1 0;
+  max-width: 17rem;
+  min-width: 0;
+  padding: 1.1rem 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  text-align: center;
+}
+.rk-podium-card.rank-1 {
+  max-width: 19rem;
+  padding-block: 1.5rem 1.6rem;
+  border-color: var(--border-strong);
+}
+.rk-podium-card.is-self {
+  border-color: var(--reward);
+  box-shadow: 0 0 0 1px var(--reward);
+}
+.rk-podium-position {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--lume);
+}
+.rank-1 .rk-podium-position {
+  color: var(--reward);
+  font-size: 1.8rem;
+}
+.rk-podium-avatar {
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--lume);
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+.rank-1 .rk-podium-avatar {
+  width: 5.5rem;
+  height: 5.5rem;
+  font-size: 1.7rem;
+}
+.rk-podium-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.rk-podium-name {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 1.1rem;
+}
+.rank-1 .rk-podium-name {
+  font-size: 1.25rem;
+}
+.rk-podium-sub {
+  color: var(--text-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+.rk-podium-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 1.7rem;
+  font-weight: 600;
+}
+.rank-1 .rk-podium-value {
+  font-size: 2.2rem;
+}
+.rk-podium-value small {
+  color: var(--lume);
+  font-size: 0.9rem;
+}
+.rk-you {
+  padding: 0.05rem 0.55rem;
+  border: 1px solid var(--reward);
+  border-radius: var(--radius-pill);
+  color: var(--reward);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+/* Classificação completa */
+.rk-full {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.rk-full .title {
+  margin: 0;
+  font-size: 1.35rem;
+}
+.rk-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.rk-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.rk-table th {
+  padding: 0.8rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+.rk-table td {
+  padding: 0.7rem 1.1rem;
+}
+.rk-table tr + tr td {
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.rk-table .is-num {
+  text-align: right;
+}
+.rk-position {
+  width: 6rem;
+  color: var(--lume);
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.rk-position.top-1 {
+  color: var(--reward);
+}
+.rk-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.rk-person .ranking-avatar {
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.rk-person .ranking-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.rk-sub {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.rk-value {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.rk-row.is-self {
+  background: color-mix(in srgb, var(--reward) 9%, var(--surface));
+}
+.rk-row.is-self td:first-child {
+  box-shadow: inset 4px 0 0 var(--reward);
+}
+
+/* Regras recolhidas */
+.rk-rules.card-surface {
+  display: block;
+  padding: 0;
+}
+.rk-rules summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.95rem 1.25rem;
+  list-style: none;
+  cursor: pointer;
+}
+.rk-rules summary::-webkit-details-marker {
+  display: none;
+}
+.rk-rules summary .title {
+  margin: 0;
+  font-size: 1rem;
+}
+.rk-rules summary .icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  transition: transform 0.16s ease;
+}
+.rk-rules[open] summary .icon {
+  transform: rotate(180deg);
+}
+.rk-rules .ranking-rule-list {
+  margin: 0;
+  padding: 0 1.25rem 1.1rem 2.4rem;
+}
+
+@media (max-width: 640px) {
+  .rk-header {
+    flex-direction: column;
+  }
+  .rk-optin {
+    flex-wrap: wrap;
+  }
+  .rk-podium {
+    gap: 0.5rem;
+  }
+  .rk-podium-card {
+    padding: 0.8rem 0.5rem 0.9rem;
+  }
+  .rk-podium-avatar {
+    width: 3.2rem;
+    height: 3.2rem;
+    font-size: 1rem;
+  }
+  .rank-1 .rk-podium-avatar {
+    width: 4rem;
+    height: 4rem;
+  }
+  .rk-podium-name {
+    font-size: 0.85rem;
+  }
+  .rk-podium-value {
+    font-size: 1.1rem;
+  }
+  .rank-1 .rk-podium-value {
+    font-size: 1.4rem;
+  }
+  .rk-table th,
+  .rk-table td {
+    padding-inline: 0.6rem;
+  }
+  .rk-position {
+    width: 3.5rem;
+  }
+}

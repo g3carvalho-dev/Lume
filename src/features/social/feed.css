@@ -718,3 +718,12 @@
   padding-left: 0;
   border-left: 0;
 }
+
+/* Sem nada na lateral (convite, colaboração), o feed ocupa uma coluna centrada. */
+.social-layout:has(.social-sidebar:empty) {
+  grid-template-columns: minmax(0, 46rem);
+  justify-content: center;
+}
+.social-sidebar:empty {
+  display: none;
+}

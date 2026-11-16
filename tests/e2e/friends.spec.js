@@ -23,7 +23,6 @@ test('convite cria amizade entre duas contas sem compartilhar progresso', async 
 
   await page.getByRole('link', { name: 'Social', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Social', exact: true })).toBeVisible();
-  await expect(page.getByText('Ninguém por aqui ainda. Um convite já começa a lista.')).toBeVisible();
 
   // O convite é criado em Adicionar amigos (#adicionar); aqui basta a rota.
   const invite = await page.request.post('/api/friends/invite', { data: {}, headers: { origin: baseURL } });
@@ -61,16 +60,20 @@ test('convite cria amizade entre duas contas sem compartilhar progresso', async 
   expect((await guestFriends.json()).friends).toHaveLength(1);
 
   // Quem convidou vê a amizade depois de recarregar.
-  await page.reload();
-  await expect(page.locator('#main').getByText('Bia do teste', { exact: true })).toBeVisible();
+  await page.goto('/#mensagens');
+  await expect(page.getByRole('button', { name: /Bia do teste/ })).toBeVisible();
 
   // O convite conta quantas pessoas entraram (a tela não lista mais o histórico de convites).
   const own = await (await page.request.get('/api/friends', { headers: { origin: baseURL } })).json();
   expect(own.invites.map((item) => item.uses)).toEqual([1]);
 
   // Remover encerra nos dois lados.
-  await page.getByRole('button', { name: 'Remover Bia do teste da lista' }).click();
-  await expect(page.getByText('Ninguém por aqui ainda. Um convite já começa a lista.')).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.goto(`/#perfil?id=${encodeURIComponent(own.friends[0].id)}`);
+  await page.getByRole('button', { name: 'Desfazer amizade' }).click();
+  await expect(page.getByRole('heading', { name: 'Social', exact: true })).toBeVisible();
+  await page.goto('/#mensagens');
+  await expect(page.getByRole('button', { name: /Bia do teste/ })).toHaveCount(0);
   const guestAfter = await guest.get('/api/friends');
   expect((await guestAfter.json()).friends).toHaveLength(0);
 

@@ -25,7 +25,6 @@ test('Social publica, comenta, reage e persiste; desfazer amizade revoga o feed'
     await page.goto('/#amigos');
     await expect(page.getByRole('heading', { name: 'Social', exact: true })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegação', exact: true }).getByRole('link', { name: 'Social', exact: true })).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByRole('complementary', { name: 'Amigos e convites' }).getByText('Bia Almeida', { exact: true })).toBeVisible();
     await page.getByLabel('Sua publicação').fill('Alguém tem uma dica para revisar determinantes? Hoje vou fechar o capítulo 3.');
     await page.getByLabel('Tipo de publicação').selectOption('question');
     await page.getByRole('button', { name: 'Publicar', exact: true }).click();
@@ -47,14 +46,18 @@ test('Social publica, comenta, reage e persiste; desfazer amizade revoga o feed'
     await expect(theirs.getByRole('button', { name: /^❤️ 1/ })).toHaveAttribute('aria-pressed', 'true');
     await expect(theirs.getByText('Quero revisar! Vou começar pelos exemplos do capítulo.')).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Seções de Social' }).getByRole('link', { name: 'Mensagens', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Ver ranking', exact: true })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Seções de Social' }).getByRole('link', { name: 'Ranking', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath('social.png'), fullPage: true });
 
-    await page.getByRole('button', { name: 'Conversar com Bia Almeida' }).click();
+    const bia = (await (await page.request.get('/api/friends', { headers: { origin } })).json()).friends[0];
+    await page.getByRole('button', { name: 'Ver perfil de Bia Almeida' }).first().click();
+    await page.getByRole('button', { name: 'Mensagem', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Mensagens', exact: true })).toBeVisible();
+    await page.goto(`/#perfil?id=${encodeURIComponent(bia.id)}`);
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: 'Desfazer amizade' }).click();
     await page.goto('/#amigos');
-    await page.getByRole('button', { name: 'Remover Bia Almeida da lista' }).click();
     await expect(theirs).toHaveCount(0);
     await expect(mine).toBeVisible();
     const guestFeed = await (await guest.get('/api/social/feed')).json();

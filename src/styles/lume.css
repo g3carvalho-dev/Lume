@@ -18,6 +18,7 @@
 @import '../features/desktop/desktop.css';
 @import '../features/social/friends.css';
 @import '../features/social/feed.css';
+@import '../features/social/ranking.css';
 @import '../features/social/profile.css';
 @import '../features/desktop/window.css';
 @import '../features/plan/tasks.css';

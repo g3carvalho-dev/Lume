@@ -117,6 +117,17 @@ export default function Profile({ id, handle = '', state, actions, account, noti
     }
   }
 
+  async function unfriend() {
+    if (!window.confirm(`Desfazer a amizade com ${user.name}? Vocês deixam de ver o feed e as mensagens um do outro.`)) return;
+    const result = await api(`/api/friends/${encodeURIComponent(user.id)}`, { method: 'DELETE' });
+    if (!result.ok) { notify(apiError(result)); return; }
+    notify(`${user.name} saiu da sua lista.`);
+    invalidateResources('/api/friends');
+    invalidateResources('/api/social/');
+    invalidateResources('/api/messages');
+    go('amigos');
+  }
+
   function clearImage(kind) {
     if (!actions?.updateProfile({ [kind]: '' })) return;
     fetch(`/api/profile/media/${encodeURIComponent(kind)}`, {
@@ -319,6 +330,12 @@ export default function Profile({ id, handle = '', state, actions, account, noti
             <Icon name="edit"/>{editing ? 'Fechar edição' : 'Editar perfil'}
           </Button>}
           {!isSelf && view.viewer === 'public' && account && <AddFriendButton person={user} notify={notify} onChanged={remote.refresh}/>}
+          {!isSelf && view.viewer !== 'public' && account && <Button secondary onClick={() => go(`mensagens?com=${encodeURIComponent(user.id)}`)}>
+            <Icon name="message"/>Mensagem
+          </Button>}
+          {!isSelf && view.viewer !== 'public' && account && <Button secondary onClick={unfriend}>
+            <Icon name="close"/>Desfazer amizade
+          </Button>}
           {!isSelf && view.viewer !== 'public' && <Button secondary onClick={() => go('amigos')}>
             <Icon name="users"/>Amigos
           </Button>}
