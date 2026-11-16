@@ -13,7 +13,7 @@ import {
   AI_TEXT_LIMIT, FileError, aiAvailable, confirmPdfUpload, createPdfUploadUrl, discardPdf, identifyWithAI, readPdf, replacePdf, storagePlan, storageUsage, uploadPdf, validateFileId,
 } from '../domain/library-files.js';
 import {
-  generatePdfInsights, ocrPdfPages, readPdfInsights, savePdfMarkdown, streamPdfInsights,
+  estimatePdfReading, generatePdfInsights, ocrPdfPages, readPdfInsights, savePdfMarkdown, streamPdfInsights,
 } from '../domain/pdf-ai.js';
 import { formatBytes } from '../../public/pdf-domain.js';
 
@@ -77,6 +77,10 @@ export function libraryRoutes(router) {
   router.add('POST', '/api/library/files/:fileId/ocr', { ...account, rateLimit: INSIGHTS_ATTEMPTS }, async (ctx) => {
     const body = await ctx.json(6 * 1024 * 1024);
     return json(await ocrPdfPages(ctx.db, ctx.user.id, ctx.params.fileId, { pages: body.pages }, { env: ctx.env, log: ctx.log }));
+  });
+  router.add('POST', '/api/library/files/:fileId/estimate', { ...account, rateLimit: INSIGHTS_ATTEMPTS }, async (ctx) => {
+    const body = await ctx.json(LIMITS.tiny).catch(() => ({}));
+    return json(await estimatePdfReading(ctx.db, ctx.user.id, ctx.params.fileId, { pages: body?.pages }, { env: ctx.env, log: ctx.log, bucket: ctx.media }));
   });
   router.add('GET', '/api/library/files/:fileId/insights', account, async (ctx) => {
     return json(await readPdfInsights(ctx.db, ctx.user.id, ctx.params.fileId));

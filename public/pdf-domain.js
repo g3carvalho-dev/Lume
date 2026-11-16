@@ -81,6 +81,7 @@ export function normalizeOutline(value, pages = MAX_PAGES) {
 export function normalizePdfMeta(value) {
   if (!value || typeof value !== 'object' || !FILE_ID.test(value.fileId || '')) return null;
   if (!isPage(value.pages) || !Number.isInteger(value.size) || value.size <= 0) return null;
+  const minutes = normalizeMinutes(value.minutes);
   return {
     fileId: value.fileId,
     name: clean(value.name, 200) || 'documento.pdf',
@@ -88,6 +89,71 @@ export function normalizePdfMeta(value) {
     pages: value.pages,
     outline: normalizeOutline(value.outline, value.pages),
     uploadedAt: Number.isFinite(Date.parse(value.uploadedAt)) ? value.uploadedAt : null,
+    ...(minutes ? { minutes, minutesSource: value.minutesSource === 'ai' ? 'ai' : 'text' } : {}),
+  };
+}
+
+// ---------------- Tempo de leitura ----------------
+// Estimativa do tempo para ler o PDF inteiro, nunca uma medida. Leitura de
+// estudo é mais lenta que a corrida (cerca de 130 palavras por minuto, em
+// português). Com o texto extraído, conta as palavras; sem ele, usa 2 minutos
+// por página. A IA, sob pedido, refina esse número pela densidade do conteúdo.
+export const STUDY_WORDS_PER_MINUTE = 130;
+export const FALLBACK_MINUTES_PER_PAGE = 2;
+export const MAX_ESTIMATE_MINUTES = 6000;
+const CHARS_PER_WORD = 6.3;
+
+function normalizeMinutes(value) {
+  const minutes = Math.round(Number(value));
+  return Number.isFinite(minutes) && minutes >= 1 && minutes <= MAX_ESTIMATE_MINUTES ? minutes : 0;
+}
+
+export function countWords(text) {
+  return (String(text ?? '').match(/\S+/g) || []).length;
+}
+
+// Palavras aproximadas a partir dos caracteres do Markdown guardado.
+export function wordsFromChars(chars) {
+  return Math.round(Math.max(0, Number(chars) || 0) / CHARS_PER_WORD);
+}
+
+export function estimateReadingMinutes({ words = 0, pages = 0 } = {}) {
+  const count = Math.max(0, Number(words) || 0);
+  const total = Math.max(0, Number(pages) || 0);
+  const minutes = count > 0 ? Math.ceil(count / STUDY_WORDS_PER_MINUTE) : Math.ceil(total * FALLBACK_MINUTES_PER_PAGE);
+  return Math.max(1, Math.min(MAX_ESTIMATE_MINUTES, minutes));
+}
+
+// Faixa que a IA pode propor: densidade muda o ritmo, mas não em ordens de grandeza.
+// Quando a IA leu o documento inteiro, a faixa é mais larga (só barra absurdos).
+export function clampAiMinutes(value, baseline, { min = 0.5, max = 2.5 } = {}) {
+  const minutes = Math.round(Number(value));
+  if (!Number.isFinite(minutes) || minutes < 1) return 0;
+  const base = normalizeMinutes(baseline);
+  if (!base) return Math.min(MAX_ESTIMATE_MINUTES, minutes);
+  return Math.max(1, Math.min(MAX_ESTIMATE_MINUTES, Math.round(Math.min(Math.max(minutes, base * min), base * max))));
+}
+
+// Tempo que falta: o total proporcional às páginas ainda não passadas.
+export function pdfRemainingMinutes(pdf, reading) {
+  if (!pdf) return 0;
+  const total = pdf.minutes || estimateReadingMinutes({ pages: pdf.pages });
+  const page = Math.min(pdf.pages, Math.max(1, Number(reading?.page) || 1));
+  return Math.max(1, Math.ceil(total * (pdf.pages - page + 1) / pdf.pages));
+}
+
+// A estimativa da IA não é sobrescrita pela do texto; a do texto só muda se mudar o número.
+export function setPdfEstimate(state, materialId, { minutes, source = 'text' }) {
+  const value = normalizeMinutes(minutes);
+  if (!value) throw new Error('Estimativa de tempo inválida.');
+  const course = state.courses.find((item) => item.id === materialId);
+  if (!course?.pdf) throw new Error('Este material não é um PDF.');
+  const next = source === 'ai' ? 'ai' : 'text';
+  if (course.pdf.minutesSource === 'ai' && next === 'text') return state;
+  if (course.pdf.minutes === value && (course.pdf.minutesSource || 'text') === next) return state;
+  return {
+    ...state,
+    courses: state.courses.map((item) => item.id === materialId ? { ...item, pdf: { ...item.pdf, minutes: value, minutesSource: next } } : item),
   };
 }
 

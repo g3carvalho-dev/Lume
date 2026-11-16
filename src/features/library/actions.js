@@ -1,6 +1,6 @@
 import { addMaterial, deleteCourse, replaceCourseSteps, selectCourse, setCourseEdital, toggleCoursePause, updateCourse } from '../../../public/domain.js';
 import { applyCourseImport, isImportedCourse } from '../../../public/import-domain.js';
-import { addHighlight, addPdfMaterial, recolorHighlight, removeHighlight, setPdfSize, setReadingPage } from '../../../public/pdf-domain.js';
+import { addHighlight, addPdfMaterial, recolorHighlight, removeHighlight, setPdfEstimate, setPdfSize, setReadingPage } from '../../../public/pdf-domain.js';
 import { addSubject, deleteSubject, linkMaterialSubject, updateSubject } from '../../../public/subject-domain.js';
 import { addSlide, markSlideSeen, moveSlide, removeSlide, setSlideImage, updateSlide } from '../../../public/slides-domain.js';
 
@@ -37,6 +37,7 @@ export function createLibraryActions(act) {
       return { state: addPdfMaterial(next, { title, file, subjectId: subject }) };
     }),
     setPdfSize: (id, size) => change(setPdfSize, id, size),
+    setPdfEstimate: (id, estimate) => change(setPdfEstimate, id, estimate),
     setReadingPage: (id, position) => change(setReadingPage, id, position),
     addHighlight: (id, input) => change(addHighlight, id, input),
     recolorHighlight: (id, highlightId, color) => change(recolorHighlight, id, highlightId, color),

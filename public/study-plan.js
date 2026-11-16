@@ -12,6 +12,7 @@
 import { materialSteps } from './material-model.js';
 import { courseLessons, isImportedCourse, sourceLabel } from './import-domain.js';
 import { completedUnitIds } from './progress-domain.js';
+import { pdfRemainingMinutes } from './pdf-domain.js';
 
 export const PLAN_LIMIT = 8;
 export const RECENT_DAYS = 7;
@@ -171,7 +172,8 @@ export function nextAction(state, { now = Date.now() } = {}) {
     discipline: step.discipline,
     module: step.module,
     reason: step.reason,
-    minutes: known ? Math.max(1, Math.ceil(lesson.duration / 60)) : sessionMinutes(state),
+    // PDF: o que falta ler, pela estimativa do documento (texto ou IA), não os 25 min padrão.
+    minutes: course.pdf ? pdfRemainingMinutes(course.pdf, course.reading) : known ? Math.max(1, Math.ceil(lesson.duration / 60)) : sessionMinutes(state),
     durationKnown: known,
     url: lesson?.url || course.url || '',
     imported: isImportedCourse(course),

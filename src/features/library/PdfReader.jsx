@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { HIGHLIGHT_COLORS, formatBytes, highlightAt, identifyPage, readingLabel } from '../../../public/pdf-domain.js';
+import { HIGHLIGHT_COLORS, estimateReadingMinutes, formatBytes, highlightAt, identifyPage, readingLabel, wordsFromChars } from '../../../public/pdf-domain.js';
 import { materialStanding, subjectOf } from '../../../public/subject-domain.js';
 import { materialSteps } from '../../../public/material-model.js';
 import { isCompleted } from '../../../public/progress-domain.js';
 import { formatSessionDuration } from '../../../public/session-domain.js';
 import { useReadingSession } from './useReadingSession.js';
 import {
-  downloadDocument, extractDocumentMarkdown, generatePdfInsights, getPdfInsights, readPageText, savePdfMarkdown, storageInfo,
+  downloadDocument, estimatePdfReading, extractDocumentMarkdown, generatePdfInsights, getPdfInsights, readPageText, savePdfMarkdown, storageInfo,
 } from './pdf-client.js';
 import Icon from '../../ui/Icon.jsx';
 import { Button, Progress, Skeleton } from '../../ui/ui.jsx';
@@ -171,6 +171,9 @@ export function PdfDetails({ course, state, actions, open, close }) {
 
 // Leitor embutido alinhado ao layout Stitch (2 zonas limpas por padrão,
 // barra flutuante de marca-texto, sumário recolhível e painel editorial em 3 abas).
+// Teto do Markdown guardado no servidor (api/domain/pdf-ai.js); acima dele o texto está cortado.
+const MAX_MARKDOWN_CHARS = 250_000;
+
 export default function PdfReader({ course, state, actions, progressActions, notify, open, close, account }) {
   const [doc, setDoc] = useState(null);
   const [loadError, setLoadError] = useState('');
@@ -242,6 +245,18 @@ export default function PdfReader({ course, state, actions, progressActions, not
         getPdfInsights(course.pdf.fileId, controller.signal)
           .then((res) => {
             if (!alive) return;
+            // Tempo de leitura: conta por palavras sem IA; a IA ajusta pela densidade, uma vez por PDF.
+            if (res.markdownStatus === 'ready') {
+              const text = wordsFromChars(res.markdownChars);
+              const capped = res.markdownChars >= MAX_MARKDOWN_CHARS * 0.98;
+              if (!course.pdf.minutes && !capped) actions.setPdfEstimate(course.id, { minutes: estimateReadingMinutes({ words: text, pages }), source: 'text' });
+            }
+            // Com Gemini a IA lê o próprio PDF, então estima também documentos sem texto extraído.
+            if (course.pdf.minutesSource !== 'ai') {
+              estimatePdfReading(course.pdf.fileId, pages, controller.signal)
+                .then((estimate) => { if (alive) actions.setPdfEstimate(course.id, { minutes: estimate.minutes, source: 'ai' }); })
+                .catch(() => {});
+            }
             setSummary((prev) => ({
               ...prev,
               markdownStatus: res.markdownStatus || 'pending',
