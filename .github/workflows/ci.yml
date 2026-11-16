@@ -83,7 +83,7 @@ jobs:
             companion/domain.mjs \
             companion/discord-presence.mjs \
             companion/discord-client.mjs \
-            companion/update.mjs 
+            companion/update.mjs \
             companion/updater.mjs
           do
             node --check "$file"
