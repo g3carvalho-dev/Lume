@@ -43,6 +43,7 @@ export default function HeaderTimer({ state, actions, settingsActions, notify, a
   const [picked, setPicked] = useState(null);
   const [cycle, setCycle] = useState(30);
   const [custom, setCustom] = useState('');
+  const [manual, setManual] = useState(false);
   const [offset, setOffset] = useState(0);
   const [volume, setVolume] = useState(45);
   const [now, setNow] = useState(() => Date.now());
@@ -183,42 +184,50 @@ export default function HeaderTimer({ state, actions, settingsActions, notify, a
     <div id={TIMER_POPOVER_ID} ref={popoverRef} popover="auto" className="shell-popover timer-popover anchored-overlay" onToggle={onToggle} aria-label="Timer de estudo">
       {opened && <>
       <div className="timer-popover-head">
-        <strong>Timer de estudo</strong>
-        {status !== 'idle' && <span className="timer-popover-time" role="timer">{digits}<small>{reading ? 'de leitura' : status === 'paused' ? 'pausado' : finished ? 'ciclo concluído' : 'no ciclo'}</small></span>}
+        <span className="timer-title"><Icon name="timer"/>Timer de estudo</span>
+        <span className="timer-state">{status === 'idle' ? 'parado' : reading ? 'leitura' : status === 'paused' ? 'pausado' : finished ? 'ciclo concluído' : 'em andamento'}</span>
       </div>
+      <strong className={`timer-digits is-${status}`} role="timer" aria-label={status === 'idle' ? `Ciclo de ${cycle} minutos` : statusLabel}>{status === 'idle' ? formatSessionDuration(cycleMs) : digits}</strong>
 
       {status === 'idle'
-        ? <label className="timer-field">
-          <span>Material</span>
-          <select aria-label="Material da sessão" value={courseId} onChange={(event) => setPicked(event.target.value)}>
-            <option value="">Estudo livre, sem material</option>
-            {state.courses.map((item) => <option key={item.id} value={item.id}>{item.title}{subjectOf(state, item) ? ` · ${subjectOf(state, item).title}` : ''}</option>)}
-          </select>
-        </label>
-        : <p className="timer-current">{active.label || 'Sessão de estudo'}</p>}
+        ? <div className="timer-field">
+          <span className="timer-label" id="timer-material-label">material</span>
+          <label className="timer-select">
+            <Icon name={course?.pdf ? 'file' : 'book'}/>
+            <select aria-label="Material da sessão" value={courseId} onChange={(event) => setPicked(event.target.value)}>
+              <option value="">Estudo livre</option>
+              {state.courses.map((item) => <option key={item.id} value={item.id}>{item.title}{subjectOf(state, item) ? ` · ${subjectOf(state, item).title}` : ''}</option>)}
+            </select>
+            <Icon name="chevron-down"/>
+          </label>
+        </div>
+        : <p className="timer-current"><Icon name={active.courseId && state.courses.find((item) => item.id === active.courseId)?.pdf ? 'file' : 'book'}/><span>{active.label || 'Sessão de estudo'}</span></p>}
 
       {!reading && <div className="timer-field">
-        <span id="timer-cycle-label">Ciclo</span>
-        <div className="timer-chips" role="group" aria-labelledby="timer-cycle-label">
-          {CYCLES.map((minutes) => <button key={minutes} type="button" aria-pressed={cycle === minutes} onClick={() => chooseCycle(minutes)}>{minutes < 60 ? `${minutes} min` : '1 h'}</button>)}
-          <input
-            type="number"
-            min={1}
-            max={180}
-            inputMode="numeric"
-            aria-label="Ciclo personalizado, em minutos"
-            placeholder="outro"
-            value={custom}
-            onChange={(event) => setCustom(event.target.value)}
-            onBlur={() => { if (custom) chooseCycle(custom); }}
-            onKeyDown={(event) => { if (event.key === 'Enter' && custom) chooseCycle(custom); }}
-          />
+        <span className="timer-label" id="timer-cycle-label">ciclo</span>
+        <div className="timer-segment" role="group" aria-labelledby="timer-cycle-label">
+          {CYCLES.map((minutes) => <button key={minutes} type="button" aria-label={`${minutes} min`} aria-pressed={!manual && cycle === minutes} onClick={() => { setManual(false); chooseCycle(minutes); }}>{minutes < 60 ? minutes : '60'}<small>min</small></button>)}
+          {manual
+            ? <input
+              type="number"
+              min={1}
+              max={180}
+              inputMode="numeric"
+              autoFocus
+              aria-label="Ciclo personalizado, em minutos"
+              placeholder="min"
+              value={custom}
+              onChange={(event) => setCustom(event.target.value)}
+              onBlur={() => { if (custom) chooseCycle(custom); setManual(false); }}
+              onKeyDown={(event) => { if (event.key === 'Enter') { if (custom) chooseCycle(custom); setManual(false); } }}
+            />
+            : <button type="button" aria-pressed={!CYCLES.includes(cycle)} aria-label={CYCLES.includes(cycle) ? 'Outra duração' : `Outra duração: ${cycle} min`} onClick={() => setManual(true)}>{CYCLES.includes(cycle) ? <Icon name="tune"/> : <>{cycle}<small>min</small></>}</button>}
         </div>
       </div>}
 
       <div className="timer-field">
-        <span id="timer-sound-label">Som ambiente</span>
-        <div className="timer-chips" role="group" aria-labelledby="timer-sound-label">
+        <span className="timer-label" id="timer-sound-label">som ambiente</span>
+        <div className="timer-sounds" role="group" aria-labelledby="timer-sound-label">
           {SOUNDSCAPES.map((item) => <button key={item.id} type="button" aria-pressed={sound === item.id} onClick={() => chooseSound(item.id)}><Icon name={item.icon}/>{item.title}</button>)}
         </div>
         {sound !== 'off' && <label className="timer-volume"><Icon name="mute"/><span className="sr-only">Volume</span><input type="range" min={0} max={100} value={volume} onChange={(event) => changeVolume(Number(event.target.value))}/><Icon name="volume"/></label>}
@@ -229,7 +238,7 @@ export default function HeaderTimer({ state, actions, settingsActions, notify, a
           ? <button type="button" className="button primary" onClick={begin}><Icon name="play"/>Iniciar</button>
           : <>
             <button type="button" className="button secondary" onClick={togglePause}><Icon name={status === 'running' ? 'pause' : 'play'}/>{status === 'running' ? 'Pausar' : 'Retomar'}</button>
-            <button type="button" className="button secondary" onClick={finish}><Icon name="check"/>Encerrar</button>
+            <button type="button" className="button ghost" onClick={finish}><Icon name="check"/>Encerrar</button>
           </>}
       </div>
       </>}

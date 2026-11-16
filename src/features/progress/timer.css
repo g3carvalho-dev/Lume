@@ -29,8 +29,7 @@
   height: 1.05rem;
 }
 .header-timer-digits,
-.timer-fab span,
-.timer-popover-time {
+.timer-fab span {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
@@ -61,92 +60,244 @@
 }
 
 .timer-popover {
-  width: min(19rem, calc(100vw - 2 * var(--page-gutter, 1rem)));
+  width: min(18.5rem, calc(100vw - 2 * var(--page-gutter, 1rem)));
+  padding: 1rem;
   display: grid;
-  gap: 0.85rem;
+  gap: 0.9rem;
 }
 .timer-popover[popover]:not(:is(:popover-open, .\:popover-open)) {
   display: none;
 }
 .timer-popover-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
 }
-.timer-popover-head strong {
-  font-size: 0.92rem;
+.timer-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
   font-weight: 600;
 }
-.timer-popover-time {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.35rem;
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-.timer-popover-time small {
-  font-family: var(--font-sans);
-  font-size: 0.72rem;
-  font-weight: 400;
+.timer-title .icon {
+  width: 1rem;
+  height: 1rem;
   color: var(--text-subtle);
 }
-.timer-current {
-  margin: 0;
-  font-size: 0.84rem;
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
+.timer-state,
+.timer-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-subtle);
+}
+/* Tempo em mono grande: o centro do painel, sem cor de chamada. */
+.timer-digits {
+  display: block;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--text);
+}
+.timer-digits.is-idle,
+.timer-digits.is-paused {
+  color: var(--text-subtle);
 }
 .timer-field {
   display: grid;
   gap: 0.4rem;
   min-width: 0;
 }
-.timer-field > span {
-  font-size: 0.75rem;
-  color: var(--text-subtle);
-}
-.timer-field select {
-  width: 100%;
-  min-width: 0;
-}
-.timer-chips {
+
+/* Material: mesmo campo dos formulários, com ícone e seta. */
+.timer-select {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-.timer-chips button,
-.timer-chips input {
-  display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  min-height: 2rem;
-  padding: 0.3rem 0.6rem;
-  border-radius: 10px;
+  min-width: 0;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 0.78rem;
-  cursor: pointer;
-}
-.timer-chips button .icon {
-  width: 0.9rem;
-  height: 0.9rem;
-}
-.timer-chips button[aria-pressed="true"] {
-  border-color: var(--text);
+  background: var(--inner);
   color: var(--text);
 }
-.timer-chips input {
-  width: 4.6rem;
-  cursor: text;
+.timer-select:hover {
+  border-color: var(--border-strong);
+}
+.timer-select:focus-within {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px var(--lume-soft);
+}
+.timer-select .icon {
+  position: absolute;
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-subtle);
+  pointer-events: none;
+}
+.timer-select .icon:first-child {
+  left: 0.7rem;
+}
+.timer-select .icon:last-child {
+  right: 0.65rem;
+}
+.timer-select select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.5rem 2.1rem 0.5rem 2.15rem;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  outline: none;
+}
+.timer-select option {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.timer-current {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-md);
+  background: var(--inner);
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  min-width: 0;
+}
+.timer-current .icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: var(--text-subtle);
+}
+.timer-current span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ciclo: uma faixa só, como os seletores de Configurações; o ativo em papel. */
+.timer-segment {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.timer-segment > * {
+  min-width: 0;
+  min-height: 2.35rem;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
   font-family: var(--font-mono);
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-align: center;
+}
+.timer-segment > :first-child {
+  border-left: 0;
+}
+.timer-segment button {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.45rem 0.2rem;
+  cursor: pointer;
+}
+.timer-segment button small {
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: inherit;
+  opacity: 0.75;
+}
+.timer-segment button .icon {
+  align-self: center;
+  width: 0.95rem;
+  height: 0.95rem;
+}
+.timer-segment button:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.timer-segment button[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+}
+.timer-segment input {
+  width: 100%;
+  padding: 0 0.3rem;
+  background: var(--inner);
+  color: var(--text);
+  outline: none;
+  -moz-appearance: textfield;
+}
+.timer-segment input::-webkit-inner-spin-button,
+.timer-segment input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Som: quatro opções do mesmo tamanho, o ativo em papel. */
+.timer-sounds {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+.timer-sounds button {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  min-height: 2.35rem;
+  padding: 0.4rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.timer-sounds button .icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex-shrink: 0;
+}
+.timer-sounds button:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.timer-sounds button[aria-pressed="true"] {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
 }
 .timer-volume {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  padding-top: 0.15rem;
   color: var(--text-subtle);
 }
 .timer-volume input {
@@ -160,11 +311,11 @@
 }
 .timer-actions {
   display: flex;
-  flex-wrap: wrap;
   gap: 0.5rem;
+  padding-top: 0.1rem;
 }
 .timer-actions .button {
-  flex: 1 1 auto;
+  flex: 1 1 0;
 }
 
 /* Celular: o cabeçalho não tem espaço. O botão flutuante fica acima da barra
