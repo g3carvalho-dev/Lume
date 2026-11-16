@@ -31,7 +31,7 @@ continua disponível para diagnóstico.
   sobrar instalação antiga. Vale para o Windows instalado e para o AppImage
   (`electron-updater`, lendo `latest.yml`/`latest-linux.yml` da release). O pacote `.deb` e a
   execução fora do instalador usam o caminho manual (`update.mjs`: baixa e abre o arquivo). A
-  configuração em `%APPDATA%Lumecompanion.json` (Windows) ou `~/.config/Lume/companion.json`
+  configuração em `%APPDATA%umempanion.json` (Windows) ou `~/.config/Lume/companion.json`
   (Linux) é preservada.
 
 ## O que ele não faz
