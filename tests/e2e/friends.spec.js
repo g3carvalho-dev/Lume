@@ -112,3 +112,17 @@ test('link de convite preenche o código e a amizade não concede XP', async ({ 
 
   await guest.dispose();
 });
+
+test('Adicionar amigos: busca e convite por link em uma tela simples', async ({ page, context }, testInfo) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
+  await register(page, testInfo, 'friend-add', 'Pessoa simples');
+  await page.goto('/#adicionar');
+  await expect(page.getByRole('heading', { name: 'Adicionar amigos', exact: true })).toBeVisible();
+  await expect(page.getByRole('searchbox').or(page.getByPlaceholder('@usuario'))).toBeVisible();
+  // Sem abas nem solicitações enquanto não há pedidos.
+  await expect(page.getByRole('tab')).toHaveCount(0);
+  await expect(page.getByText('Aguardando resposta')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Copiar link' }).click();
+  await expect(page.getByText(/Link do convite copiado|Link: /)).toBeVisible();
+});

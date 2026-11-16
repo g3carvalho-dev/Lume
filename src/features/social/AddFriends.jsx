@@ -11,8 +11,6 @@ import { warmProfileProps } from './prefetch.js';
 // e convite por link (para quem ainda não tem conta). A amizade só começa quando
 // a outra pessoa aceita; nada disso concede XP nem expõe biblioteca ou progresso.
 
-const TABS = [['add', 'Adicionar'], ['received', 'Recebidas'], ['sent', 'Enviadas']];
-
 function PersonRow({ person, children }) {
   return <li className="addfriend-person">
     <SocialAvatar person={person}/>
@@ -24,12 +22,10 @@ function PersonRow({ person, children }) {
 export default function AddFriends({ account, notify, go }) {
   const requests = useResource('/api/friends/requests', { enabled: Boolean(account), interval: 30000 });
   const data = requests.data;
-  const [tab, setTab] = useState('add');
   const [query, setQuery] = useState('');
   const [found, setFound] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [invite, setInvite] = useState(null);
 
   async function run(action) {
     setBusy(true); setError('');
@@ -84,32 +80,18 @@ export default function AddFriends({ account, notify, go }) {
 
   const inviteUrl = (code) => `${location.origin}/#amigos?convite=${code}`;
 
-  async function createInvite() {
-    return run(async () => {
+  // Um clique: cria o convite, copia o link e, onde houver, abre o compartilhar do sistema.
+  async function shareInvite() {
+    const link = await run(async () => {
       const result = await api('/api/friends/invite', { method: 'POST', body: {} });
       if (!result.ok) throw new Error(apiError(result));
-      setInvite(result.data);
       return inviteUrl(result.data.code);
     });
-  }
-
-  async function inviteLink() {
-    return invite ? inviteUrl(invite.code) : createInvite();
-  }
-
-  async function copyInvite() {
-    const link = await inviteLink();
     if (!link) return;
-    notify(await copyText(link) ? 'Link do convite copiado. Vale por 7 dias.' : `Não foi possível copiar automaticamente. Link: ${link}`);
-  }
-
-  async function shareInvite() {
-    const link = await inviteLink();
-    if (!link) return;
-    if (navigator.share) {
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) {
       try { await navigator.share({ title: 'Convite para o Lume', text: `${account.name} convidou você para ser amigo no Lume.`, url: link }); return; } catch (exception) { if (exception?.name === 'AbortError') return; }
     }
-    notify(await copyText(link) ? 'Compartilhar não está disponível aqui: o link foi copiado.' : `Link do convite: ${link}`);
+    notify(await copyText(link) ? 'Link do convite copiado. Vale por 7 dias.' : `Não foi possível copiar automaticamente. Link: ${link}`);
   }
 
   if (!account) {
@@ -125,11 +107,12 @@ export default function AddFriends({ account, notify, go }) {
 
   const received = data?.received || [];
   const sent = data?.sent || [];
-  const counts = { add: 0, received: received.length, sent: sent.length };
 
-  const searchCard = <section className="card-surface addfriend-card" aria-labelledby="addfriend-search-title">
-    <h2 id="addfriend-search-title" className="title">Encontre pelo @usuário</h2>
-    <p className="quiet-note">Busque quem já tem uma conta no Lume.{data?.handle && <> Seu @usuário é <strong className="mono">@{data.handle}</strong>.</>}</p>
+  const searchCard = <section className="addfriend-block" aria-labelledby="addfriend-search-title">
+    <div className="addfriend-block-head">
+      <h2 id="addfriend-search-title" className="title">Buscar pelo @usuário</h2>
+      {data?.handle && <span className="quiet-note">Você é <strong className="mono">@{data.handle}</strong></span>}
+    </div>
     <form className="addfriend-search" onSubmit={search} role="search">
       <label className="addfriend-search-field"><span className="sr-only">@usuário</span><Icon name="search"/>
         <input value={query} onChange={event => { setQuery(event.target.value); setFound(null); setError(''); }} placeholder="@usuario" maxLength={26} autoComplete="off" autoCapitalize="none" spellCheck="false" disabled={busy}/>
@@ -164,37 +147,24 @@ export default function AddFriends({ account, notify, go }) {
         <Button secondary onClick={() => cancel(request)} disabled={busy}>Cancelar</Button>
       </PersonRow>)}</ul>;
 
-  return <div className="social-root">
-    <Heading eyebrow="amigos, mensagens e ranking" title="Adicione seus amigos">Encontre quem já está aqui ou convide alguém para o Lume.</Heading>
-    <div className="addfriend-tabs" role="tablist" aria-label="Solicitações de amizade">
-      {TABS.map(([id, label]) => <button key={id} type="button" role="tab" id={`addfriend-tab-${id}`} aria-selected={tab === id} aria-controls="addfriend-panel" className="filter-btn" onClick={() => setTab(id)}>
-        <span>{label}{counts[id] > 0 && <span className="nav-badge addfriend-badge" aria-label={`${counts[id]} pendentes`}>{counts[id]}</span>}</span>
-      </button>)}
-    </div>
-    {requests.error && <div className="form-error form-error-block" role="alert">{requests.error}<Button secondary onClick={() => requests.refresh()}>Tentar novamente</Button></div>}
-    <div className="addfriend-layout">
-      <div className="addfriend-main" id="addfriend-panel" role="tabpanel" aria-labelledby={`addfriend-tab-${tab}`}>
-        {tab === 'add' && <>
-          {searchCard}
-          {received.length > 0 && <section className="card-surface addfriend-card"><h2 className="title">Solicitações recebidas</h2>{receivedList}</section>}
-        </>}
-        {tab === 'received' && <section className="card-surface addfriend-card"><h2 className="title">Solicitações recebidas</h2>{receivedList}</section>}
-        {tab === 'sent' && <section className="card-surface addfriend-card"><h2 className="title">Solicitações enviadas</h2>{sentList}</section>}
-      </div>
+  const pending = received.length + sent.length;
 
-      <aside className="card-surface addfriend-card addfriend-invite" aria-labelledby="addfriend-invite-title">
-        <span className="addfriend-invite-icon" aria-hidden="true"><Icon name="external"/></span>
-        <h2 id="addfriend-invite-title" className="title">Convide alguém para o Lume</h2>
-        <p className="quiet-note">Crie um convite e envie o link para quem ainda não tem conta. Ele vale por 7 dias.</p>
-        {!invite && <Button onClick={createInvite} disabled={busy}><Icon name="plus"/>Criar convite</Button>}
-        {invite && <div className="companion-code social-invite-code" aria-live="polite">
-          <span className="metric-label">Seu código de convite</span><code>{invite.code}</code>
-          <Button onClick={shareInvite} disabled={busy}><Icon name="upload"/>Compartilhar link</Button>
-          <Button secondary onClick={copyInvite} disabled={busy}>Copiar link</Button>
-          <button type="button" className="text-button" onClick={createInvite} disabled={busy}>Gerar novo convite</button>
-        </div>}
-        <p className="quiet-note">O convite continua com a pessoa durante o cadastro.</p>
-      </aside>
+  return <div className="social-root">
+    <Heading title="Adicionar amigos">Busque pelo @usuário ou envie um link para quem ainda não tem conta.</Heading>
+    {requests.error && <div className="form-error form-error-block" role="alert">{requests.error}<Button secondary onClick={() => requests.refresh()}>Tentar novamente</Button></div>}
+    <div className="card-surface addfriend-card addfriend-simple">
+      {searchCard}
+      <section className="addfriend-block addfriend-invite-row" aria-labelledby="addfriend-invite-title">
+        <div>
+          <h2 id="addfriend-invite-title" className="title">Convidar por link</h2>
+          <p className="quiet-note">Para quem ainda não está no Lume. O link vale por 7 dias.</p>
+        </div>
+        <Button onClick={shareInvite} disabled={busy}><Icon name="link"/>Copiar link</Button>
+      </section>
     </div>
+    {pending > 0 && <div className="addfriend-requests">
+      {received.length > 0 && <section className="card-surface addfriend-card"><h2 className="title">Pediram para ser seu amigo <span className="nav-badge addfriend-badge" aria-label={`${received.length} pendentes`}>{received.length}</span></h2>{receivedList}</section>}
+      {sent.length > 0 && <section className="card-surface addfriend-card"><h2 className="title">Aguardando resposta</h2>{sentList}</section>}
+    </div>}
   </div>;
 }
