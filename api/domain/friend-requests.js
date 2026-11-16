@@ -9,7 +9,7 @@
 
 import { AppError } from '../errors.js';
 import { sanitizeProfileImage } from '../../public/domain.js';
-import { normalizeSharing } from '../../public/profile-domain.js';
+import { isOpenProfile } from '../../public/profile-domain.js';
 import { MAX_FRIENDS } from './friends.js';
 
 export const HANDLE_PATTERN = /^[a-z0-9][a-z0-9._]{2,23}$/;
@@ -134,12 +134,12 @@ async function relation(db, userId, otherId) {
   return { status: 'none' };
 }
 
-// Perfil público vem ligado (preferences.sharing.public); desligado, a pessoa não
+// Perfil aberto é o padrão (preferences.privacy.mode); privado, a pessoa não
 // aparece na busca por @usuário e só amigos abrem o perfil.
 async function isPublicProfile(db, userId) {
   // Só a preferência: não precisa montar a biblioteca inteira para isso.
   const row = await db.first('SELECT data FROM account_documents WHERE user_id = ?', [userId]);
-  return normalizeSharing(parseJson(row?.data)?.preferences?.sharing).public;
+  return isOpenProfile(parseJson(row?.data)?.preferences);
 }
 
 export async function searchByHandle(db, userId, raw) {

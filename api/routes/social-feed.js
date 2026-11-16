@@ -1,7 +1,7 @@
 // Feed entre amigos, com a mesma política de sessão e origem da API social.
 import { BASE_HEADERS, json } from '../http.js';
 import { SOCIAL_PDF_BYTES } from '../../public/social-domain.js';
-import { createSocialPost, listSocialPosts, deleteSocialPost, readSocialAttachment, reactToSocialPost, listSocialComments, createSocialComment, deleteSocialComment, reactToSocialComment, SocialError } from '../domain/social-feed.js';
+import { createSocialPost, listSocialPosts, deleteSocialPost, pinSocialPost, readSocialAttachment, reactToSocialPost, listSocialComments, createSocialComment, deleteSocialComment, reactToSocialComment, SocialError } from '../domain/social-feed.js';
 import { searchGifs, gifCategories } from '../domain/gifs.js';
 
 const FEED = { auth: 'Entre na sua conta para ver o Social.', origin: true };
@@ -23,6 +23,9 @@ export function socialFeedRoutes(router) {
     } else input = await ctx.json(16384);
     return json(await createSocialPost(ctx.db, ctx.media, ctx.user.id, input, file, Date.now(), ctx.config), 201);
   });
+  // Fixar no perfil: uma publicação própria por pessoa. Não gera XP.
+  router.add('PUT', '/api/social/posts/:postId/pin', FEED, async ctx => json(await pinSocialPost(ctx.db, ctx.user.id, ctx.params.postId, true)));
+  router.add('DELETE', '/api/social/posts/:postId/pin', FEED, async ctx => json(await pinSocialPost(ctx.db, ctx.user.id, ctx.params.postId, false)));
   router.add('DELETE', '/api/social/posts/:postId', FEED, async ctx => json(await deleteSocialPost(ctx.db, ctx.media, ctx.user.id, ctx.params.postId)));
   // Navegação, download e <img> enviam cookie; o acesso continua privado, sem cache público.
   router.add('GET', '/api/social/posts/:postId/attachment', { auth: FEED.auth }, async ctx => {

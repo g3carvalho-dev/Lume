@@ -9,6 +9,7 @@ import {
   renameGroup, sendGroupMessage, unreadGroupMessages,
 } from '../domain/groups.js';
 import { createReport, listReports, reviewReport } from '../domain/reports.js';
+import { listProfilePosts } from '../domain/social-feed.js';
 import { acceptInvite, createInvite, listFriends, listProfileFriends, readFriendProfile, readPersonCard, removeFriend, touchUserPresence } from '../domain/friends.js';
 import { cancelRequest, getHandle, listRequests, userIdByHandle, respondRequest, searchByHandle, sendRequest, setHandle } from '../domain/friend-requests.js';
 import {
@@ -77,19 +78,25 @@ export function socialRoutes(router) {
     }
   });
 
-  router.add('GET', '/api/profile/:friendId/friends', { auth: 'Entre na sua conta para ver perfis.', origin: true }, async ({ db, user, params }) => {
+  // Seções do perfil pedidas à parte (Amigos e Publicações). Pelo @usuário, perfil
+  // fechado responde como inexistente, igual à busca.
+  const profileSection = (read) => async ({ db, user, params, url }) => {
     let targetId = params.friendId;
     if (targetId.startsWith('@')) {
       targetId = await userIdByHandle(db, targetId);
       if (!targetId) throw new AppError('Nenhuma pessoa com esse @usuário.', 'not_found', 404);
     }
     try {
-      return json(await listProfileFriends(db, user.id, targetId));
+      return json(await read(db, user.id, targetId, url));
     } catch (error) {
       if (error?.code === 'not_friends' && params.friendId.startsWith('@')) throw new AppError('Nenhuma pessoa com esse @usuário.', 'not_found', 404);
       throw error;
     }
-  });
+  };
+  router.add('GET', '/api/profile/:friendId/friends', { auth: 'Entre na sua conta para ver perfis.', origin: true },
+    profileSection((db, viewerId, targetId) => listProfileFriends(db, viewerId, targetId)));
+  router.add('GET', '/api/profile/:friendId/posts', { auth: 'Entre na sua conta para ver perfis.', origin: true },
+    profileSection((db, viewerId, targetId, url) => listProfilePosts(db, viewerId, targetId, { cursor: url.searchParams.get('cursor') })));
 
   router.add('GET', '/api/profile/:friendId', { auth: 'Entre na sua conta para ver perfis.', origin: true }, async ({ db, user, params }) => {
     // /@usuario: o perfil é pedido pelo @usuário. Perfil que o visitante não pode abrir

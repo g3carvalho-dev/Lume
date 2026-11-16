@@ -23,66 +23,76 @@ function fixture() {
   };
 }
 
-function withSharing(sharing) {
+function withPrivacy(patch, relation = 'friend') {
   const state = restoreState(fixture());
-  return { ...state, preferences: { ...state.preferences, sharing } };
+  return buildProfile({ ...state, preferences: { ...state.preferences, privacy: { ...state.preferences.privacy, ...patch } } }, { relation });
 }
 
-test('perfil padrão compartilha biblioteca, fila, progresso e XP', () => {
+test('perfil padrão mostra atividade, conquistas e nível; publicações ficam entre amigos', () => {
   const profile = buildProfile(restoreState(fixture()));
-  assert.deepEqual(profile.sharing, { library: true, queue: true, progress: true, xp: true, public: true });
-  assert.ok(profile.studying.length > 0);
-  assert.ok(profile.queue.length > 0);
+  assert.deepEqual(profile.privacy, { mode: 'open', posts: 'friends', activity: null, achievements: null, friends: null });
+  assert.deepEqual(profile.audiences, { posts: 'friends', activity: 'all', achievements: 'all', friends: 'all' });
+  assert.ok(profile.activity.length > 0);
   assert.equal(profile.stats.level, 1);
   assert.equal(profile.stats.doneLessons, 2);
+  assert.equal(profile.stats.completedMaterials, 1);
 });
 
 test('materiais de exemplo não entram no perfil', () => {
   const profile = buildProfile(fixture());
-  const titles = [...profile.studying, ...profile.completed, ...profile.projects].map((item) => item.title);
-  assert.equal(titles.includes('Curso de exemplo'), false);
-  assert.equal(profile.stats.lessons, 4);
+  assert.equal(profile.activity.map((item) => item.title).includes('Curso de exemplo'), false);
+  assert.equal(profile.stats.materials, 3);
 });
 
-test('só projetos marcados como públicos aparecem, em nenhuma seção', () => {
+test('projeto privado não aparece em nenhuma seção nem nas contagens', () => {
   const profile = buildProfile(fixture());
-  assert.deepEqual(profile.projects.map((project) => project.title), ['Projeto público']);
   const serialized = JSON.stringify(profile);
   assert.equal(serialized.includes('Projeto privado'), false);
-  assert.equal(profile.queue.some((step) => step.course === 'Projeto privado'), false);
 });
 
-test('desligar progresso esconde percentuais e números', () => {
-  const profile = buildProfile(withSharing({ progress: false }));
-  assert.equal(profile.sharing.progress, false);
-  assert.equal(profile.studying[0].progress, null);
-  assert.equal(profile.projects[0].progress, null);
+test('Atividade em Só eu esconde materiais, progresso e contadores de quem vê', () => {
+  const profile = withPrivacy({ activity: 'self' });
+  assert.equal(profile.visibility.activity, false);
+  assert.equal(profile.activity, null);
+  assert.equal(profile.stats.materials, null);
   assert.equal(profile.stats.doneLessons, null);
-  assert.equal(profile.stats.lessons, null);
-  assert.equal(profile.stats.completedCourses, null);
-  assert.equal(profile.stats.activeCourses, 3);
+  assert.equal(profile.stats.completedMaterials, null);
+  assert.equal(profile.stats.recentStepsTwoWeeks, null);
 });
 
-test('desligar biblioteca esvazia o que está estudando e o que foi concluído', () => {
-  const profile = buildProfile(withSharing({ library: false }));
-  assert.deepEqual(profile.studying, []);
-  assert.deepEqual(profile.completed, []);
-});
-
-test('desligar fila esvazia o roteiro', () => {
-  const profile = buildProfile(withSharing({ queue: false }));
-  assert.deepEqual(profile.queue, []);
-});
-
-test('desligar XP esconde nível, conquistas e insígnia em destaque', () => {
-  const profile = buildProfile(withSharing({ xp: false }));
+test('Conquistas e nível em Só eu escondem nível, conquistas e destaque', () => {
+  const profile = withPrivacy({ achievements: 'self' });
   assert.equal(profile.stats.xp, null);
   assert.equal(profile.stats.level, null);
-  assert.deepEqual(profile.achievements, []);
+  assert.equal(profile.achievements, null);
   assert.equal(profile.featuredBadge, null);
+  assert.deepEqual(profile.titles, []);
 });
 
-test('perfil inclui atividade recente, conquistas e personalização de foto/header via R2 sanitizada', () => {
+test('atividade: um cartão por material, em andamento antes dos concluídos, tempo das últimas duas semanas', () => {
+  const now = Date.parse('2026-11-16T12:00:00Z');
+  const state = restoreState({
+    ...fixture(),
+    progress: [
+      { id: 's1', unitId: 's1', materialId: 'c1', type: 'completion', origin: 'manual', historical: false, at: '2026-11-01T12:00:00Z' },
+      { id: 's6', unitId: 's6', materialId: 'c2', type: 'completion', origin: 'manual', historical: false, at: '2026-11-15T12:00:00Z' },
+    ],
+    studySessions: [
+      { id: 'old', courseId: 'c1', startedAt: '2026-10-01T10:00:00Z', endedAt: '2026-10-01T11:00:00Z', durationMs: 3600000 },
+      { id: 'new', courseId: 'c1', startedAt: '2026-11-14T10:00:00Z', endedAt: '2026-11-14T10:30:00Z', durationMs: 1800000 },
+    ],
+  });
+  const profile = buildProfile(state, { now });
+  assert.deepEqual(profile.activity.map((item) => item.id), ['c1', 'c2'], 'concluído recente vem depois do que está em andamento');
+  assert.equal(profile.activity[0].recentMinutes, 30, 'só as últimas duas semanas');
+  assert.equal(profile.activity[0].lastStep, 'Aula 1');
+  assert.equal(profile.activity[0].lastAt, '2026-11-14T10:30:00.000Z');
+  assert.equal(profile.activity[1].status, 'completed');
+  assert.equal(profile.stats.recentStepsTwoWeeks, 1);
+  assert.equal(profile.stats.recentMinutesTwoWeeks, 30);
+});
+
+test('perfil inclui conquistas e personalização de foto/header via R2 sanitizada', () => {
   const sampleAvatarUrl = '/api/media/profiles/user_123/avatar-1730350000000.webp';
   const now = Date.parse('2026-10-31T12:00:00Z');
   const state = {
@@ -105,8 +115,7 @@ test('perfil inclui atividade recente, conquistas e personalização de foto/hea
   assert.equal(profile.customization.avatar, sampleAvatarUrl);
   assert.equal(profile.customization.header, '');
   assert.ok(profile.achievements.length > 0);
-  assert.ok(profile.featuredBadge);
-  assert.equal(profile.recentActivity[0].title, 'Curso de redes');
+  assert.equal(profile.activity[0].title, 'Curso de redes');
   assert.equal(profile.stats.recentStepsTwoWeeks, 1);
 });
 
@@ -156,13 +165,10 @@ test('escolhas ausentes voltam ao padrão compartilhado', () => {
   assert.deepEqual(normalizeSharing({ xp: false }), { library: true, queue: true, progress: true, xp: false, public: true });
 });
 
-test('restauração preserva as escolhas e cobre estados antigos', () => {
-  const state = withSharing({ library: false, queue: true, progress: false, xp: true, public: true });
+test('restauração preserva as chaves antigas nos dados, por compatibilidade', () => {
+  const state = restoreState(fixture());
+  state.preferences.sharing = { library: false, queue: true, progress: false, xp: true, public: true };
   const restored = restoreState(JSON.stringify(state));
   assert.deepEqual(restored.preferences.sharing, { library: false, queue: true, progress: false, xp: true, public: true });
-
-  const legacy = { ...state, preferences: { ...state.preferences } };
-  delete legacy.preferences.sharing;
-  const migrated = restoreState(JSON.stringify(legacy));
-  assert.deepEqual(migrated.preferences.sharing, { library: true, queue: true, progress: true, xp: true, public: true });
+  assert.deepEqual(restored.preferences.privacy, state.preferences.privacy, 'privacidade nova não é recalculada das chaves antigas');
 });

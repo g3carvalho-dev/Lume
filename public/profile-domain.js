@@ -1,19 +1,19 @@
-// Perfil compartilhado: projeta somente as seções autorizadas da biblioteca.
+// Perfil compartilhado: projeta somente as seções que quem vê pode ver.
 // Nas contas, XP e conquistas vêm do livro do servidor; percentuais de progresso
 // continuam sendo registros declarados, não prova de compreensão.
+// A Agenda e as tarefas nunca entram no perfil.
 import {
   achievements, courseProgress, courseStatus, levelInfo, normalizeProfileCard, STUDY_TYPES,
 } from './domain.js';
-import { studyPlan } from './study-plan.js';
 import { materialSteps } from './material-model.js';
+import { normalizePrivacy, profileAccess, sectionAudience, PRIVACY_SECTIONS } from './privacy-domain.js';
 
-export const STUDYING_LIMIT = 6;
-export const PROJECTS_LIMIT = 8;
-export const QUEUE_LIMIT = 5;
-export const RECENT_ACTIVITY_LIMIT = 4;
+export { normalizePrivacy, profileAccess } from './privacy-domain.js';
+
+export const ACTIVITY_LIMIT = 8;
 export const RECENT_ACTIVITY_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
-// Ausência de escolha significa compartilhar: são os padrões decididos para o perfil.
+// Compatibilidade: as chaves antigas continuam nos dados, mas o perfil não as lê mais.
 export function normalizeSharing(value) {
   const source = value && typeof value === 'object' ? value : {};
   return {
@@ -21,7 +21,6 @@ export function normalizeSharing(value) {
     queue: source.queue !== false,
     progress: source.progress !== false,
     xp: source.xp !== false,
-    // Padrão ligado: a pessoa é achada pelo @usuário e o perfil abre a quem não é amigo; desligar fecha os dois.
     public: source.public !== false,
   };
 }
@@ -44,122 +43,106 @@ function safeArt(art) {
   return ['design', 'code', 'language', 'nature'].includes(art) ? art : 'nature';
 }
 
-function buildRecentActivity(state, courses, { sharing, now }) {
-  if (!sharing.library || !sharing.progress) {
-    return { items: [], recentStepsTwoWeeks: null, recentMinutesTwoWeeks: null };
-  }
-  const visibleIds = new Set(courses.map((course) => course.id));
+// Atividade: um cartão por material, mais recente primeiro; em andamento antes
+// dos concluídos. Tempo registrado conta só as últimas duas semanas.
+export function buildActivity(state, courses, { now = Date.now() } = {}) {
   const courseMap = new Map(courses.map((course) => [course.id, course]));
   const cutoff = now - RECENT_ACTIVITY_WINDOW_MS;
-
-  const eventsByCourse = new Map();
-  let recentStepsTwoWeeks = 0;
-  let recentDurationMs = 0;
-
-  const touch = (courseId, at, label, isStep = false) => {
-    if (!visibleIds.has(courseId)) return;
-    const timestamp = Date.parse(at);
-    if (!Number.isFinite(timestamp)) return;
-    if (isStep && timestamp >= cutoff) recentStepsTwoWeeks += 1;
-    const current = eventsByCourse.get(courseId) || { lastAt: 0, lastLabel: '', stepsCount: 0, durationMs: 0 };
-    if (timestamp >= current.lastAt) {
-      current.lastAt = timestamp;
-      current.lastLabel = label || current.lastLabel;
-    }
-    if (isStep) current.stepsCount += 1;
-    eventsByCourse.set(courseId, current);
+  const info = new Map();
+  let recentSteps = 0;
+  let recentMs = 0;
+  const entry = (id) => {
+    if (!info.has(id)) info.set(id, { lastAt: 0, lastStep: '', lastStepAt: 0, recentMs: 0 });
+    return info.get(id);
   };
 
-  for (const entry of state?.progress || []) {
-    if (entry.revertedAt || !entry.at) continue;
-    touch(entry.materialId, entry.at, entry.title, entry.type === 'completion');
+  for (const record of state?.progress || []) {
+    const course = courseMap.get(record.materialId);
+    if (!course || record.revertedAt || !record.at) continue;
+    const at = Date.parse(record.at);
+    if (!Number.isFinite(at)) continue;
+    const item = entry(course.id);
+    item.lastAt = Math.max(item.lastAt, at);
+    if (record.type === 'completion') {
+      if (at >= cutoff) recentSteps += 1;
+      if (at >= item.lastStepAt) {
+        item.lastStepAt = at;
+        item.lastStep = materialSteps(course).find((step) => step.id === record.unitId)?.title || record.title || item.lastStep;
+      }
+    }
   }
   for (const session of state?.studySessions || []) {
-    if (!visibleIds.has(session.courseId)) continue;
-    const endedAt = Date.parse(session.endedAt || session.startedAt);
-    const duration = Number(session.durationMs) || 0;
-    if (Number.isFinite(endedAt) && endedAt >= cutoff) recentDurationMs += duration;
-    touch(session.courseId, session.endedAt || session.startedAt, session.label, false);
-    const current = eventsByCourse.get(session.courseId);
-    if (current) current.durationMs += duration;
-  }
-
-  // Se não houver eventos com data, usa os materiais com etapas já concluídas
-  for (const course of courses) {
-    if (eventsByCourse.has(course.id)) continue;
-    const progress = courseProgress(state, course);
-    if (progress.done > 0) {
-      eventsByCourse.set(course.id, {
-        lastAt: 0,
-        lastLabel: course.resumeAt || `${progress.done} de ${progress.total} concluídos`,
-        stepsCount: progress.done,
-        durationMs: 0,
-      });
+    const course = courseMap.get(session.courseId);
+    if (!course) continue;
+    const at = Date.parse(session.endedAt || session.startedAt);
+    if (!Number.isFinite(at)) continue;
+    const item = entry(course.id);
+    item.lastAt = Math.max(item.lastAt, at);
+    if (at >= cutoff) {
+      const duration = Math.max(0, Number(session.durationMs) || 0);
+      item.recentMs += duration;
+      recentMs += duration;
     }
   }
+  // Materiais com etapas concluídas sem data (históricos) também entram, por último.
+  for (const course of courses) {
+    if (!info.has(course.id) && courseProgress(state, course).done > 0) entry(course.id);
+  }
 
-  const items = [...eventsByCourse.entries()]
-    .sort((a, b) => b[1].lastAt - a[1].lastAt || b[1].stepsCount - a[1].stepsCount)
-    .slice(0, RECENT_ACTIVITY_LIMIT)
-    .map(([courseId, info]) => {
-      const course = courseMap.get(courseId);
-      const progress = courseProgress(state, course);
-      return {
-        id: course.id,
-        title: course.title,
-        type: typeLabel(course),
-        art: safeArt(course.art),
-        status: courseStatus(state, course),
-        progress,
-        lastAt: info.lastAt ? new Date(info.lastAt).toISOString() : null,
-        lastLabel: info.lastLabel || course.resumeAt || '',
-        durationMinutes: info.durationMs > 0 ? Math.max(1, Math.round(info.durationMs / 60000)) : null,
-      };
-    });
-
-  return {
-    items,
-    recentStepsTwoWeeks,
-    recentMinutesTwoWeeks: recentDurationMs > 0 ? Math.max(1, Math.round(recentDurationMs / 60000)) : 0,
-  };
-}
-
-export function buildProfile(state, { now = Date.now(), validated = null } = {}) {
-  const sharing = normalizeSharing(state?.preferences?.sharing);
-  const customization = normalizeProfileCard(state?.profile);
-  // Projeto privado não aparece em lugar nenhum do perfil: nem na biblioteca,
-  // nem na fila, nem nas contagens — senão a própria existência vazaria.
-  const courses = realCourses(state).filter((course) => course.type !== 'project' || course.shared === true);
-  const visibleState = { ...state, courses };
-
-  const entries = courses.map((course) => {
+  const items = [...info.entries()].map(([id, data]) => {
+    const course = courseMap.get(id);
     const progress = courseProgress(state, course);
     return {
-      id: course.id,
+      id,
       title: course.title,
       type: typeLabel(course),
       art: safeArt(course.art),
       status: courseStatus(state, course),
-      progress: sharing.progress ? progress : null,
+      progress,
+      lastAt: data.lastAt ? new Date(data.lastAt).toISOString() : null,
+      lastStep: data.lastStep || '',
+      recentMinutes: data.recentMs > 0 ? Math.max(1, Math.round(data.recentMs / 60000)) : 0,
     };
   });
+  const byRecency = (a, b) => Date.parse(b.lastAt || 0) - Date.parse(a.lastAt || 0) || b.progress.done - a.progress.done;
+  const ordered = [
+    ...items.filter((item) => item.status !== 'completed').sort(byRecency),
+    ...items.filter((item) => item.status === 'completed').sort(byRecency),
+  ];
+  return {
+    items: ordered.slice(0, ACTIVITY_LIMIT),
+    recentSteps,
+    recentMinutes: recentMs > 0 ? Math.max(1, Math.round(recentMs / 60000)) : 0,
+  };
+}
+
+// relation: quem vê ('self', 'friend', 'member'). O servidor decide a relação;
+// aqui só se projeta o que ela permite. Seção oculta vem como null, e
+// `visibility` diz à tela para mostrar o aviso no lugar.
+export function buildProfile(state, { now = Date.now(), validated = null, relation = 'self' } = {}) {
+  const access = profileAccess(state?.preferences, relation);
+  const show = access.sections;
+  const customization = normalizeProfileCard(state?.profile);
+  // Projeto privado não aparece em lugar nenhum do perfil: nem na atividade,
+  // nem nas contagens — senão a própria existência vazaria.
+  const courses = realCourses(state).filter((course) => course.type !== 'project' || course.shared === true);
+  const visibleState = { ...state, courses };
 
   const totals = courses.reduce((accumulator, course) => {
     const progress = courseProgress(state, course);
-    accumulator.lessons += progress.total;
     accumulator.done += progress.done;
-    if (progress.done === progress.total) accumulator.completedCourses += 1;
+    if (progress.total > 0 && progress.done === progress.total) accumulator.completedCourses += 1;
     return accumulator;
-  }, { lessons: 0, done: 0, completedCourses: 0 });
+  }, { done: 0, completedCourses: 0 });
 
-  const level = sharing.xp
+  const level = show.achievements
     ? (validated
       ? { level: validated.level, total: validated.totalXP, current: validated.levelCurrent, next: validated.levelNext }
       : levelInfo(state))
     : null;
   // Conquistas validadas vêm do livro de eventos do servidor. Sem elas (prévia
   // ou perfil antigo), os selos genéricos permanecem visíveis como legado.
-  const allAchievements = sharing.xp
+  const allAchievements = show.achievements
     ? (validated
       ? (validated.achievements || []).map((item) => ({
         id: item.id,
@@ -173,52 +156,43 @@ export function buildProfile(state, { now = Date.now(), validated = null } = {})
       : achievements(visibleState))
     : null;
   const unlockedBadges = allAchievements ? allAchievements.filter((item) => item.unlocked) : [];
-  const featuredBadge = unlockedBadges[unlockedBadges.length - 1] || (allAchievements ? allAchievements[0] : null);
-  const recent = buildRecentActivity(state, courses, { sharing, now });
+  const featuredBadge = unlockedBadges[unlockedBadges.length - 1] || null;
+  const activity = show.activity ? buildActivity(state, courses, { now }) : null;
 
   return {
-    sharing,
+    // Só o próprio perfil recebe a configuração; os outros só sabem o que podem ver.
+    ...(relation === 'self' ? {
+      privacy: access.privacy,
+      audiences: Object.fromEntries(PRIVACY_SECTIONS.map((section) => [section, sectionAudience(access.privacy, section)])),
+    } : {}),
+    visibility: { ...show },
     customization,
-    studying: sharing.library ? entries.filter((entry) => entry.status !== 'completed').slice(0, STUDYING_LIMIT) : [],
-    completed: sharing.library ? entries.filter((entry) => entry.status === 'completed').slice(0, STUDYING_LIMIT) : [],
-    queue: sharing.queue
-      ? studyPlan(visibleState, { limit: QUEUE_LIMIT, now }).steps.map((step) => ({
-        course: step.courseTitle,
-        lesson: step.title,
-        reason: step.reason.label,
-      }))
-      : [],
-    projects: courses.filter(isPublicProject).slice(0, PROJECTS_LIMIT).map((course) => ({
-      id: course.id,
-      title: course.title,
-      art: safeArt(course.art),
-      status: courseStatus(state, course),
-      progress: sharing.progress ? courseProgress(state, course) : null,
-    })),
-    titles: sharing.xp ? (validated?.titles || []) : [],
+    activity: activity ? activity.items : null,
+    titles: show.achievements ? (validated?.titles || []) : [],
     achievements: allAchievements
       ? allAchievements.map(({ id, title, text, icon, unlocked, current, target }) => ({
         id, title, text, icon, unlocked, current, target,
       }))
-      : [],
-    featuredBadge: featuredBadge
-      ? { id: featuredBadge.id, title: featuredBadge.title, icon: featuredBadge.icon, unlocked: featuredBadge.unlocked }
       : null,
-    recentActivity: recent.items,
+    featuredBadge: featuredBadge
+      ? { id: featuredBadge.id, title: featuredBadge.title, text: featuredBadge.text || '', icon: featuredBadge.icon }
+      : null,
     stats: {
-      activeCourses: courses.length,
-      lessons: sharing.progress ? totals.lessons : null,
-      doneLessons: sharing.progress ? totals.done : null,
-      completedCourses: sharing.progress ? totals.completedCourses : null,
+      materials: show.activity ? courses.length : null,
+      doneLessons: show.activity ? totals.done : null,
+      completedMaterials: show.activity ? totals.completedCourses : null,
+      recentStepsTwoWeeks: activity ? activity.recentSteps : null,
+      recentMinutesTwoWeeks: activity ? activity.recentMinutes : null,
       xp: level ? level.total : null,
       level: level ? level.level : null,
-      levelCurrent: level ? level.current : null,
-      levelNext: level ? level.next : null,
       xpValidated: Boolean(validated),
       unlockedAchievements: allAchievements ? unlockedBadges.length : null,
       totalAchievements: allAchievements ? allAchievements.length : null,
-      recentStepsTwoWeeks: recent.recentStepsTwoWeeks,
-      recentMinutesTwoWeeks: recent.recentMinutesTwoWeeks,
     },
   };
+}
+
+// Compatibilidade para quem só precisa da chave geral (busca por @usuário).
+export function isOpenProfile(preferences) {
+  return normalizePrivacy(preferences).mode === 'open';
 }
