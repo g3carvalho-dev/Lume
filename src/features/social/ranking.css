@@ -28,9 +28,22 @@
   width: 1.1rem;
   height: 1.1rem;
 }
+.rk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
 .rk-participation {
   position: relative;
   flex: 0 0 auto;
+}
+.rk-podium-who {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  text-align: center;
 }
 .rk-popover {
   position: absolute;

@@ -57,7 +57,7 @@ export default function ScheduleSession({ state, actions, confirmSave, notify, g
   const plannedMinutes = planned.reduce((sum, item) => sum + Math.max(0, minutesOf(item.end) - minutesOf(item.start)), 0);
   const weekly = weeklyMinutes(state.plan || {});
 
-  async function confirm(event) {
+  function confirm(event) {
     event.preventDefault();
     if (saving) return;
     setError('');
@@ -78,12 +78,9 @@ export default function ScheduleSession({ state, actions, confirmSave, notify, g
         tasks,
       });
       if (!result) return;
-      setSaving(true);
-      await confirmSave();
       notify(`Sessão agendada: ${dayLabel(date)}, ${start} às ${end}.`);
       go('agenda');
     } catch (exception) { setError(exception.message); }
-    finally { setSaving(false); }
   }
 
   return <form className="schedule-root" onSubmit={confirm}>

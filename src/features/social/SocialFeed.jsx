@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from '../../ui/Icon.jsx';
 import { Button, PersonAvatar, Skeleton } from '../../ui/ui.jsx';
 import { api, apiError } from '../../lib/api.js';
-import { invalidateResources, useResource } from '../../lib/resources.js';
+import { invalidateResources, mutateResource, useResource } from '../../lib/resources.js';
 import { COMPRESSION } from '../../../public/compression-domain.js';
 import { SOCIAL_POST_LIMIT, SOCIAL_COMMENT_LIMIT, SOCIAL_IMAGE_BYTES, SOCIAL_PDF_BYTES, socialText } from '../../../public/social-domain.js';
 import { formatBytes } from '../../../public/pdf-domain.js';
 import { compressImage } from '../../lib/image-compress.js';
 import { analyzePdf, estimatePdfRaster, optimizePdfLossless, pdfFileFrom, rasterizePdf } from '../library/pdf-compress.js';
-import { warmProfileProps } from './prefetch.js';
+import { PersonButton } from './PersonCard.jsx';
 import EmojiButton from './EmojiPicker.jsx';
 import ReportDialog from './ReportDialog.jsx';
 
@@ -16,6 +16,19 @@ const LABELS = { post: ['message', 'Entre amigos'], question: ['help', 'Dúvida 
 
 function isPdfFile(file) {
   return Boolean(file && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '')));
+}
+
+function toggleReactionSummary(summary = [], emoji, mine) {
+  const existing = summary.find((item) => item.emoji === emoji);
+  if (mine) {
+    return summary
+      .map((item) => (item.emoji === emoji ? { ...item, count: item.count - 1, mine: false } : item))
+      .filter((item) => item.count > 0);
+  }
+  if (existing) {
+    return summary.map((item) => (item.emoji === emoji ? { ...item, count: item.count + 1, mine: true } : item));
+  }
+  return [...summary, { emoji, count: 1, mine: true }];
 }
 
 export function SocialAvatar({ person, size = '' }) {
@@ -153,17 +166,65 @@ function Composer({ account, avatar, xp, onPosted }) {
           : 'A imagem final passa de 2 MB. Escolha outra imagem.');
       }
 
+      const draftId = requestId.current;
+      const draftBody = body;
+      const draftKind = kind;
+      const draftGif = gif;
+      const draftAchievementId = achievementId;
+      const draftFile = file;
+      const draftPreview = preview;
+      const achievementObj = draftAchievementId ? achievements.find((item) => item.id === draftAchievementId) : null;
+      const optimisticPost = {
+        id: draftId,
+        kind: draftAchievementId ? 'achievement' : attachment ? (isPdfFile(attachment) ? 'material' : 'image') : draftKind,
+        body: draftBody.trim(),
+        gif: draftGif?.url || '',
+        attachment: attachment ? {
+          name: attachment.name,
+          type: attachment.type || (isPdfFile(attachment) ? 'application/pdf' : 'image/png'),
+          size: attachment.size,
+          url: draftPreview || '',
+        } : null,
+        achievement: achievementObj ? { id: achievementObj.id, title: achievementObj.title, criterion: achievementObj.criterion } : null,
+        at: new Date().toISOString(),
+        author: { id: account.id, name: account.name, avatar },
+        canDelete: true,
+        comments: 0,
+        reactionSummary: [],
+      };
+
       const form = new FormData();
-      form.set('id', requestId.current); form.set('body', body); form.set('kind', kind);
-      if (achievementId) form.set('achievementId', achievementId);
+      form.set('id', draftId); form.set('body', draftBody); form.set('kind', draftKind);
+      if (draftAchievementId) form.set('achievementId', draftAchievementId);
       if (attachment) form.set('attachment', attachment);
-      if (gif) form.set('gifUrl', gif.url);
-      const response = await fetch('/api/social/posts', { method: 'POST', credentials: 'same-origin', body: form });
-      const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(apiError({ data }));
-      setBody(''); clearAttachment(); setGif(null); setAchievementId(''); setPickAchievement(false); setKind('post');
-      requestId.current = crypto.randomUUID();
-      onPosted();
+      if (draftGif) form.set('gifUrl', draftGif.url);
+
+      if (!attachment) {
+        mutateResource('/api/social/feed', (previous) => previous ? { ...previous, posts: [optimisticPost, ...(previous.posts || []).filter((item) => item.id !== draftId)] } : previous);
+        setBody(''); clearAttachment(); setGif(null); setAchievementId(''); setPickAchievement(false); setKind('post');
+        requestId.current = crypto.randomUUID();
+      }
+
+      try {
+        const response = await fetch('/api/social/posts', { method: 'POST', credentials: 'same-origin', body: form });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(apiError({ data }));
+        if (attachment) {
+          setBody(''); clearAttachment(); setGif(null); setAchievementId(''); setPickAchievement(false); setKind('post');
+          requestId.current = crypto.randomUUID();
+        }
+        onPosted();
+      } catch (exception) {
+        if (!attachment) {
+          mutateResource('/api/social/feed', (previous) => previous ? { ...previous, posts: (previous.posts || []).filter((item) => item.id !== draftId) } : previous);
+          setBody((current) => current || draftBody);
+          setKind(draftKind);
+          if (draftGif) setGif((current) => current || draftGif);
+          if (draftAchievementId) { setPickAchievement(true); setAchievementId(draftAchievementId); }
+          if (draftFile) setFile((current) => current || draftFile);
+        }
+        throw exception;
+      }
     } catch (exception) { setError(exception.message); }
     finally { setBusy(false); setProgress(null); }
   }
@@ -252,42 +313,65 @@ function Reactions({ summary, onToggle, disabled, label }) {
   </div>;
 }
 
-function CommentForm({ post, path, parent = null, refresh, onDone, compact = false }) {
+function CommentForm({ post, path, parent = null, me, mutateComments, mutatePost, onDone, compact = false }) {
   const [body, setBody] = useState('');
   const [gif, setGif] = useState(null);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const requestId = useRef(crypto.randomUUID());
   async function send(event) {
     event.preventDefault();
     if (!socialText(body) && !gif) return;
-    setBusy(true); setError('');
+    setError('');
+    const draftId = requestId.current;
+    const draftBody = body;
+    const draftGif = gif;
+    const optimisticComment = {
+      id: draftId,
+      body: draftBody.trim(),
+      gif: draftGif?.url || '',
+      parentId: parent?.id || '',
+      at: new Date().toISOString(),
+      author: me,
+      canDelete: true,
+      reactionSummary: [],
+    };
+
+    mutateComments((previous) => previous ? { ...previous, comments: [...(previous.comments || []), optimisticComment] } : { comments: [optimisticComment] });
+    mutatePost(post.id, (item) => ({ ...item, comments: (item.comments || 0) + 1 }));
+    setBody(''); setGif(null);
+    requestId.current = crypto.randomUUID();
+    onDone?.();
+
     try {
-      const result = await api(path, { method: 'POST', body: { id: requestId.current, body, parentId: parent?.id, gifUrl: gif?.url } });
+      const result = await api(path, { method: 'POST', body: { id: draftId, body: draftBody, parentId: parent?.id, gifUrl: draftGif?.url } });
       if (!result.ok) throw new Error(apiError(result));
-      setBody(''); setGif(null); requestId.current = crypto.randomUUID();
-      invalidateResources(path); refresh(); onDone?.();
-    } catch (exception) { setError(exception.message); }
-    finally { setBusy(false); }
+      invalidateResources(path);
+    } catch (exception) {
+      mutateComments((previous) => previous ? { ...previous, comments: (previous.comments || []).filter((item) => item.id !== draftId) } : previous);
+      mutatePost(post.id, (item) => ({ ...item, comments: Math.max(0, (item.comments || 1) - 1) }));
+      setBody((current) => current || draftBody);
+      if (draftGif) setGif((current) => current || draftGif);
+      setError(exception.message);
+    }
   }
   const name = parent ? parent.author.name : post.author.name;
   return <form className={`sf-comment-form ${compact ? 'is-reply' : ''}`} onSubmit={send}>
     {gif && <div className="sf-comment-gif"><img src={gif.preview} alt="Prévia do GIF"/><button type="button" className="icon-button" aria-label="Remover GIF" onClick={() => setGif(null)}><Icon name="close"/></button></div>}
     <div className="sf-comment-input">
       <label className="sf-comment-field"><span className="sr-only">{parent ? `Responder a ${name}` : `Comentar publicação de ${name}`}</span>
-        <textarea rows={1} value={body} maxLength={SOCIAL_COMMENT_LIMIT} autoFocus={compact} placeholder={parent ? `Responder a ${name}…` : 'Escreva um comentário…'} disabled={busy} onChange={event => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }}/>
+        <textarea rows={1} value={body} maxLength={SOCIAL_COMMENT_LIMIT} autoFocus={compact} placeholder={parent ? `Responder a ${name}…` : 'Escreva um comentário…'} onChange={event => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }}/>
       </label>
-      <EmojiButton className="sf-icon-tool" label="Emoji no comentário" disabled={busy} align="right" onEmoji={(emoji) => setBody((value) => `${value}${emoji}`.slice(0, SOCIAL_COMMENT_LIMIT))}><Icon name="smile"/></EmojiButton>
-      <EmojiButton className="sf-icon-tool sf-icon-gif" label="GIF no comentário" disabled={busy} align="right" onGif={setGif}><span className="sf-gif-tag">GIF</span></EmojiButton>
-      <button type="submit" className="sf-icon-tool sf-send" aria-label={parent ? 'Enviar resposta' : 'Comentar'} disabled={busy || (!socialText(body) && !gif)}><Icon name="send"/></button>
+      <EmojiButton className="sf-icon-tool" label="Emoji no comentário" align="right" onEmoji={(emoji) => setBody((value) => `${value}${emoji}`.slice(0, SOCIAL_COMMENT_LIMIT))}><Icon name="smile"/></EmojiButton>
+      <EmojiButton className="sf-icon-tool sf-icon-gif" label="GIF no comentário" align="right" onGif={setGif}><span className="sf-gif-tag">GIF</span></EmojiButton>
+      <button type="submit" className="sf-icon-tool sf-send" aria-label={parent ? 'Enviar resposta' : 'Comentar'} disabled={!socialText(body) && !gif}><Icon name="send"/></button>
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
   </form>;
 }
 
-function CommentItem({ comment, post, path, refresh, busy, onRemove, onReact, onReply, isReply = false }) {
+function CommentItem({ comment, post, path, refresh, busy, onRemove, onReact, onReply, go, isReply = false }) {
   return <div className={`sf-comment ${isReply ? 'is-reply' : ''}`}>
-    <SocialAvatar person={comment.author} size="small"/>
+    <PersonButton person={comment.author} go={go} className="sf-comment-who"><SocialAvatar person={comment.author} size="small"/></PersonButton>
     <div className="sf-comment-main">
       <div className="sf-bubble">
         <div className="social-comment-heading"><strong>{comment.author.name}</strong><PostTime at={comment.at}/></div>
@@ -303,59 +387,72 @@ function CommentItem({ comment, post, path, refresh, busy, onRemove, onReact, on
   </div>;
 }
 
-function Comments({ post, refresh }) {
+function Comments({ post, me, mutatePost, refresh, go }) {
   const [cursor, setCursor] = useState('');
   const [older, setOlder] = useState([]);
   const [replyTo, setReplyTo] = useState('');
   const path = `/api/social/posts/${post.id}/comments`;
   const resource = useResource(`${path}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const comments = [...older, ...(resource.data?.comments || [])];
   const roots = comments.filter((comment) => !comment.parentId);
   const repliesOf = (id) => comments.filter((comment) => comment.parentId === id);
 
   async function remove(comment) {
-    setBusy(true); setError('');
+    setError('');
+    const prevData = resource.data;
+    const prevOlder = older;
+    const removedCount = comments.filter((item) => item.id === comment.id || item.parentId === comment.id).length || 1;
+    setOlder((items) => items.filter((item) => item.id !== comment.id && item.parentId !== comment.id));
+    resource.mutate((previous) => previous ? { ...previous, comments: (previous.comments || []).filter((item) => item.id !== comment.id && item.parentId !== comment.id) } : previous);
+    mutatePost(post.id, (item) => ({ ...item, comments: Math.max(0, (item.comments || removedCount) - removedCount) }));
     try {
       const result = await api(`${path}/${comment.id}`, { method: 'DELETE' });
       if (!result.ok) throw new Error(apiError(result));
-      setOlder(items => items.filter(item => item.id !== comment.id && item.parentId !== comment.id));
-      await resource.refresh(); refresh();
-    } catch (exception) { setError(exception.message); }
-    finally { setBusy(false); }
+      invalidateResources(path);
+    } catch (exception) {
+      setOlder(prevOlder);
+      if (prevData) resource.mutate(prevData);
+      mutatePost(post.id, (item) => ({ ...item, comments: (item.comments || 0) + removedCount }));
+      setError(exception.message);
+    }
   }
 
   async function react(comment, emoji, mine) {
-    setBusy(true); setError('');
+    setError('');
+    const prevData = resource.data;
+    const prevOlder = older;
+    const updateComment = (item) => (item.id === comment.id ? { ...item, reactionSummary: toggleReactionSummary(item.reactionSummary, emoji, mine) } : item);
+    setOlder((items) => items.map(updateComment));
+    resource.mutate((previous) => previous ? { ...previous, comments: (previous.comments || []).map(updateComment) } : previous);
     try {
       const result = await api(`${path}/${comment.id}/reaction?emoji=${encodeURIComponent(emoji)}`, { method: mine ? 'DELETE' : 'PUT' });
       if (!result.ok) throw new Error(apiError(result));
-      setOlder([]); setCursor('');
-      await resource.refresh();
-    } catch (exception) { setError(exception.message); }
-    finally { setBusy(false); }
+    } catch (exception) {
+      setOlder(prevOlder);
+      if (prevData) resource.mutate(prevData);
+      setError(exception.message);
+    }
   }
 
-  const afterSend = () => { setCursor(''); setOlder([]); setReplyTo(''); };
+  const afterSend = () => { setReplyTo(''); };
   return <div className="social-comments sf-comments">
     {resource.loading && !resource.data && <Skeleton rows={1} label="Carregando comentários…"/>}
     {roots.map((comment) => <div className="sf-thread" key={comment.id}>
-      <CommentItem comment={comment} post={post} path={path} refresh={refresh} busy={busy} onRemove={remove} onReact={react} onReply={(target) => setReplyTo(target.id)}/>
+      <CommentItem comment={comment} post={post} path={path} refresh={refresh} go={go} busy={false} onRemove={remove} onReact={react} onReply={(target) => setReplyTo(target.id)}/>
       {(repliesOf(comment.id).length > 0 || replyTo === comment.id) && <div className="sf-replies">
-        {repliesOf(comment.id).map((reply) => <CommentItem key={reply.id} comment={reply} post={post} path={path} refresh={refresh} busy={busy} isReply onRemove={remove} onReact={react} onReply={() => setReplyTo(comment.id)}/>)}
-        {replyTo === comment.id && <CommentForm post={post} path={path} parent={comment} compact refresh={refresh} onDone={afterSend}/>}
+        {repliesOf(comment.id).map((reply) => <CommentItem key={reply.id} comment={reply} post={post} path={path} refresh={refresh} go={go} busy={false} isReply onRemove={remove} onReact={react} onReply={() => setReplyTo(comment.id)}/>)}
+        {replyTo === comment.id && <CommentForm post={post} path={path} parent={comment} me={me} mutateComments={resource.mutate} mutatePost={mutatePost} compact onDone={afterSend}/>}
       </div>}
     </div>)}
     {resource.data?.nextCursor && <button type="button" className="text-button" onClick={() => { setOlder(comments); setCursor(resource.data.nextCursor); }}>Mais comentários</button>}
-    <CommentForm post={post} path={path} refresh={refresh} onDone={afterSend}/>
+    <CommentForm post={post} path={path} me={me} mutateComments={resource.mutate} mutatePost={mutatePost} onDone={afterSend}/>
     {(error || resource.error) && <p className="form-error" role="alert">{error || resource.error}</p>}
   </div>;
 }
 
-function PostCard({ post, refresh, go, notify }) {
+function PostCard({ post, me, mutatePost, removePost, restorePost, refresh, go, notify }) {
   const [showComments, setShowComments] = useState(post.comments > 0);
-  const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [menu, setMenu] = useState(false);
   const [reporting, setReporting] = useState(false);
@@ -374,33 +471,41 @@ function PostCard({ post, refresh, go, notify }) {
   }, [menu]);
 
   async function react(emoji, mine) {
-    setBusy(true); setError('');
+    setError('');
+    const previousSummary = post.reactionSummary || [];
+    mutatePost(post.id, (item) => ({ ...item, reactionSummary: toggleReactionSummary(item.reactionSummary, emoji, mine) }));
     try {
       const result = await api(`/api/social/posts/${post.id}/reaction?emoji=${encodeURIComponent(emoji)}`, { method: mine ? 'DELETE' : 'PUT' });
       if (!result.ok) throw new Error(apiError(result));
-      await refresh();
-    } catch (exception) { setError(exception.message); }
-    finally { setBusy(false); }
+    } catch (exception) {
+      mutatePost(post.id, (item) => ({ ...item, reactionSummary: previousSummary }));
+      setError(exception.message);
+      notify(exception.message);
+    }
   }
 
   async function remove() {
-    setBusy(true); setError('');
+    setError('');
+    setConfirming(false);
+    const snapshot = removePost(post.id);
     try {
       const result = await api(`/api/social/posts/${post.id}`, { method: 'DELETE' });
       if (!result.ok) throw new Error(apiError(result));
-      await refresh();
-    } catch (exception) { setError(exception.message); }
-    finally { setBusy(false); }
+    } catch (exception) {
+      restorePost(snapshot);
+      setError(exception.message);
+      notify(exception.message);
+    }
   }
 
   return <article className={`card-surface social-post sf-post is-${post.kind}`} aria-label={`Publicação de ${post.author.name}`}>
     <header className="sf-post-head">
-      <button type="button" className="social-author" {...warmProfileProps(post.author)} onClick={() => go(post.author.handle ? `perfil?u=${post.author.handle}` : post.canDelete ? 'perfil' : `perfil?id=${encodeURIComponent(post.author.id)}`)} aria-label={`Ver perfil de ${post.author.name}`}>
+      <PersonButton person={{ ...post.author, isSelf: post.canDelete }} go={go} className="social-author" label={`Abrir cartão de ${post.author.name}`}>
         <SocialAvatar person={post.author}/><span><strong>{post.author.name}</strong><PostTime at={post.at}/></span>
-      </button>
+      </PersonButton>
       {post.kind !== 'post' && <span className={`social-post-kind ${post.kind === 'achievement' ? 'is-reward' : ''}`}><Icon name={icon}/>{label}</span>}
       <span className="sf-menu" ref={menuRoot}>
-        <button type="button" className="icon-button" aria-label="Mais ações da publicação" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(value => !value)} disabled={busy}><Icon name="more"/></button>
+        <button type="button" className="icon-button" aria-label="Mais ações da publicação" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(value => !value)}><Icon name="more"/></button>
         {menu && <div className="sf-menu-list" role="menu">
           {post.canDelete
             ? <button type="button" role="menuitem" className="sf-menu-item is-danger" onClick={() => { setMenu(false); setConfirming(true); }}><Icon name="trash"/>Excluir publicação</button>
@@ -417,22 +522,29 @@ function PostCard({ post, refresh, go, notify }) {
     {post.achievement && <div className="social-achievement"><span className="social-achievement-icon"><Icon name="trophy"/></span><div><span className="metric-label">Conquista validada</span><strong>{post.achievement.title}</strong><p>{post.achievement.criterion}</p></div><Icon name="check"/></div>}
     {post.kind === 'achievement' && !post.achievement && <p className="quiet-note">Esta conquista foi corrigida e não está mais disponível.</p>}
     <div className="sf-post-actions">
-      <Reactions summary={post.reactionSummary || []} disabled={busy} label={`publicação de ${post.author.name}`} onToggle={react}/>
+      <Reactions summary={post.reactionSummary || []} label={`publicação de ${post.author.name}`} onToggle={react}/>
       <button type="button" className="sf-link sf-comment-toggle" aria-expanded={showComments} onClick={() => setShowComments(value => !value)}><Icon name="message"/>Comentar<span> · {post.comments} {post.comments === 1 ? 'comentário' : 'comentários'}</span></button>
     </div>
-    {confirming && <div className="social-delete-confirm"><p>Excluir esta publicação e seus comentários?</p><div className="action-row"><Button className="danger-button" onClick={remove} disabled={busy}>Sim, excluir publicação</Button><Button secondary onClick={() => setConfirming(false)} disabled={busy}>Manter publicação</Button></div></div>}
+    {confirming && <div className="social-delete-confirm"><p>Excluir esta publicação e seus comentários?</p><div className="action-row"><Button className="danger-button" onClick={remove}>Sim, excluir publicação</Button><Button secondary onClick={() => setConfirming(false)}>Manter publicação</Button></div></div>}
     {error && <p className="form-error" role="alert">{error}</p>}
-    {showComments && <Comments post={post} refresh={refresh}/>}
+    {showComments && <Comments post={post} me={me} mutatePost={mutatePost} refresh={refresh} go={go}/>}
   </article>;
 }
 
-function FeedPage({ cursor, last, onMore, go, notify }) {
+function FeedPage({ cursor, last, me, onMore, go, notify }) {
   const resource = useResource(`/api/social/feed${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`, { interval: 45000 });
   const refresh = async () => { invalidateResources('/api/social/posts/'); return resource.refresh(); };
+  const mutatePost = (postId, updater) => resource.mutate((previous) => previous ? { ...previous, posts: (previous.posts || []).map((item) => (item.id === postId ? updater(item) : item)) } : previous);
+  const removePost = (postId) => {
+    const snapshot = resource.data;
+    resource.mutate((previous) => previous ? { ...previous, posts: (previous.posts || []).filter((item) => item.id !== postId) } : previous);
+    return snapshot;
+  };
+  const restorePost = (snapshot) => { if (snapshot) resource.mutate(snapshot); };
   return <div className="social-feed-page">
     {resource.loading && !resource.data && <Skeleton rows={3} label="Carregando publicações…"/>}
     {resource.error && <div className="form-error form-error-block" role="alert">{resource.error}<Button secondary onClick={resource.refresh}>Tentar novamente</Button></div>}
-    {resource.data?.posts.map(post => <PostCard key={post.id} post={post} refresh={refresh} go={go} notify={notify}/>)}
+    {resource.data?.posts.map(post => <PostCard key={post.id} post={post} me={me} mutatePost={mutatePost} removePost={removePost} restorePost={restorePost} refresh={refresh} go={go} notify={notify}/>)}
     {!cursor && resource.data?.posts.length === 0 && !resource.error && <section className="card-surface social-feed-empty"><span className="social-empty-icon"><Icon name="message"/></span><h2 className="title">As próximas conversas começam aqui.</h2><p>Compartilhe uma dúvida, um resumo ou uma conquista. As publicações aparecem só para você e seus amigos.</p></section>}
     {last && resource.data?.nextCursor && <Button secondary className="social-load-more" onClick={() => onMore(resource.data.nextCursor)}>Ver mais publicações<Icon name="chevron-down"/></Button>}
   </div>;
@@ -440,12 +552,13 @@ function FeedPage({ cursor, last, onMore, go, notify }) {
 
 export default function SocialFeed({ account, avatar, xp, notify, go }) {
   const [cursors, setCursors] = useState(['']);
+  const me = { id: account.id, name: account.name, avatar };
   function posted() {
     setCursors(['']); invalidateResources('/api/social/feed');
     notify('Publicação compartilhada com seus amigos.');
   }
   return <div className="social-feed-column">
     <Composer account={account} avatar={avatar} xp={xp} onPosted={posted}/>
-    <section className="social-feed" aria-label="Publicações entre amigos">{cursors.map((cursor, index) => <FeedPage key={cursor} cursor={cursor} last={index === cursors.length - 1} onMore={next => setCursors(items => [...items, next])} go={go} notify={notify}/>)}</section>
+    <section className="social-feed" aria-label="Publicações entre amigos">{cursors.map((cursor, index) => <FeedPage key={cursor} cursor={cursor} last={index === cursors.length - 1} me={me} onMore={next => setCursors(items => [...items, next])} go={go} notify={notify}/>)}</section>
   </div>;
 }

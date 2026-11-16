@@ -16,10 +16,9 @@ import { XP_VALUES, completionKindForCourse, isEligibleCourse } from '../../../p
 import { materialStanding, subjectOf } from '../../../public/subject-domain.js';
 import { readingLabel } from '../../../public/pdf-domain.js';
 import { overdueMessage } from '../plan/Tasks.jsx';
-import { useResource } from '../../lib/resources.js';
 import Icon from '../../ui/Icon.jsx';
-import { Button, PersonAvatar, Progress, Skeleton, STAR_PATH, Star } from '../../ui/ui.jsx';
-import { warmProfileProps } from '../social/prefetch.js';
+import { Button, Progress, STAR_PATH, Star } from '../../ui/ui.jsx';
+import { ActiveFriendList, useActiveFriends } from '../social/ActiveFriends.jsx';
 
 function plural(count, one, many) {
   return `${count} ${count === 1 ? one : many}`;
@@ -145,11 +144,7 @@ export function Home({ state, open, go, planActions, notify, account }) {
       return next;
     });
   }
-  const friendsResource = useResource('/api/friends', { interval: 45000, enabled: Boolean(account) });
-  const friends = friendsResource.data?.friends || [];
-  const activeFriends = friends
-    .filter((friend) => friend.activity?.active)
-    .sort((a, b) => Number(b.activity?.status === 'studying') - Number(a.activity?.status === 'studying') || a.name.localeCompare(b.name, 'pt-BR'));
+  const { friends, active: activeFriends, loaded: friendsLoaded } = useActiveFriends(account);
 
   const today = localDay();
   const firstName = (account?.name || '').split(' ')[0];
@@ -179,7 +174,7 @@ export function Home({ state, open, go, planActions, notify, account }) {
           >
             <Icon name="users"/>
             <span>Ativos</span>
-            {account && friendsResource.data && <>
+            {account && friendsLoaded && <>
               <span className={`today-active-dot ${activeFriends.length ? 'is-live' : ''}`} aria-hidden="true"/>
               <span className="today-active-count">{activeFriends.length}</span>
             </>}
@@ -312,7 +307,7 @@ export function Home({ state, open, go, planActions, notify, account }) {
       go={go}
       friends={friends}
       activeFriends={activeFriends}
-      loaded={Boolean(friendsResource.data)}
+      loaded={friendsLoaded}
       onHide={toggleActive}
     />}
   </div>;
@@ -400,40 +395,7 @@ function ActiveRail({ wide, account, go, friends, activeFriends, loaded, onHide 
         </button>
       </div>
     </div>
-    {!account
-      ? <p className="muted-text active-rail-empty">Amigos, mensagens e ranking ficam disponíveis com uma conta.</p>
-      : !loaded
-        ? <Skeleton label="Carregando amigos…" rows={2}/>
-        : activeFriends.length
-          ? <ul className="active-rail-list">{activeFriends.map((friend) => {
-            const activity = friend.activity || { status: 'online', label: 'Online', topic: '' };
-            const studying = activity.status === 'studying';
-            return <li key={friend.id} className={`active-card ${studying ? 'is-studying' : ''}`}>
-              <div className="active-card-head">
-                <a className="active-card-who" {...warmProfileProps(friend)} href={`#perfil?id=${encodeURIComponent(friend.id)}`} onClick={friend.handle ? (event) => { event.preventDefault(); go(`perfil?u=${friend.handle}`); } : undefined}>
-                  <span className="active-avatar-wrap">
-                    <PersonAvatar person={friend} className="avatar active-avatar"/>
-                    <span className="active-presence" />
-                  </span>
-                  <span className="active-copy">
-                    <strong>{friend.name}</strong>
-                    <span className="active-status">{activity.label}</span>
-                  </span>
-                </a>
-                <a className="active-msg" href={`#mensagens?com=${encodeURIComponent(friend.id)}`} aria-label={`Mensagem para ${friend.name}`} title={`Mensagem para ${friend.name}`}>
-                  <Icon name="message"/>
-                </a>
-              </div>
-              {studying && <div className="active-card-body">
-                <span className="active-tile" aria-hidden="true"><Icon name="book"/></span>
-                <span className="active-copy">
-                  <strong>{activity.topic || 'Sessão de estudo'}</strong>
-                  <span className="active-status">estudando agora</span>
-                </span>
-              </div>}
-            </li>;
-          })}</ul>
-          : <p className="muted-text active-rail-empty">{friends.length ? 'Nenhum amigo ativo agora.' : 'Estudar junto é opcional. Um convite começa a lista.'}</p>}
+    <ActiveFriendList account={account} go={go} friends={friends} active={activeFriends} loaded={loaded} empty="Nenhum amigo ativo agora."/>
     {account && <div className="active-rail-foot">
       <a className="text-link" href="#amigos">Ver todos os amigos{friends.length ? ` (${friends.length})` : ''}</a>
     </div>}

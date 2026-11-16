@@ -113,7 +113,8 @@ test('ranking exige opt-in, mostra o próprio XP validado e pode ser desligado',
   await expect(page.locator('.achievement-summary')).toContainText('100 XP elegível');
 
   await page.goto('/#ranking');
-  await expect(page.getByRole('heading', { name: 'Ranking', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Social', exact: true })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Seções de Social' }).getByRole('link', { name: 'Ranking', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByText('Você ainda não aparece no ranking.')).toBeVisible();
   await page.getByRole('button', { name: 'Participar do ranking' }).click();
   await expect(page.locator('.rk-row.is-self')).toContainText('Ana Ranking');

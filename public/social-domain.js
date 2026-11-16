@@ -17,11 +17,12 @@ export const MESSAGE_ALERT_PREVIEW = 90;
 
 // Aviso de mensagem nova: a conversa mais recente com mensagem não lida vinda
 // da amizade, que ainda não foi avisada. Fica em silêncio com as notificações
-// de mensagens desligadas ou quando a conversa dessa pessoa já está aberta.
+// de mensagens desligadas, com a conversa silenciada ou quando a conversa dessa
+// pessoa já está aberta.
 export function messageAlert(conversations, { seen = new Set(), openContactId = '', notifications = true } = {}) {
   if (!notifications || !Array.isArray(conversations)) return null;
   const candidate = conversations
-    .filter((item) => item?.unread > 0 && item.lastMessage && !item.lastMessage.fromMe && !seen.has(item.lastMessage.id))
+    .filter((item) => item?.unread > 0 && !item.muted && item.lastMessage && !item.lastMessage.fromMe && !seen.has(item.lastMessage.id))
     .sort((left, right) => String(right.lastMessage.at || '').localeCompare(String(left.lastMessage.at || '')))[0];
   if (!candidate || candidate.id === openContactId) return null;
   const text = socialText(candidate.lastMessage.preview).replace(/\s+/g, ' ');

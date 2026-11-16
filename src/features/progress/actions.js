@@ -11,7 +11,8 @@ export function createProgressActions(act) {
     revertLesson: (courseId, stepId, options) => act((state) => revertLessonCompletion(state, courseId, stepId, options)),
     completeDeck: (courseId, now) => act((state) => completeDeck(state, courseId, now)),
     startSession: (input) => act((state) => ({ state: startSession(state, input) })),
-    touchSession: () => act((state) => ({ state: touchSession(state) })),
+    // Batimento: gravação de fundo, sem bloquear quando outra instância gravou antes.
+    touchSession: () => act((state) => ({ state: touchSession(state) }), { background: true }),
     toggleSessionPause: () => act((state) => ({ state: state.activeSession?.status === 'active' ? pauseSession(state) : resumeSession(state) })),
     endSession: (now) => act((state) => endSession(state, now)),
   };

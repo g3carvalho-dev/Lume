@@ -694,8 +694,13 @@
 }
 
 @media (max-width: 980px) {
+  .social-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Em uma coluna, "Estudando agora" vem antes das publicações. */
   .social-sidebar {
     position: static;
+    order: -1;
   }
 }
 @media (max-width: 560px) {
@@ -719,7 +724,7 @@
   border-left: 0;
 }
 
-/* Sem nada na lateral (convite, colaboração), o feed ocupa uma coluna centrada. */
+/* Sem nada na lateral, o feed ocupa uma coluna centrada. */
 .social-layout:has(.social-sidebar:empty) {
   grid-template-columns: minmax(0, 46rem);
   justify-content: center;

@@ -28,6 +28,7 @@ const icons = {
   cloud: '<path d="M7 18a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.5 1.5A3.75 3.75 0 0 1 17.5 18Z"/>',
   arrow: '<path d="M4 12h15m-6-6 6 6-6 6"/>',
   back: '<path d="M20 12H5m6-6-6 6 6 6"/>',
+  reply: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v4"/>',
   chevron: '<path d="m9 5 7 7-7 7"/>',
   'chevron-left': '<path d="m15 5-7 7 7 7"/>',
   bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4Z"/><path d="M10 21h4"/>',

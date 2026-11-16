@@ -4,7 +4,7 @@ import { PersonAvatar } from '../../ui/ui.jsx';
 import { api } from '../../lib/api.js';
 import { useResource } from '../../lib/resources.js';
 
-const KIND_ICON = { friend: 'users', collaboration: 'steps', comment: 'message', reaction: 'heart', news: 'spark' };
+const KIND_ICON = { friend: 'users', comment: 'message', reaction: 'heart', news: 'spark' };
 
 function ago(at, now = Date.now()) {
   const minutes = Math.max(0, Math.round((now - Date.parse(at)) / 60000));
@@ -31,8 +31,10 @@ export default function NotificationBell({ account, positionFallback }) {
     positionFallback?.(popoverRef.current, triggerRef.current);
     setHighlight(new Set(items.filter((item) => item.unread).map((item) => item.id)));
     if (!unseen) return;
+    const previous = resource.data;
+    resource.mutate((data) => data && { ...data, unseen: 0, items: data.items.map((item) => ({ ...item, unread: false })) });
     const result = await api('/api/notifications/seen', { method: 'POST', body: {} });
-    if (result.ok) resource.mutate((data) => data && { ...data, unseen: 0, items: data.items.map((item) => ({ ...item, unread: false })) });
+    if (!result.ok && previous) resource.mutate(previous);
   }
 
   const close = () => { try { popoverRef.current?.hidePopover?.(); } catch {} };

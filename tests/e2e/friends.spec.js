@@ -93,8 +93,9 @@ test('link de convite preenche o código e a amizade não concede XP', async ({ 
     data: { name: 'Eva do teste', email: `friend-d-${stamp}@example.test`, password: 'senha-local-teste-123' },
   });
 
-  // Abrir o link com ?convite= preenche o campo.
+  // Abrir o link com ?convite= leva à aba Amigos com o código preenchido.
   await page.goto(`/#amigos?convite=${encodeURIComponent(code)}`);
+  await expect(page).toHaveURL((url) => url.hash.startsWith('#adicionar?convite='));
   await expect(page.getByLabel('Código do convite')).toHaveValue(code);
   await expect(page.getByLabel('Código do convite')).toBeVisible();
 
@@ -113,11 +114,14 @@ test('link de convite preenche o código e a amizade não concede XP', async ({ 
   await guest.dispose();
 });
 
-test('Adicionar amigos: busca e convite por link em uma tela simples', async ({ page, context }, testInfo) => {
+test('aba Amigos: lista primeiro e Encontrar pessoas com busca e convite por link', async ({ page, context }, testInfo) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
   await register(page, testInfo, 'friend-add', 'Pessoa simples');
   await page.goto('/#adicionar');
-  await expect(page.getByRole('heading', { name: 'Adicionar amigos', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Social', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Seus amigos' })).toBeVisible();
+  await expect(page.getByText('Sua lista ainda está vazia.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Encontrar pessoas', exact: true })).toBeVisible();
   await expect(page.getByRole('searchbox').or(page.getByPlaceholder('@usuario'))).toBeVisible();
   // Sem abas nem solicitações enquanto não há pedidos.
   await expect(page.getByRole('tab')).toHaveCount(0);

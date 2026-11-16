@@ -51,9 +51,13 @@ test('Social publica, comenta, reage e persiste; desfazer amizade revoga o feed'
     await page.screenshot({ path: testInfo.outputPath('social.png'), fullPage: true });
 
     const bia = (await (await page.request.get('/api/friends', { headers: { origin } })).json()).friends[0];
-    await page.getByRole('button', { name: 'Ver perfil de Bia Almeida' }).first().click();
-    await page.getByRole('button', { name: 'Mensagem', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Mensagens', exact: true })).toBeVisible();
+    // Nome ou foto abre o cartão rápido, com Ver perfil e Enviar mensagem.
+    await page.getByRole('button', { name: 'Abrir cartão de Bia Almeida' }).first().click();
+    const card = page.getByRole('dialog', { name: 'Cartão de Bia Almeida' });
+    await expect(card.getByRole('button', { name: 'Ver perfil' })).toBeVisible();
+    await card.getByRole('button', { name: 'Enviar mensagem' }).click();
+    await expect(page).toHaveURL((url) => url.hash === `#mensagens?com=${bia.id}`);
+    await expect(page.getByRole('region', { name: 'Conversa selecionada' })).toBeVisible();
     await page.goto(`/#perfil?id=${encodeURIComponent(bia.id)}`);
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Desfazer amizade' }).click();
