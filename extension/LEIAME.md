@@ -46,7 +46,8 @@ Os endereços aceitos estão em `manifest.json` (`host_permissions` e `content_s
 
 - `src/capture.js` — fonte do leitor da página; usa o registro de provedores de `public/providers/`.
 - `capture.js` — gerado por `npm run extension:build` a partir de `src/capture.js` (injetado ao clicar). Não edite à mão.
-- `icons/` — ícones da extensão (gerados do logo do Lume); `store/` — imagens da ficha da loja.
-- `popup.html`, `popup.js` — interface do ícone.
+- `icons/` — ícones da extensão e `store/` — imagens da ficha da loja; ambos gerados por `npm run extension:assets` (estrela dourada da identidade Norte, `scripts/build-extension-assets.mjs`). Não edite à mão.
+- `fonts/` — Bricolage Grotesque, Atkinson Hyperlegible Next e JetBrains Mono (cópias de `public/assets/fonts/`), usadas pelo popup.
+- `popup.html`, `popup.js` — interface do ícone, com os tokens da identidade Norte (tema escuro, mesmas cores do site).
 - `background.js` — encontra ou abre o Lume e entrega a leitura.
 - `bridge.js` — roda no Lume e repassa a leitura à página.

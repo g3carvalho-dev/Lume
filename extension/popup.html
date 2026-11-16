@@ -5,28 +5,53 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lume — leitor de curso</title>
   <style>
-    :root { color-scheme: dark light; font-family: system-ui, "Segoe UI", sans-serif; }
-    body { margin: 0; width: 340px; padding: 18px; background: #0f1226; color: #eef0ff; }
-    @media (prefers-color-scheme: light) { body { background: #f4f6fb; color: #151833; } .muted { color: #50567a; } }
-    h1 { font-size: 16px; margin: 0 0 6px; }
-    p { margin: 0 0 12px; font-size: 13px; line-height: 1.45; }
-    .muted { color: #aab0d8; font-size: 12px; }
-    button { width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; font: inherit; font-weight: 600; cursor: pointer; background: #6c86ff; color: #fff; }
-    button.secondary { margin-top: 8px; background: transparent; color: inherit; border: 1px solid #6c86ff; }
+    /* Identidade Norte: mesmos tokens do site (src/styles/00-tokens.css), tema escuro. */
+    @font-face { font-family: 'Bricolage Grotesque'; font-weight: 500 800; font-display: swap; src: url('fonts/bricolage-grotesque-latin.woff2') format('woff2'); }
+    @font-face { font-family: 'Atkinson Hyperlegible Next'; font-weight: 400 700; font-display: swap; src: url('fonts/atkinson-hyperlegible-next-latin.woff2') format('woff2'); }
+    @font-face { font-family: 'JetBrains Mono'; font-weight: 400 700; font-display: swap; src: url('fonts/jetbrains-mono-latin.woff2') format('woff2'); }
+    :root {
+      color-scheme: dark;
+      --bg: #0c111b; --surface: #141b2a; --surface-2: #1c2537;
+      --border: #2a3550; --border-strong: #3a4868;
+      --text: #eef2f7; --text-muted: #c3ccda; --text-subtle: #9aa7ba;
+      --action: #f6c165; --action-hover: #f9d08a; --action-ink: #1f1503;
+      --lume: #9ec5ff; --warning: #ff8f73;
+      --font-sans: 'Atkinson Hyperlegible Next', system-ui, 'Segoe UI', sans-serif;
+      --font-display: 'Bricolage Grotesque', var(--font-sans);
+      --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; width: 340px; padding: 18px; background: var(--bg); color: var(--text); font-family: var(--font-sans); }
+    header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    header svg { width: 28px; height: 28px; flex: none; }
+    h1 { font: 700 18px/1.1 var(--font-display); margin: 0; letter-spacing: -.01em; }
+    .tag { margin-left: auto; font: 500 10px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-subtle); }
+    p { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+    .muted { color: var(--text-subtle); font-size: 12px; }
+    button { width: 100%; padding: 10px 12px; border: 1px solid transparent; border-radius: 10px; font: 700 14px var(--font-sans); cursor: pointer; background: var(--action); color: var(--action-ink); transition: background-color .15s ease, border-color .15s ease; }
+    button:hover:not(:disabled) { background: var(--action-hover); }
+    button.secondary { margin-top: 8px; background: transparent; color: var(--text); border-color: var(--border-strong); font-weight: 500; }
+    button.secondary:hover:not(:disabled) { background: var(--surface-2); border-color: var(--text-subtle); }
     button:disabled { opacity: .6; cursor: default; }
-    button:focus-visible, select:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
-    label { display: block; font-size: 12px; margin-top: 12px; }
-    select { width: 100%; margin-top: 4px; padding: 6px; border-radius: 8px; font: inherit; }
-    #status { margin-top: 12px; min-height: 2.6em; }
+    button:focus-visible, select:focus-visible { outline: 2px solid var(--lume); outline-offset: 2px; }
+    label { display: block; font-size: 12px; margin-top: 12px; color: var(--text-muted); }
+    select { width: 100%; margin-top: 4px; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: inherit; }
+    #status { margin: 12px 0 0; min-height: 2.9em; padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+    #status:empty { visibility: hidden; }
+    .privacy { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--border); }
   </style>
 </head>
 <body>
-  <h1>Enviar este curso ao Lume</h1>
+  <header>
+    <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 4 L37.6 26.4 L60 32 L37.6 37.6 L32 60 L26.4 37.6 L4 32 L26.4 26.4 Z" fill="#f6c165"/></svg>
+    <h1>Lume</h1>
+    <span class="tag">Leitor de curso</span>
+  </header>
   <p>Abra a lista de aulas do curso na plataforma, com a sua conta, e clique em Ler. O Lume recebe os nomes das aulas e o que aparece como concluído. Na página de uma aula, depois de assistir, use Concluí esta aula: o Lume abre a aula certa para você confirmar.</p>
   <button id="read" type="button">Ler esta página e enviar</button>
   <button id="complete" type="button" class="secondary">Concluí esta aula</button>
   <p id="status" role="status" aria-live="polite"></p>
-  <p class="muted">Não lê senha, cookie nem vídeo, e só age quando você clica. No Gran, pede a grade às mesmas rotas que a página do curso usa. Nas outras plataformas, abre e fecha as seções que encontrar, uma por vez; em cursos grandes isso leva um ou dois minutos. Não feche o popup nem troque de aba até terminar.</p>
+  <p class="muted privacy">Não lê senha, cookie nem vídeo, e só age quando você clica. No Gran, pede a grade às mesmas rotas que a página do curso usa. Nas outras plataformas, abre e fecha as seções que encontrar, uma por vez; em cursos grandes isso leva um ou dois minutos. Não feche o popup nem troque de aba até terminar.</p>
   <!-- Some no pacote da loja (scripts/package-extension.mjs): lá só existe o Lume publicado. -->
   <label data-dev>Lume que recebe a leitura
     <select id="target">

@@ -17,7 +17,8 @@
     "companion:pair": "node companion/agent.mjs pair",
     "companion:status": "node companion/agent.mjs status",
     "companion:app": "npm --prefix companion start",
-    "extension:build": "node scripts/build-extension.mjs"
+    "extension:build": "node scripts/build-extension.mjs",
+    "extension:assets": "node scripts/build-extension-assets.mjs"
   },
   "engines": {
     "node": ">=22.23.4"
