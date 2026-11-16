@@ -135,13 +135,20 @@ export function createAppointment(state, input) {
   const daySpan = Math.round((Date.parse(`${base.endDate}T12:00Z`) - Date.parse(`${base.date}T12:00Z`)) / 86400000);
   let next = state;
   const entries = [];
+const resetSubtasks = (items) => (items || []).map((subtask) => ({
+  id: crypto.randomUUID(),
+  title: subtask.title,
+  done: false,
+  ...(Array.isArray(subtask.subtasks) && subtask.subtasks.length ? { subtasks: resetSubtasks(subtask.subtasks) } : {}),
+}));
+
   for (let i = 0; i < count; i++) {
     const ids = i === 0 ? [...taskIds] : [];
     for (const template of [...templates, ...(i ? linked : [])]) {
       next = addTask(next, template);
       const task = next.tasks.at(-1);
       // Repetir não copia conclusão, prazo ou subtarefas marcadas.
-      next = { ...next, tasks: next.tasks.map((item) => item.id === task.id ? { ...item, dueDate: '', subtasks: (template.subtasks || []).map((subtask) => ({ id: crypto.randomUUID(), title: subtask.title, done: false })) } : item) };
+      next = { ...next, tasks: next.tasks.map((item) => item.id === task.id ? { ...item, dueDate: '', subtasks: resetSubtasks(template.subtasks) } : item) };
       ids.push(task.id);
     }
     const date = dates[i];

@@ -3,16 +3,17 @@
 // a chave por tarefa e subtarefa impede repetir ao desmarcar, marcar de novo
 // ou renomear. O teto diário limita o que o texto livre permite acumular.
 import { DAILY_SUBTASK_XP_CAP, XP_POLICY_VERSION, XP_VALUES, localDay, subtaskEventKey } from '../../public/xp-policy.js';
+import { flattenSubtasks } from '../../public/tasks-domain.js';
 
 export async function subtaskStatements(db, userId, before, after, settings, now) {
   if (now < Date.parse(settings.eligible_since)) return [];
   const wasDone = new Set();
   for (const task of before.tasks || []) {
-    for (const item of task.subtasks || []) if (item.done) wasDone.add(subtaskEventKey(task.id, item.id));
+    for (const item of flattenSubtasks(task.subtasks)) if (item.done) wasDone.add(subtaskEventKey(task.id, item.id));
   }
   const candidates = [];
   for (const task of after.tasks || []) {
-    for (const item of task.subtasks || []) {
+    for (const item of flattenSubtasks(task.subtasks)) {
       const key = subtaskEventKey(task.id, item.id);
       if (item.done && !wasDone.has(key)) candidates.push({ task, item, key });
     }

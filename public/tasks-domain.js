@@ -10,6 +10,7 @@ export const MAX_TASKS = 200;
 // Subtarefas dividem uma tarefa quando ajuda. Marcar uma pela primeira vez rende
 // XP validado no servidor (api/domain/library-subtasks.js), com teto diário.
 export const MAX_SUBTASKS = 10;
+export const MAX_SUBTASK_DEPTH = 2;
 // Prioridade explícita: 1 alta, 2 média, 3 baixa, 0 sem prioridade (padrão).
 // Definir ou mudar a prioridade é organização e nunca altera XP.
 export const TASK_PRIORITIES = Object.freeze([
@@ -39,13 +40,29 @@ export function isOverdue(task, today = localDate()) {
   return !task.done && Boolean(task.dueDate) && task.dueDate < today;
 }
 
-function normalizeSubtasks(value) {
-  if (!Array.isArray(value)) return [];
+function normalizeSubtasks(value, depth = 0) {
+  if (!Array.isArray(value) || depth >= MAX_SUBTASK_DEPTH) return [];
   const ids = new Set();
   return value
     .filter((item) => item && typeof item.id === 'string' && item.id && !ids.has(item.id) && typeof item.title === 'string' && item.title.trim() && ids.add(item.id))
     .slice(0, MAX_SUBTASKS)
-    .map((item) => ({ id: item.id, title: item.title.trim().slice(0, 140), done: item.done === true }));
+    .map((item) => {
+      const nested = depth + 1 < MAX_SUBTASK_DEPTH ? normalizeSubtasks(item.subtasks, depth + 1) : [];
+      return nested.length
+        ? { id: item.id, title: item.title.trim().slice(0, 140), done: item.done === true, subtasks: nested }
+        : { id: item.id, title: item.title.trim().slice(0, 140), done: item.done === true };
+    });
+}
+
+export function flattenSubtasks(items = []) {
+  const result = [];
+  for (const item of items || []) {
+    result.push(item);
+    if (Array.isArray(item.subtasks) && item.subtasks.length) {
+      result.push(...flattenSubtasks(item.subtasks));
+    }
+  }
+  return result;
 }
 
 function cleanDate(value) {
@@ -170,41 +187,80 @@ function updateTask(state, id, change) {
   return { ...state, tasks: (state.tasks || []).map((task) => task.id === id ? change(task) : task) };
 }
 
-export function addSubtask(state, id, title) {
+function mapSubtasks(items, subtaskId, change) {
+  return (items || []).map((item) => {
+    const next = item.id === subtaskId ? change(item) : item;
+    if (!Array.isArray(next.subtasks) || !next.subtasks.length) return next;
+    return { ...next, subtasks: mapSubtasks(next.subtasks, subtaskId, change) };
+  });
+}
+
+function moveInSubtasks(items, subtaskId, index) {
+  const list = items || [];
+  const from = list.findIndex((item) => item.id === subtaskId);
+  if (from >= 0) {
+    const to = Math.max(0, Math.min(list.length - 1, Math.trunc(Number(index) || 0)));
+    if (from === to) return list;
+    const next = list.slice();
+    next.splice(to, 0, next.splice(from, 1)[0]);
+    return next;
+  }
+  return list.map((item) => Array.isArray(item.subtasks) && item.subtasks.length
+    ? { ...item, subtasks: moveInSubtasks(item.subtasks, subtaskId, index) }
+    : item);
+}
+
+function filterSubtasks(items, subtaskId) {
+  return (items || [])
+    .filter((item) => item.id !== subtaskId)
+    .map((item) => {
+      if (!Array.isArray(item.subtasks) || !item.subtasks.length) return item;
+      const next = filterSubtasks(item.subtasks, subtaskId);
+      if (next.length) return { ...item, subtasks: next };
+      const { subtasks: _removed, ...rest } = item;
+      return rest;
+    });
+}
+
+export function addSubtask(state, id, title, parentSubtaskId = '') {
   const clean = String(title || '').trim().slice(0, 140);
   if (!clean) throw new Error('Dê um nome para a subtarefa.');
   const task = (state.tasks || []).find((item) => item.id === id);
   if (!task) return state;
-  if ((task.subtasks || []).length >= MAX_SUBTASKS) throw new Error(`Uma tarefa aceita até ${MAX_SUBTASKS} subtarefas.`);
-  return updateTask(state, id, (item) => ({ ...item, subtasks: [...(item.subtasks || []), { id: crypto.randomUUID(), title: clean, done: false }] }));
+  const entry = { id: crypto.randomUUID(), title: clean, done: false };
+  if (!parentSubtaskId) {
+    if ((task.subtasks || []).length >= MAX_SUBTASKS) throw new Error(`Uma tarefa aceita até ${MAX_SUBTASKS} subtarefas.`);
+    return updateTask(state, id, (item) => ({ ...item, subtasks: [...(item.subtasks || []), entry] }));
+  }
+  const parent = (task.subtasks || []).find((item) => item.id === parentSubtaskId);
+  if (!parent) return state;
+  if ((parent.subtasks || []).length >= MAX_SUBTASKS) throw new Error(`Uma subtarefa aceita até ${MAX_SUBTASKS} sub-subtarefas.`);
+  return updateTask(state, id, (item) => ({
+    ...item,
+    subtasks: (item.subtasks || []).map((sub) => sub.id === parentSubtaskId
+      ? { ...sub, subtasks: [...(sub.subtasks || []), entry] }
+      : sub),
+  }));
 }
 
 export function toggleSubtask(state, id, subtaskId) {
-  return updateTask(state, id, (task) => ({ ...task, subtasks: (task.subtasks || []).map((item) => item.id === subtaskId ? { ...item, done: !item.done } : item) }));
+  return updateTask(state, id, (task) => ({ ...task, subtasks: mapSubtasks(task.subtasks, subtaskId, (item) => ({ ...item, done: !item.done })) }));
 }
 
 // Renomear mantém o id e o estado da subtarefa: não é uma subtarefa nova.
 export function renameSubtask(state, id, subtaskId, title) {
   const clean = String(title || '').trim().slice(0, 140);
   if (!clean) throw new Error('Dê um nome para a subtarefa.');
-  return updateTask(state, id, (task) => ({ ...task, subtasks: (task.subtasks || []).map((item) => item.id === subtaskId ? { ...item, title: clean } : item) }));
+  return updateTask(state, id, (task) => ({ ...task, subtasks: mapSubtasks(task.subtasks, subtaskId, (item) => ({ ...item, title: clean })) }));
 }
 
 // Move a subtarefa para a posição pedida, limitada ao tamanho da lista.
 export function moveSubtask(state, id, subtaskId, index) {
-  return updateTask(state, id, (task) => {
-    const items = task.subtasks || [];
-    const from = items.findIndex((item) => item.id === subtaskId);
-    const to = Math.max(0, Math.min(items.length - 1, Math.trunc(Number(index) || 0)));
-    if (from < 0 || from === to) return task;
-    const next = items.slice();
-    next.splice(to, 0, next.splice(from, 1)[0]);
-    return { ...task, subtasks: next };
-  });
+  return updateTask(state, id, (task) => ({ ...task, subtasks: moveInSubtasks(task.subtasks, subtaskId, index) }));
 }
 
 export function removeSubtask(state, id, subtaskId) {
-  return updateTask(state, id, (task) => ({ ...task, subtasks: (task.subtasks || []).filter((item) => item.id !== subtaskId) }));
+  return updateTask(state, id, (task) => ({ ...task, subtasks: filterSubtasks(task.subtasks, subtaskId) }));
 }
 
 export function removeTask(state, id) {

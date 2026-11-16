@@ -288,18 +288,34 @@
   background: var(--inner);
 }
 .subtask-list li {
+  position: relative;
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.1rem 0.15rem 0.1rem 0.5rem;
+  border-radius: calc(var(--radius-md) - 4px);
+  background: transparent;
+  transition: background 0.16s ease;
+}
+.subtask-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
   min-width: 0;
-  padding: 0.1rem 0.15rem 0.1rem 0.5rem;
-  border-radius: calc(var(--radius-md) - 4px);
-  transition: background 0.16s ease;
 }
-.subtask-list li {
-  position: relative;
-  background: transparent;
+.subtask-children {
+  margin-left: 1.35rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--border);
+  display: grid;
+  gap: 0.25rem;
+}
+.todo-subtasks .subtask-sublist {
+  margin: 0.1rem 0 0;
+}
+.subtask-subform {
+  margin-top: 0.15rem;
 }
 .subtask-list li:hover {
   background: color-mix(in srgb, var(--text-muted) 8%, transparent);

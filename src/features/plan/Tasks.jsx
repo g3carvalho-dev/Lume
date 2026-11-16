@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Reorder, motion, useDragControls } from 'motion/react';
 import {
-  MAX_SUBTASKS, MAX_TASKS, TASK_PRIORITIES, isOverdue, localDate,
+  MAX_SUBTASKS, MAX_TASKS, TASK_PRIORITIES, flattenSubtasks, isOverdue, localDate,
   priorityLabel, sortTasks,
 } from '../../../public/tasks-domain.js';
 import Icon from '../../ui/Icon.jsx';
@@ -27,12 +27,19 @@ function dateLabel(value) {
 const NO_SUBTASKS = [];
 
 // Uma subtarefa: arrastar pela alça (ou setas do teclado nela), renomear no
-// lugar com Enter/Esc, marcar e remover.
-function SubtaskItem({ task, item, index, count, actions, hidden, onDragEnd, onError }) {
+// lugar com Enter/Esc, marcar, adicionar sub-subtarefa (1 nível) e remover.
+function SubtaskItem({ task, item, index, count, actions, hidden, showDone, canNest = true, onDragEnd, onError }) {
   const controls = useDragControls();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(item.title);
   const [dragging, setDragging] = useState(false);
+  const [addingChild, setAddingChild] = useState(false);
+  const [childDraft, setChildDraft] = useState('');
+  const children = item.subtasks || NO_SUBTASKS;
+  const [childDragOrder, setChildDragOrder] = useState(null);
+  const childDragRef = useRef(null);
+  const childOrder = childDragOrder || children;
+
   function startEditing() {
     setName(item.title);
     setEditing(true);
@@ -57,28 +64,64 @@ function SubtaskItem({ task, item, index, count, actions, hidden, onDragEnd, onE
     const target = index + step;
     if (target >= 0 && target < count) actions.moveSubtask(task.id, item.id, target);
   }
-  return <Reorder.Item as="li" hidden={hidden} value={item} dragListener={false} dragControls={controls} onDragStart={() => setDragging(true)} onDragEnd={() => { setDragging(false); onDragEnd(item); }} className={`${item.done ? 'is-done' : ''} ${editing ? 'is-editing' : ''} ${dragging ? 'is-dragging' : ''}`}>
-    {count > 1 && <button type="button" className="subtask-handle" title="Arraste ou use as setas para mover" aria-label={`Mover subtarefa ${item.title}`} onPointerDown={(event) => controls.start(event)} onKeyDown={moveWithKeys}><Icon name="grip"/></button>}
-    {editing
-      ? <span className="subtask">
-        <input type="checkbox" checked={item.done} aria-label={item.title} onChange={() => actions.toggleSubtask(task.id, item.id)}/>
-        <input
-          className="subtask-rename"
-          aria-label={`Novo nome da subtarefa ${item.title}`}
-          maxLength={140}
-          value={name}
-          autoFocus
-          onChange={(event) => setName(event.target.value)}
-          onBlur={save}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') { event.preventDefault(); save(); }
-            if (event.key === 'Escape') { event.preventDefault(); setEditing(false); onError(''); }
-          }}
-        />
-      </span>
-      : <label className="subtask"><input type="checkbox" checked={item.done} onChange={() => actions.toggleSubtask(task.id, item.id)}/><span onDoubleClick={(event) => { event.preventDefault(); startEditing(); }}>{item.title}</span></label>}
-    {!editing && <button type="button" className="todo-icon-button" title="Renomear subtarefa" aria-label={`Renomear subtarefa ${item.title}`} onClick={startEditing}><Icon name="edit"/></button>}
-    <button type="button" className="todo-icon-button is-danger" title="Remover subtarefa" aria-label={`Remover subtarefa ${item.title}`} onMouseDown={(event) => editing && event.preventDefault()} onClick={() => actions.removeSubtask(task.id, item.id)}><Icon name="close"/></button>
+  function reorderChildren(next) {
+    childDragRef.current = next;
+    setChildDragOrder(next);
+  }
+  function dropChild(child) {
+    const nextIndex = (childDragRef.current || children).indexOf(child);
+    childDragRef.current = null;
+    setChildDragOrder(null);
+    if (nextIndex >= 0 && nextIndex !== children.indexOf(child)) actions.moveSubtask(task.id, child.id, nextIndex);
+  }
+  function addChild(event) {
+    event.preventDefault();
+    try {
+      if (!actions.addSubtask(task.id, childDraft, item.id)) return;
+      setChildDraft('');
+      setAddingChild(false);
+      onError('');
+    } catch (exception) {
+      onError(exception.message);
+    }
+  }
+  return <Reorder.Item as="li" hidden={hidden} value={item} dragListener={false} dragControls={controls} onDragStart={() => setDragging(true)} onDragEnd={() => { setDragging(false); onDragEnd(item); }} className={`subtask-entry ${item.done ? 'is-done' : ''} ${editing ? 'is-editing' : ''} ${dragging ? 'is-dragging' : ''}`}>
+    <div className="subtask-row">
+      {count > 1 && <button type="button" className="subtask-handle" title="Arraste ou use as setas para mover" aria-label={`Mover subtarefa ${item.title}`} onPointerDown={(event) => controls.start(event)} onKeyDown={moveWithKeys}><Icon name="grip"/></button>}
+      {editing
+        ? <span className="subtask">
+          <input type="checkbox" checked={item.done} aria-label={item.title} onChange={() => actions.toggleSubtask(task.id, item.id)}/>
+          <input
+            className="subtask-rename"
+            aria-label={`Novo nome da subtarefa ${item.title}`}
+            maxLength={140}
+            value={name}
+            autoFocus
+            onChange={(event) => setName(event.target.value)}
+            onBlur={save}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') { event.preventDefault(); save(); }
+              if (event.key === 'Escape') { event.preventDefault(); setEditing(false); onError(''); }
+            }}
+          />
+        </span>
+        : <label className="subtask"><input type="checkbox" checked={item.done} onChange={() => actions.toggleSubtask(task.id, item.id)}/><span onDoubleClick={(event) => { event.preventDefault(); startEditing(); }}>{item.title}</span></label>}
+      {canNest && !task.done && !item.done && !editing && children.length < MAX_SUBTASKS && (
+        <button type="button" className="todo-icon-button" title="Adicionar sub-subtarefa" aria-label={`Adicionar sub-subtarefa em ${item.title}`} aria-expanded={addingChild} onClick={() => setAddingChild((value) => !value)}><Icon name="plus"/></button>
+      )}
+      {!editing && <button type="button" className="todo-icon-button" title="Renomear subtarefa" aria-label={`Renomear subtarefa ${item.title}`} onClick={startEditing}><Icon name="edit"/></button>}
+      <button type="button" className="todo-icon-button is-danger" title="Remover subtarefa" aria-label={`Remover subtarefa ${item.title}`} onMouseDown={(event) => editing && event.preventDefault()} onClick={() => actions.removeSubtask(task.id, item.id)}><Icon name="close"/></button>
+    </div>
+    {canNest && (children.length > 0 || addingChild) && <div className="subtask-children">
+      {children.length > 0 && <Reorder.Group as="ul" axis="y" className="subtask-list subtask-sublist" values={childOrder} onReorder={reorderChildren}>
+        {childOrder.map((child, childIndex) => <SubtaskItem key={child.id} task={task} item={child} index={childIndex} count={childOrder.length} actions={actions} hidden={child.done && !showDone} showDone={showDone} canNest={false} onDragEnd={dropChild} onError={onError}/>)}
+      </Reorder.Group>}
+      {addingChild && <form className="subtask-form subtask-subform" onSubmit={addChild}>
+        <Icon name="plus"/>
+        <input aria-label={`Nova sub-subtarefa de ${item.title}`} maxLength={140} value={childDraft} autoFocus onChange={(event) => setChildDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); setAddingChild(false); } }} placeholder="Sub-subtarefa, ex.: resumir inciso I"/>
+        <button type="submit" className="subtask-add" disabled={!childDraft.trim()}>Adicionar</button>
+      </form>}
+    </div>}
   </Reorder.Item>;
 }
 
@@ -90,7 +133,9 @@ function Subtasks({ task, actions }) {
   const [adding, setAdding] = useState(false);
   const [showDone, setShowDone] = useState(false);
   const items = task.subtasks || NO_SUBTASKS;
-  const done = items.filter((item) => item.done).length;
+  const allItems = flattenSubtasks(items);
+  const total = allItems.length;
+  const done = allItems.filter((item) => item.done).length;
   // Ordem provisória só durante o arrasto; grava uma vez, ao soltar.
   const [dragOrder, setDragOrder] = useState(null);
   const dragRef = useRef(null);
@@ -115,14 +160,14 @@ function Subtasks({ task, actions }) {
       setError(exception.message);
     }
   }
-  const percent = items.length ? Math.round(done / items.length * 100) : 0;
+  const percent = total ? Math.round(done / total * 100) : 0;
   return <div className={`todo-subtasks ${items.length ? 'has-items' : ''}`}>
-    {items.length > 0 && <div className="subtask-summary">
-      <span className={`subtask-meter ${done === items.length ? 'is-full' : ''}`} aria-hidden="true"><span style={{ width: `${percent}%` }}/></span>
-      <span className="subtask-count">{done} de {items.length} {items.length === 1 ? 'subtarefa concluída' : 'subtarefas concluídas'}</span>
+    {total > 0 && <div className="subtask-summary">
+      <span className={`subtask-meter ${done === total ? 'is-full' : ''}`} aria-hidden="true"><span style={{ width: `${percent}%` }}/></span>
+      <span className="subtask-count">{done} de {total} {total === 1 ? 'subtarefa concluída' : 'subtarefas concluídas'}</span>
     </div>}
     {items.length > 0 && <Reorder.Group as="ul" axis="y" className="subtask-list" values={order} onReorder={reorder}>
-      {order.map((item, index) => <SubtaskItem key={item.id} task={task} item={item} index={index} count={order.length} actions={actions} hidden={item.done && !showDone} onDragEnd={drop} onError={setError}/>)}
+      {order.map((item, index) => <SubtaskItem key={item.id} task={task} item={item} index={index} count={order.length} actions={actions} hidden={item.done && !showDone} showDone={showDone} onDragEnd={drop} onError={setError}/>)}
     </Reorder.Group>}
     {done > 0 && <button type="button" className="subtask-toggle" aria-expanded={showDone} onClick={() => setShowDone((value) => !value)}><Icon name="chevron"/>{showDone ? 'Ocultar concluídas' : `Ver ${done} ${done === 1 ? 'concluída' : 'concluídas'}`}</button>}
     {!task.done && items.length < MAX_SUBTASKS && (adding
