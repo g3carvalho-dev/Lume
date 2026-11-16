@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { api, apiError } from '../../lib/api.js';
 import Icon from '../../ui/Icon.jsx';
-import { Button, Empty, Heading, PersonAvatar, Skeleton, stagger } from '../../ui/ui.jsx';
+import { Button, Empty, PersonAvatar, Skeleton, stagger } from '../../ui/ui.jsx';
 import { useResource } from '../../lib/resources.js';
+import SocialFrame from './SocialFrame.jsx';
+import { PersonButton } from './PersonCard.jsx';
 
 const TABS = [
   { id: 'level', label: 'Nível', icon: 'podium', short: 'Nível acumulado', hint: 'Maior nível e, depois, maior XP elegível acumulado.' },
@@ -37,7 +39,7 @@ function secondary(entry, tab) {
   return `Nível ${entry.level}`;
 }
 
-function Podium({ entries, tab }) {
+function Podium({ entries, tab, go }) {
   // Ordem visual: 2º, 1º, 3º.
   const slots = [entries[1], entries[0], entries[2]].filter(Boolean);
   return <ol className="rk-podium" aria-label="Pódio">
@@ -45,8 +47,10 @@ function Podium({ entries, tab }) {
       const main = primary(entry, tab);
       return <motion.li key={entry.id} className={`rk-podium-card rank-${Math.min(entry.position, 3)} ${entry.isSelf ? 'is-self' : ''}`} {...stagger(index)}>
         <span className="rk-podium-position" aria-label={`Posição ${entry.position}`}>{entry.position}º</span>
-        <PersonAvatar person={entry} className="rk-podium-avatar"/>
-        <strong className="rk-podium-name">{entry.name}{entry.isSelf && <span className="rk-you">você</span>}</strong>
+        <PersonButton person={entry} go={go} className="rk-podium-who">
+          <PersonAvatar person={entry} className="rk-podium-avatar"/>
+          <strong className="rk-podium-name">{entry.name}{entry.isSelf && <span className="rk-you">você</span>}</strong>
+        </PersonButton>
         <small className="rk-podium-sub">{secondary(entry, tab)}</small>
         <span className="rk-podium-value">{main.value}<small>{main.unit}</small></span>
       </motion.li>;
@@ -89,7 +93,7 @@ export default function Ranking({ account, xp, refreshXP, notify, go }) {
     setError('');
     setMenu(false);
     const previous = resource.data;
-    resource.mutate((current) => current ? { ...current, optIn } : current);
+    resource.mutate((current) => current ? { ...current, self: { ...current.self, optedIn: optIn } } : current);
     try {
       const result = await api('/api/xp/settings', { method: 'PATCH', body: { rankingOptIn: optIn } });
       if (!result.ok) throw new Error(apiError(result));
@@ -103,46 +107,41 @@ export default function Ranking({ account, xp, refreshXP, notify, go }) {
     }
   }
 
-  if (!account) return <div className="personal-root">
-    <Heading eyebrow="Comparação opcional entre amigos" title="Ranking">O ranking precisa de uma conta e de amizades. Na prévia, você pode explorar o resto do Lume.</Heading>
-    <Empty icon="podium" title="Entre para participar.">O convite por link é o caminho para formar sua lista de amigos.</Empty>
+  if (!account) return <SocialFrame route="ranking" account={account}>
+    <Empty icon="podium" title="Entre para participar.">O ranking precisa de uma conta e de amizades. O convite por link é o caminho para formar sua lista de amigos.</Empty>
     <Button onClick={() => go('login')}><Icon name="lock"/>Entrar na minha conta</Button>
-  </div>;
+  </SocialFrame>;
 
   const entries = data?.entries || [];
   const self = data?.self;
   const current = TABS.find((item) => item.id === tab);
   const head = tab === 'courses' ? ['Nível', 'Cursos'] : tab === 'effort' ? ['Minutos', 'XP no período'] : ['Nível', 'XP'];
 
-  return <div className="personal-root ranking-root rk-root">
-    <header className="rk-header">
-      <div>
-        <h1 className="display">Ranking</h1>
-        <p className="lead">Seu avanço e o dos seus amigos.</p>
-        <p className="rk-scope"><Icon name="users"/>Só entre amigos</p>
-      </div>
-      <div className="rk-participation" ref={menuRoot}>
-        <Button secondary aria-haspopup="dialog" aria-expanded={menu} onClick={() => setMenu((value) => !value)}><Icon name="settings"/>Participação</Button>
-        {menu && <div className="rk-popover" role="dialog" aria-label="Participação no ranking">
-          <h2 className="title">{self?.optedIn ? 'Você está no ranking de amigos.' : 'Você ainda não aparece no ranking.'}</h2>
-          <p className="muted-text">{self?.optedIn
-            ? 'Só quem está na sua lista de amigos vê esta classificação. Sair não apaga XP, nível nem conquistas.'
-            : 'A participação é opcional e reversível. Sem entrar, seu XP continua privado e você pode estudar normalmente.'}</p>
-          <Button secondary onClick={() => join(!self?.optedIn)} disabled={busy || loading}>
-            <Icon name={self?.optedIn ? 'lock' : 'users'}/>{busy ? 'Atualizando…' : self?.optedIn ? 'Sair do ranking' : 'Participar do ranking'}
-          </Button>
-        </div>}
-      </div>
-    </header>
+  const participation = <div className="rk-participation" ref={menuRoot}>
+    <Button secondary aria-haspopup="dialog" aria-expanded={menu} onClick={() => setMenu((value) => !value)}><Icon name="settings"/>Participação</Button>
+    {menu && <div className="rk-popover" role="dialog" aria-label="Participação no ranking">
+      <h2 className="title">{self?.optedIn ? 'Você está no ranking de amigos.' : 'Você ainda não aparece no ranking.'}</h2>
+      <p className="muted-text">{self?.optedIn
+        ? 'Só quem está na sua lista de amigos vê esta classificação. Sair não apaga XP, nível nem conquistas.'
+        : 'A participação é opcional e reversível. Sem entrar, seu XP continua privado e você pode estudar normalmente.'}</p>
+      <Button secondary onClick={() => join(!self?.optedIn)} disabled={busy || loading}>
+        <Icon name={self?.optedIn ? 'lock' : 'users'}/>{busy ? 'Atualizando…' : self?.optedIn ? 'Sair do ranking' : 'Participar do ranking'}
+      </Button>
+    </div>}
+  </div>;
 
+  return <SocialFrame route="ranking" account={account} className="ranking-root rk-root">
     {self && !self.optedIn && <section className="card-surface rk-optin" aria-label="Participação no ranking">
       <span className="pace-icon"><Icon name="podium"/></span>
       <p><strong>Você ainda não aparece no ranking.</strong> Participar é opcional e reversível; sem entrar, seu XP continua privado.</p>
       <Button onClick={() => join(true)} disabled={busy || loading}><Icon name="users"/>Participar do ranking</Button>
     </section>}
 
+    <div className="rk-toolbar">
     <div className="rk-tabs" role="tablist" aria-label="Classificação do ranking">
       {TABS.map((item) => <button key={item.id} type="button" role="tab" aria-selected={tab === item.id} className="rk-tab" onClick={() => setTab(item.id)}><Icon name={item.icon}/>{item.label}</button>)}
+    </div>
+    {participation}
     </div>
     <div className="rk-subhead">
       <span className="rk-subhead-label" title={current.hint}>{current.short}{tab === 'effort' && data?.period ? ` · ${periodText(data.period)}` : ''}</span>
@@ -160,7 +159,7 @@ export default function Ranking({ account, xp, refreshXP, notify, go }) {
     {!loading && data && entries.length === 0 && <Empty icon="users" title="Ninguém participando ainda.">Convide amigos e combine de entrar no ranking. Quem não entrar não aparece, e isso não muda o XP de ninguém.</Empty>}
 
     {entries.length > 0 && <>
-      <Podium entries={entries} tab={tab}/>
+      <Podium entries={entries} tab={tab} go={go}/>
       <section aria-labelledby="rk-full-title" className="rk-full">
         <h2 id="rk-full-title" className="title">Classificação completa</h2>
         <div className="rk-table-wrap">
@@ -169,7 +168,7 @@ export default function Ranking({ account, xp, refreshXP, notify, go }) {
             <tbody>
               {entries.map((entry) => <tr key={entry.id} className={`rk-row ${entry.isSelf ? 'is-self' : ''}`}>
                 <td className={`rk-position ${entry.position <= 3 ? `top-${entry.position}` : ''}`}><span className="sr-only">Posição </span>{entry.position}º</td>
-                <td><span className="rk-person"><PersonAvatar person={entry} className="ranking-avatar"/><strong>{entry.name}</strong>{entry.isSelf && <span className="rk-you">você</span>}</span></td>
+                <td><PersonButton person={entry} go={go} className="rk-person"><PersonAvatar person={entry} className="ranking-avatar"/><strong>{entry.name}</strong>{entry.isSelf && <span className="rk-you">você</span>}</PersonButton></td>
                 <td className="rk-sub">{secondary(entry, tab)}</td>
                 <td className="is-num rk-value">{primary(entry, tab).value}</td>
               </tr>)}
@@ -189,5 +188,5 @@ export default function Ranking({ account, xp, refreshXP, notify, go }) {
         <li>Empates nos critérios compartilham a posição. Não há desempate por cliques, mensagens ou presença.</li>
       </ul>
     </details>
-  </div>;
+  </SocialFrame>;
 }

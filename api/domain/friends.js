@@ -361,3 +361,43 @@ async function validatedProfile(db, userId) {
     return null;
   }
 }
+
+// Cartão rápido da pessoa (Feed, Ranking, Amigos e Mensagens): foto, nome, @usuário,
+// nível e posição no ranking. Abre para quem pode abrir o perfil (a própria pessoa,
+// amigos ou, com "Perfil público", qualquer conta sem bloqueio). O nível segue a
+// escolha "XP" do perfil; a posição só aparece se a pessoa participa do ranking e
+// está no placar de quem pede (amizade ou a própria conta). Sem XP.
+export async function readPersonCard(db, viewerId, targetId) {
+  if (!targetId) throw new FriendsError('Pessoa não encontrada.', 'not_found', 404);
+  const [target, handle, doc, linked, blocked, optIn] = await Promise.all([
+    db.first('SELECT id, name FROM users WHERE id = ?', [targetId]),
+    db.first('SELECT handle FROM user_handles WHERE user_id = ?', [targetId]),
+    db.first('SELECT data FROM account_documents WHERE user_id = ?', [targetId]),
+    db.first('SELECT 1 AS ok FROM friendships WHERE user_id = ? AND friend_id = ?', [viewerId, targetId]),
+    db.first(
+      'SELECT user_id FROM contact_blocks WHERE (user_id = ? AND blocked_id = ?) OR (user_id = ? AND blocked_id = ?)',
+      [viewerId, targetId, targetId, viewerId],
+    ),
+    db.first('SELECT ranking_opt_in FROM xp_settings WHERE user_id = ?', [targetId]),
+  ]);
+  if (!target) throw new FriendsError('Pessoa não encontrada.', 'not_found', 404);
+  const self = targetId === viewerId;
+  const account = parseJson(doc?.data);
+  const sharing = normalizeSharing(account?.preferences?.sharing);
+  if (!self && !linked && (!sharing.public || blocked)) throw new FriendsError('Este perfil é privado. Só amigos podem abri-lo.', 'not_friends', 403);
+  const validated = self || sharing.xp ? await validatedProfile(db, targetId) : null;
+  let ranking = null;
+  if (Number(optIn?.ranking_opt_in) === 1 && (self || linked)) {
+    const { getRanking } = await import('./xp.js');
+    const board = await getRanking(db, viewerId, { tab: 'level' });
+    const entry = board.entries.find((item) => item.id === targetId);
+    if (entry) ranking = { position: entry.position, participants: board.entries.length };
+  }
+  return {
+    person: { id: target.id, name: target.name, handle: handle?.handle || null, avatar: sanitizeProfileImage(account?.profile?.avatar) },
+    relation: self ? 'self' : linked ? 'friend' : 'public',
+    level: validated ? validated.level : null,
+    ranking,
+    canMessage: Boolean(linked && !blocked),
+  };
+}

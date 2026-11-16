@@ -1,15 +1,15 @@
 // Amigos, perfil entre amigos, mensagens diretas, bloqueio e colaboração.
 
 import {
-  blockContact, getThread, listBlocks, listConversations, markThreadRead, messagePreferences,
+  blockContact, getThread, listBlocks, listConversations, markThreadRead, messagePreferences, muteDirect, reactToDirectMessage,
   sendMessage, unblockContact, unreadSummary, updateMessagePreferences, MESSAGE_WINDOW_LIMIT,
 } from '../domain/messages.js';
 import {
-  addGroupMembers, createGroup, deleteGroup, getGroupThread, listGroups, markGroupRead, removeGroupMember,
+  addGroupMembers, createGroup, deleteGroup, getGroupThread, listGroups, markGroupRead, muteGroup, reactToGroupMessage, removeGroupMember,
   renameGroup, sendGroupMessage, unreadGroupMessages,
 } from '../domain/groups.js';
 import { createReport, listReports, reviewReport } from '../domain/reports.js';
-import { acceptInvite, createInvite, listFriends, listProfileFriends, readFriendProfile, removeFriend, touchUserPresence } from '../domain/friends.js';
+import { acceptInvite, createInvite, listFriends, listProfileFriends, readFriendProfile, readPersonCard, removeFriend, touchUserPresence } from '../domain/friends.js';
 import { cancelRequest, getHandle, listRequests, userIdByHandle, respondRequest, searchByHandle, sendRequest, setHandle } from '../domain/friend-requests.js';
 import {
   cancelCollaborationInvite, createCollaborationInvite, listCollaborationInvites, respondCollaborationInvite,
@@ -65,6 +65,18 @@ export function socialRoutes(router) {
     .add('DELETE', '/api/friends/:friendId', FRIENDS, async ({ db, user, params }) =>
       json(await removeFriend(db, user.id, params.friendId)));
 
+  // Cartão rápido da pessoa. Quem não pode abrir o perfil recebe 404, sem confirmar que a conta existe.
+  router.add('GET', '/api/people/:personId', { auth: 'Entre na sua conta para ver perfis.', origin: true }, async ({ db, user, params }) => {
+    const targetId = params.personId.startsWith('@') ? await userIdByHandle(db, params.personId) : params.personId;
+    try {
+      if (!targetId) throw new AppError('Pessoa não encontrada.', 'not_found', 404);
+      return json(await readPersonCard(db, user.id, targetId));
+    } catch (error) {
+      if (error?.code === 'not_friends' || error?.code === 'not_found') throw new AppError('Pessoa não encontrada.', 'not_found', 404);
+      throw error;
+    }
+  });
+
   router.add('GET', '/api/profile/:friendId/friends', { auth: 'Entre na sua conta para ver perfis.', origin: true }, async ({ db, user, params }) => {
     let targetId = params.friendId;
     if (targetId.startsWith('@')) {
@@ -108,6 +120,17 @@ export function socialRoutes(router) {
       json(await updateMessagePreferences(ctx.db, ctx.user.id, await ctx.json(LIMITS.tiny))))
     .add('POST', '/api/messages/:friendId/read', MESSAGES, async ({ db, user, params }) =>
       json(await markThreadRead(db, user.id, params.friendId)))
+    .add('PUT', '/api/messages/:friendId/mute', MESSAGES, async (ctx) =>
+      json(await muteDirect(ctx.db, ctx.user.id, ctx.params.friendId, (await ctx.json(LIMITS.tiny)).muted)))
+    .add(['PUT', 'DELETE'], '/api/messages/:friendId/messages/:messageId/reaction', {
+      ...MESSAGES,
+      rateLimit: { key: (ctx) => `message-reactions|${ctx.user.id}`, limit: MESSAGE_WINDOW_LIMIT, message: 'Muitas reações em pouco tempo. Aguarde um instante.', code: 'rate_limited' },
+    }, async (ctx) => {
+      const on = ctx.request.method === 'PUT';
+      const reacted = await reactToDirectMessage(ctx.db, ctx.user.id, ctx.params.friendId, ctx.params.messageId, ctx.url.searchParams.get('emoji') || undefined, on);
+      if (on) await announce(ctx.realtime, ctx.params.friendId, { type: 'message', from: ctx.user.id }, ctx.log);
+      return json(reacted);
+    })
     .add('GET', '/api/messages/:friendId', MESSAGES, async ({ db, user, params }) =>
       json(await getThread(db, user.id, params.friendId)))
     .add('POST', '/api/messages/:friendId', {
@@ -136,6 +159,12 @@ export function socialRoutes(router) {
     })
     .add('GET', '/api/groups/:groupId', GROUPS, async ({ db, user, params }) => json(await getGroupThread(db, user.id, params.groupId)))
     .add('POST', '/api/groups/:groupId/read', GROUPS, async ({ db, user, params }) => json(await markGroupRead(db, user.id, params.groupId)))
+    .add('PUT', '/api/groups/:groupId/mute', GROUPS, async (ctx) =>
+      json(await muteGroup(ctx.db, ctx.user.id, ctx.params.groupId, (await ctx.json(LIMITS.tiny)).muted)))
+    .add(['PUT', 'DELETE'], '/api/groups/:groupId/messages/:messageId/reaction', {
+      ...GROUPS,
+      rateLimit: { key: (ctx) => `message-reactions|${ctx.user.id}`, limit: MESSAGE_WINDOW_LIMIT, message: 'Muitas reações em pouco tempo. Aguarde um instante.', code: 'rate_limited' },
+    }, async (ctx) => json(await reactToGroupMessage(ctx.db, ctx.user.id, ctx.params.groupId, ctx.params.messageId, ctx.url.searchParams.get('emoji') || undefined, ctx.request.method === 'PUT')))
     .add('POST', '/api/groups/:groupId/messages', {
       ...GROUPS,
       rateLimit: { key: (ctx) => `messages|${ctx.user.id}`, limit: MESSAGE_WINDOW_LIMIT, message: 'Muitas mensagens em pouco tempo. Aguarde um instante.', code: 'rate_limited' },

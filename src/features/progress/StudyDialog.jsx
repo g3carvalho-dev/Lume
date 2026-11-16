@@ -16,7 +16,6 @@ import CourseEditor, { ManualCourseForm } from '../library/CourseEditor.jsx';
 import { SlidesEditor, SlidesViewer } from '../library/Slides.jsx';
 import AttachPdf from '../library/AttachPdf.jsx';
 import PdfReader, { PdfDetails } from '../library/PdfReader.jsx';
-import { CollaborationPanel } from '../library/Collaboration.jsx';
 import { isCompleted } from '../../../public/progress-domain.js';
 
 const ORIGIN_LABEL = { manual: 'registro manual', integration: 'integração', import: 'progresso importado da fonte' };
@@ -111,7 +110,6 @@ export default function StudyDialog({ modal, state, libraryActions, progressActi
           <summary>Apresentação e slides</summary>
           <SlidesEditor course={course} actions={libraryActions} notify={notify}/>
         </details>
-        <CollaborationPanel course={course} account={account} notify={notify}/>
         <p className="quiet-note">Editar o material não apaga o XP já confirmado. Excluir remove o progresso registrado neste material, com confirmação.</p>
       </div>
     </>;

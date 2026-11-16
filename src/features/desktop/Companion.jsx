@@ -104,14 +104,18 @@ export default function Companion({ account, notify, go, embedded = false }) {
   async function revoke(device) {
     setError('');
     const previous = data;
-    setData((current) => current ? { ...current, devices: (current.devices || []).filter((item) => item.id !== device.id) } : current);
+    companion.mutate((current) => current ? {
+      ...current,
+      devices: (current.devices || []).filter((item) => item.id !== device.id),
+      active: (current.active || []).filter((item) => item.id !== device.id),
+    } : current);
     try {
       const result = await api(`/api/companion/devices/${encodeURIComponent(device.id)}`, { method: 'DELETE' });
       if (!result.ok) throw new Error(apiError(result));
       notify(`${device.name} foi desconectado. Se ele ainda estiver aberto, pare o programa.`);
       load();
     } catch (exception) {
-      if (previous) setData(previous);
+      if (previous) companion.mutate(previous);
       setError(exception.message);
       notify(exception.message);
     }

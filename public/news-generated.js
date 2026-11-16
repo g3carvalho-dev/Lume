@@ -1,6 +1,43 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-02761e87",
+    "at": "2026-11-16T04:41:28.000Z",
+    "title": "Lume aberto em dois lugares sem travar",
+    "body": "Usar o Lume no navegador e no aplicativo de desktop ao mesmo tempo não interrompe mais as gravações com o aviso de que a biblioteca mudou.",
+    "href": "#hoje",
+    "area": "site",
+    "details": [
+      "Ao voltar para uma aba, o Lume busca o que foi salvo em outro lugar antes de você continuar"
+    ]
+  },
+  {
+    "id": "news-427849e4",
+    "at": "2026-11-16T04:41:17.000Z",
+    "title": "Social reorganizado",
+    "body": "Feed, Mensagens, Ranking e Amigos com a mesma moldura; cartão rápido da pessoa; Mensagens com responder, reagir, GIF e silenciar.",
+    "href": "#mensagens",
+    "area": "site",
+    "details": [
+      "Clicar no nome ou na foto de alguém abre um cartão com nível, posição no ranking, Ver perfil e Enviar mensagem",
+      "A aba Amigos mostra sua lista de amigos primeiro e reúne busca e convite em \"Encontrar pessoas\"",
+      "O Feed mostra quem está estudando agora",
+      "Mensagens tem lista com busca e filtro, conversa e painel de detalhes para gerir grupos",
+      "A colaboração em projetos foi retirada"
+    ]
+  },
+  {
+    "id": "news-c5115907",
+    "at": "2026-11-16T03:01:29.000Z",
+    "title": "Atualizações imediatas",
+    "body": "Ações mostram o resultado durante o envio e revertem a mudança quando o servidor recusa a operação.",
+    "href": "#hoje",
+    "area": "site",
+    "details": [
+      "Integra o PR #33 com atualizações na biblioteca, agenda, social e configurações."
+    ]
+  },
+  {
     "id": "news-ad535ea6",
     "at": "2026-11-16T02:04:04.000Z",
     "title": "Adicionar amigos ficou mais simples",
@@ -191,18 +228,6 @@ export const GENERATED_NEWS = [
     "area": "site",
     "details": [
       "Em telas largas, o painel fica fixo na borda direita em altura total fora da transição de página."
-    ]
-  },
-  {
-    "id": "news-6d5392f9",
-    "at": "2026-11-14T20:35:33.000Z",
-    "title": "Fotos dos amigos online",
-    "body": "Em \"Ativos agora\", os amigos online aparecem com a foto de perfil.",
-    "href": "#hoje",
-    "area": "site",
-    "details": [
-      "Sem foto, continuam as iniciais.",
-      "O cabeçalho agora cobre a largura toda da tela, sem o canto vazio no topo direito."
     ]
   }
 ];

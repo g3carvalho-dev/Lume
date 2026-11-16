@@ -371,8 +371,35 @@ export async function runContract(target, t) {
     assert.equal(empty.data.code, 'empty_message');
     const unread = await ana.browser.request('GET', '/api/messages/unread');
     assert.equal(unread.status, 200);
+    assert.equal(unread.data.unread, 1);
     const thread = await ana.browser.request('GET', `/api/messages/${encodeURIComponent(bia.user.id)}`);
     assert.equal(thread.status, 200);
+
+    // Responder citando, GIF, reagir e silenciar (nada disso gera XP).
+    const quoted = thread.data.messages[0].id;
+    const reply = await ana.browser.request('POST', `/api/messages/${encodeURIComponent(bia.user.id)}`, { body: { body: 'Oi, Eva!', replyToId: quoted } });
+    assert.equal(reply.status, 201, JSON.stringify(reply.data));
+    assert.equal(reply.data.message.replyTo.id, quoted);
+    const gif = await ana.browser.request('POST', `/api/messages/${encodeURIComponent(bia.user.id)}`, { body: { gifUrl: 'https://media.giphy.com/media/abc/giphy.gif' } });
+    assert.equal(gif.status, 201);
+    assert.equal((await ana.browser.request('POST', `/api/messages/${encodeURIComponent(bia.user.id)}`, { body: { gifUrl: 'https://example.com/a.gif' } })).data.code, 'invalid_gif');
+    const reactionPath = `/api/messages/${encodeURIComponent(bia.user.id)}/messages/${encodeURIComponent(quoted)}/reaction?emoji=${encodeURIComponent('👍')}`;
+    assert.equal((await ana.browser.request('PUT', reactionPath)).status, 200);
+    assert.equal((await ana.browser.request('PUT', reactionPath.replace(encodeURIComponent('👍'), encodeURIComponent('🤡')))).data.code, 'invalid_emoji');
+    const reacted = await bia.browser.request('GET', `/api/messages/${encodeURIComponent(ana.user.id)}`);
+    assert.deepEqual(reacted.data.messages[0].reactions, [{ emoji: '👍', count: 1, mine: false }]);
+    assert.equal((await ana.browser.request('DELETE', reactionPath)).status, 200);
+    assert.equal((await bia.browser.request('PUT', `/api/messages/${encodeURIComponent(ana.user.id)}/mute`, { body: { muted: true } })).data.muted, true);
+    assert.equal((await bia.browser.request('GET', '/api/messages/unread')).data.unread, 0);
+    assert.equal((await bia.browser.request('PUT', `/api/messages/${encodeURIComponent(ana.user.id)}/mute`, { body: {} })).data.code, 'invalid_preference');
+
+    // Cartão rápido: amiga abre; desconhecida com perfil público abre sem mensagem.
+    const card = await ana.browser.request('GET', `/api/people/${encodeURIComponent(bia.user.id)}`);
+    assert.equal(card.status, 200);
+    assert.equal(card.data.relation, 'friend');
+    assert.equal(card.data.canMessage, true);
+    assert.equal(card.data.person.email, undefined);
+    assert.equal((await ana.browser.request('GET', '/api/people/nao-existe')).status, 404);
     assert.equal((await ana.browser.request('POST', `/api/messages/${encodeURIComponent(bia.user.id)}/read`)).status, 200);
     assert.equal((await ana.browser.request('GET', '/api/messages')).status, 200);
     assert.equal((await ana.browser.request('GET', '/api/messages/settings')).status, 200);
