@@ -89,7 +89,7 @@ function SubtaskItem({ task, item, index, count, actions, hidden, showDone, canN
     <div className="subtask-row">
       {count > 1 && <button type="button" className="subtask-handle" title="Arraste ou use as setas para mover" aria-label={`Mover subtarefa ${item.title}`} onPointerDown={(event) => controls.start(event)} onKeyDown={moveWithKeys}><Icon name="grip"/></button>}
       {editing
-        ? <span className="subtask">
+        ? <span className="subtask is-editing">
           <input type="checkbox" checked={item.done} aria-label={item.title} onChange={() => actions.toggleSubtask(task.id, item.id)}/>
           <input
             className="subtask-rename"
@@ -105,10 +105,12 @@ function SubtaskItem({ task, item, index, count, actions, hidden, showDone, canN
             }}
           />
         </span>
-        : <label className="subtask"><input type="checkbox" checked={item.done} onChange={() => actions.toggleSubtask(task.id, item.id)}/><span onDoubleClick={(event) => { event.preventDefault(); startEditing(); }}>{item.title}</span></label>}
-      {canNest && !task.done && !item.done && !editing && children.length < MAX_SUBTASKS && (
-        <button type="button" className="todo-icon-button" title="Adicionar sub-subtarefa" aria-label={`Adicionar sub-subtarefa em ${item.title}`} aria-expanded={addingChild} onClick={() => setAddingChild((value) => !value)}><Icon name="plus"/></button>
-      )}
+        : <div className="subtask-main">
+          <label className="subtask"><input type="checkbox" checked={item.done} onChange={() => actions.toggleSubtask(task.id, item.id)}/><span onDoubleClick={(event) => { event.preventDefault(); startEditing(); }}>{item.title}</span></label>
+          {canNest && !task.done && !item.done && children.length < MAX_SUBTASKS && (
+            <button type="button" className="subtask-nest-btn" title="Adicionar sub-subtarefa" aria-label={`Adicionar sub-subtarefa em ${item.title}`} aria-expanded={addingChild} onClick={() => setAddingChild((value) => !value)}><Icon name="plus"/></button>
+          )}
+        </div>}
       {!editing && <button type="button" className="todo-icon-button" title="Renomear subtarefa" aria-label={`Renomear subtarefa ${item.title}`} onClick={startEditing}><Icon name="edit"/></button>}
       <button type="button" className="todo-icon-button is-danger" title="Remover subtarefa" aria-label={`Remover subtarefa ${item.title}`} onMouseDown={(event) => editing && event.preventDefault()} onClick={() => actions.removeSubtask(task.id, item.id)}><Icon name="close"/></button>
     </div>
