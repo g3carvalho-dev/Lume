@@ -50,32 +50,55 @@ export default function AddFriends({ account, notify, go }) {
   }
 
   async function sendRequest() {
-    await run(async () => {
-      const result = await api('/api/friends/requests', { method: 'POST', body: { handle: found.user.handle } });
+    setError('');
+    const previousFound = found;
+    setFound({ ...found, status: found.status === 'incoming' ? 'friends' : 'sent' });
+    try {
+      const result = await api('/api/friends/requests', { method: 'POST', body: { handle: previousFound.user.handle } });
       if (!result.ok) throw new Error(apiError(result));
-      setFound({ ...found, status: result.data.status, requestId: result.data.requestId });
-      notify(result.data.status === 'friends' ? `Você e ${found.user.name} agora são amigos.` : `Solicitação enviada para ${found.user.name}.`);
-      await refresh();
-    });
+      setFound({ ...previousFound, status: result.data.status, requestId: result.data.requestId });
+      notify(result.data.status === 'friends' ? `Você e ${previousFound.user.name} agora são amigos.` : `Solicitação enviada para ${previousFound.user.name}.`);
+      refresh();
+    } catch (exception) {
+      setFound(previousFound);
+      setError(exception.message);
+      notify(exception.message);
+    }
   }
 
   async function respond(request, action) {
-    await run(async () => {
+    setError('');
+    const previous = requests.data;
+    requests.mutate((current) => current ? { ...current, incoming: (current.incoming || []).filter((item) => item.id !== request.id) } : current);
+    try {
       const result = await api(`/api/friends/requests/${encodeURIComponent(request.id)}/respond`, { method: 'POST', body: { action } });
       if (!result.ok) throw new Error(apiError(result));
       notify(action === 'accept' ? `Agora você e ${request.user.name} são amigos.` : `Solicitação de ${request.user.name} recusada.`);
-      await refresh();
-    });
+      refresh();
+    } catch (exception) {
+      if (previous) requests.mutate(previous);
+      setError(exception.message);
+      notify(exception.message);
+    }
   }
 
   async function cancel(request) {
-    await run(async () => {
+    setError('');
+    const previous = requests.data;
+    const previousFound = found;
+    requests.mutate((current) => current ? { ...current, outgoing: (current.outgoing || []).filter((item) => item.id !== request.id) } : current);
+    if (found?.requestId === request.id) setFound({ ...found, status: 'none', requestId: undefined });
+    try {
       const result = await api(`/api/friends/requests/${encodeURIComponent(request.id)}`, { method: 'DELETE' });
       if (!result.ok) throw new Error(apiError(result));
       notify(`Solicitação para ${request.user.name} cancelada.`);
-      if (found?.requestId === request.id) setFound({ ...found, status: 'none', requestId: undefined });
-      await refresh();
-    });
+      refresh();
+    } catch (exception) {
+      if (previous) requests.mutate(previous);
+      setFound(previousFound);
+      setError(exception.message);
+      notify(exception.message);
+    }
   }
 
   const inviteUrl = (code) => `${location.origin}/#amigos?convite=${code}`;

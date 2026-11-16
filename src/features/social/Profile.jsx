@@ -94,26 +94,36 @@ export default function Profile({ id, handle = '', state, actions, account, noti
     if (location.pathname !== clean) history.replaceState(null, '', clean);
   }, [addressHandle]);
 
+  const [mediaPreview, setMediaPreview] = useState({ avatar: '', header: '' });
   const selfName = account?.name || 'Estudante na Prévia';
   const validated = xp?.summary ? { ...xp.summary, achievements: xp.achievements, titles: xp.titles } : null;
-  const view = isSelf
+  const baseView = isSelf
     ? { user: { id: account?.id || 'local', name: selfName }, updatedAt: null, ...buildProfile(state, { validated }) }
     : profile;
+  const view = isSelf && baseView
+    ? { ...baseView, avatar: mediaPreview.avatar || baseView.avatar, header: mediaPreview.header || baseView.header }
+    : baseView;
 
   async function handleImageUpload(kind, event) {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file || !actions) return;
     setUploadError('');
+    let localUrl = '';
     try {
       // A capa vai inteira (só reduzida): a pessoa enquadra depois, sem perder o resto da imagem.
       const dimensions = kind === 'avatar' ? { crop: { width: 320, height: 320 } } : { maxWidth: 1600, maxHeight: 1600, force: true };
       const blob = await prepareProfileImageBlob(file, dimensions);
+      localUrl = URL.createObjectURL(blob);
+      setMediaPreview((current) => ({ ...current, [kind]: localUrl }));
       const mediaUrl = await uploadProfileBlob(kind, blob);
       if (!actions.updateProfile({ [kind]: mediaUrl })) return;
       notify(kind === 'avatar' ? 'Foto do perfil enviada e atualizada.' : 'Capa (header) enviada e atualizada.');
     } catch (exception) {
       setUploadError(exception.message || 'Não foi possível enviar a imagem.');
+    } finally {
+      setMediaPreview((current) => ({ ...current, [kind]: '' }));
+      if (localUrl) URL.revokeObjectURL(localUrl);
     }
   }
 

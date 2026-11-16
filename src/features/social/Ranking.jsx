@@ -86,20 +86,20 @@ export default function Ranking({ account, xp, refreshXP, notify, go }) {
   }, [menu]);
 
   async function join(optIn) {
-    if (busy) return;
-    setBusy(true);
     setError('');
+    setMenu(false);
+    const previous = resource.data;
+    resource.mutate((current) => current ? { ...current, optIn } : current);
     try {
       const result = await api('/api/xp/settings', { method: 'PATCH', body: { rankingOptIn: optIn } });
       if (!result.ok) throw new Error(apiError(result));
       notify(optIn ? 'Você entrou no ranking de amigos. Só suas amizades veem.' : 'Você saiu do ranking. Seu XP e suas conquistas continuam guardados.');
-      setMenu(false);
-      await refreshXP?.();
-      await load();
+      refreshXP?.();
+      load();
     } catch (exception) {
+      if (previous) resource.mutate(previous);
       setError(exception.message);
-    } finally {
-      setBusy(false);
+      notify(exception.message);
     }
   }
 

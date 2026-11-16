@@ -34,9 +34,13 @@ export default function CreatorQuotaPanel({ account, notify }) {
   }, [load, query, filter]);
 
   async function selectTier(user, tier) {
-    if (busyUser || user.isCreator || user.plan === tier.id) return;
-    setBusyUser(user.id);
+    if (user.isCreator || user.plan === tier.id) return;
     setError('');
+    const previous = data;
+    setData((current) => current ? {
+      ...current,
+      accounts: (current.accounts || []).map((item) => item.id === user.id ? { ...item, plan: tier.id } : item),
+    } : current);
     try {
       const result = await api(`/api/admin/storage/${encodeURIComponent(user.id)}`, {
         method: 'PATCH',
@@ -44,11 +48,11 @@ export default function CreatorQuotaPanel({ account, notify }) {
       });
       if (!result.ok) throw new Error(apiError(result));
       notify(`Cota de ${user.name} ajustada para ${tier.label}.`);
-      await load(query, filter);
+      load(query, filter);
     } catch (err) {
+      if (previous) setData(previous);
       setError(err.message || 'Não foi possível atualizar a cota.');
-    } finally {
-      setBusyUser('');
+      notify(err.message || 'Não foi possível atualizar a cota.');
     }
   }
 

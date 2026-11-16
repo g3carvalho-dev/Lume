@@ -86,18 +86,20 @@ export function Preferences({ state, actions, libraryActions, confirmSave, notif
     if (!actions.setPreference(key, value)) return;
     notify('Preferência salva. Seu espaço, do seu jeito.');
   }
+  const [rankingOverride, setRankingOverride] = useState(null);
+  const rankingOptIn = rankingOverride ?? (xp?.settings?.rankingOptIn === true);
   async function toggleRanking(value) {
-    if (!account || rankingBusy) return;
-    setRankingBusy(true);
+    if (!account) return;
+    setRankingOverride(value);
     try {
       const result = await api('/api/xp/settings', { method: 'PATCH', body: { rankingOptIn: value } });
       if (!result.ok) throw new Error(apiError(result));
       await refreshXP?.();
+      setRankingOverride(null);
       notify(value ? 'Você entrou no ranking de amigos. Só suas amizades veem.' : 'Você saiu do ranking. Seu XP continua guardado.');
     } catch (error) {
+      setRankingOverride(null);
       notify(error.message || 'Não foi possível atualizar sua participação agora.');
-    } finally {
-      setRankingBusy(false);
     }
   }
   async function toggleMessageNotifications(value) {
@@ -231,7 +233,7 @@ export function Preferences({ state, actions, libraryActions, confirmSave, notif
           <div className="cfg-block">
             <h3>Ranking de amigos</h3>
             {account
-              ? <Toggle title="Aparecer no ranking" hint="Sair mantém seu XP e suas conquistas." checked={xp?.settings?.rankingOptIn === true} disabled={rankingBusy || !xp} onChange={toggleRanking} label="Participar do ranking de amigos">
+              ? <Toggle title="Aparecer no ranking" hint="Sair mantém seu XP e suas conquistas." checked={rankingOptIn} disabled={!xp} onChange={toggleRanking} label="Participar do ranking de amigos">
                 <LinkButton onClick={() => go('ranking')}>Ver ranking</LinkButton>
               </Toggle>
               : <p className="inline-note"><Icon name="lock"/><span>O ranking exige conta e amizades. Na prévia, ele não é calculado.</span></p>}

@@ -92,14 +92,11 @@ export default function Agenda({ state, actions, taskActions, confirmSave, retry
     }));
   }
   function offerUndo(message, previous, ids) {
-    notify?.(message, { action: { label: 'Desfazer', run: async () => {
-      try {
-        const result = actions.restore(previous, ids);
-        if (!result) return;
-        await confirmSave();
-        flash(ids);
-        notify?.('Alteração desfeita.');
-      } catch (exception) { notify?.(exception.message || 'Não foi possível desfazer. Recarregue e tente de novo.'); }
+    notify?.(message, { action: { label: 'Desfazer', run: () => {
+      const result = actions.restore(previous, ids);
+      if (!result) return;
+      flash(ids);
+      notify?.('Alteração desfeita.');
     } } });
   }
   function navigate(step) {
@@ -127,7 +124,7 @@ export default function Agenda({ state, actions, taskActions, confirmSave, retry
     quick(emptyDraft(info.startStr.slice(0, 10), calendarPatch(info)), info.jsEvent);
     api()?.unselect();
   }
-  async function move(info) {
+  function move(info) {
     const item = entries.find((entry) => entry.id === info.event.id);
     if (!item) { info.revert(); return; }
     const patch = calendarPatch(info.event, item.timeZone, { month: true });
@@ -136,22 +133,15 @@ export default function Agenda({ state, actions, taskActions, confirmSave, retry
     const draft = { ...item, ...patch };
     if (item.seriesId) { edit(draft); return; }
     const previous = entries;
-    let expected = null;
-    try {
-      const result = actions.update(item.id, patch);
-      if (!result) return;
-      expected = { agenda: [result.state.agenda.find((entry) => entry.id === item.id)], tasks: [] };
-      const saved = await confirmSave();
-      if (JSON.stringify(saved.agenda.find((entry) => entry.id === item.id)) !== JSON.stringify(expected.agenda[0])) throw new Error('Confira a alteração após recarregar os dados.');
-      flash([item.id]);
-      offerUndo('Horário atualizado.', previous, [item.id]);
-    } catch { edit(draft, expected); }
+    const result = actions.update(item.id, patch);
+    if (!result) return;
+    flash([item.id]);
+    offerUndo('Horário atualizado.', previous, [item.id]);
   }
-  async function remove(item, scope) {
+  function remove(item, scope) {
     const previous = entries;
     const result = actions.remove(item.id, scope);
     if (!result) return;
-    await confirmSave();
     const ids = previous.filter((entry) => !result.state.agenda.some((kept) => kept.id === entry.id)).map((entry) => entry.id);
     setPanel(null);
     offerUndo(ids.length > 1 ? `${ids.length} compromissos excluídos.` : 'Compromisso excluído.', previous, ids);

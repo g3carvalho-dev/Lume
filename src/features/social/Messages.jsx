@@ -120,7 +120,7 @@ function NewChat({ friends, onDirect, onCreated, notify }) {
 }
 
 // Gerenciar o grupo: renomear, membros, adicionar pessoas.
-function GroupInfo({ thread, friends, onChanged, onReport, notify }) {
+function GroupInfo({ thread, friends, onChanged, onOptimistic, onReport, notify }) {
   const { group, members } = thread;
   const [name, setName] = useState(group.name);
   const [adding, setAdding] = useState(false);
@@ -130,16 +130,19 @@ function GroupInfo({ thread, friends, onChanged, onReport, notify }) {
   const inGroup = new Set(members.map((member) => member.id));
   const candidates = friends.filter((friend) => !inGroup.has(friend.id));
 
-  async function run(task, success) {
+  async function run(task, success, optimistic) {
     setBusy(true); setError('');
+    const rollback = optimistic ? optimistic() : null;
     try {
       const result = await task();
       if (!result.ok) throw new Error(apiError(result));
       if (success) notify(success);
-      await onChanged();
+      onChanged();
       return true;
     } catch (exception) {
+      rollback?.();
       setError(exception.message);
+      notify(exception.message);
       return false;
     } finally {
       setBusy(false);
@@ -147,7 +150,17 @@ function GroupInfo({ thread, friends, onChanged, onReport, notify }) {
   }
 
   return <section className="mg-info" aria-label="Informações do grupo">
-    {group.isOwner && <form className="mg-rename" onSubmit={(event) => { event.preventDefault(); if (name.trim() && name.trim() !== group.name) run(() => api(`/api/groups/${group.id}`, { method: 'PATCH', body: { name } }), 'Nome do grupo atualizado.'); }}>
+    {group.isOwner && <form className="mg-rename" onSubmit={(event) => {
+      event.preventDefault();
+      const trimmed = name.trim();
+      if (trimmed && trimmed !== group.name) {
+        run(
+          () => api(`/api/groups/${group.id}`, { method: 'PATCH', body: { name: trimmed } }),
+          'Nome do grupo atualizado.',
+          () => onOptimistic?.rename(group.id, trimmed),
+        );
+      }
+    }}>
       <label className="field">Nome do grupo
         <input value={name} maxLength={GROUP_NAME_LIMIT} onChange={(event) => setName(event.target.value)} disabled={busy}/>
       </label>
@@ -160,7 +173,11 @@ function GroupInfo({ thread, friends, onChanged, onReport, notify }) {
         <span className="mg-member-name"><strong>{member.name}{member.isMe ? ' (você)' : ''}</strong>{member.isOwner && <small>Criou o grupo</small>}</span>
         {!member.isMe && <ThreadMenu label={`Ações para ${member.name}`}>
           <MenuItem icon="flag" danger onClick={() => onReport({ person: member })}>Denunciar</MenuItem>
-          {group.isOwner && <MenuItem icon="close" danger onClick={() => run(() => api(`/api/groups/${group.id}/members/${encodeURIComponent(member.id)}`, { method: 'DELETE' }), `${member.name} saiu do grupo.`)}>Remover do grupo</MenuItem>}
+          {group.isOwner && <MenuItem icon="close" danger onClick={() => run(
+            () => api(`/api/groups/${group.id}/members/${encodeURIComponent(member.id)}`, { method: 'DELETE' }),
+            `${member.name} saiu do grupo.`,
+            () => onOptimistic?.removeMember(member.id),
+          )}>Remover do grupo</MenuItem>}
         </ThreadMenu>}
       </li>)}
     </ul>
@@ -231,14 +248,29 @@ export default function Messages({ account, state, notify, go, contactId = '', g
   useEffect(() => {
     if (!account || !selected || !threadResource.data) return undefined;
     let alive = true;
+    let previousUnread = 0;
+    mutateResource('/api/messages', (previous) => {
+      if (!previous) return previous;
+      const clear = (item) => {
+        if (item.id !== selected) return item;
+        previousUnread = item.unread || 0;
+        return { ...item, unread: 0 };
+      };
+      return { ...previous, conversations: (previous.conversations || []).map(isGroup ? (item) => item : clear), groups: (previous.groups || []).map(isGroup ? clear : (item) => item) };
+    });
     const path = isGroup ? `/api/groups/${encodeURIComponent(selected)}/read` : `/api/messages/${encodeURIComponent(selected)}/read`;
     api(path, { method: 'POST' }).then((read) => {
-      if (!alive || !read.ok) return;
-      mutateResource('/api/messages', (previous) => {
-        if (!previous) return previous;
-        const clear = (item) => item.id === selected ? { ...item, unread: 0 } : item;
-        return { ...previous, conversations: (previous.conversations || []).map(isGroup ? (item) => item : clear), groups: (previous.groups || []).map(isGroup ? clear : (item) => item) };
-      });
+      if (!alive) return;
+      if (!read.ok) {
+        if (previousUnread > 0) {
+          mutateResource('/api/messages', (previous) => {
+            if (!previous) return previous;
+            const restore = (item) => item.id === selected ? { ...item, unread: previousUnread } : item;
+            return { ...previous, conversations: (previous.conversations || []).map(isGroup ? (item) => item : restore), groups: (previous.groups || []).map(isGroup ? restore : (item) => item) };
+          });
+        }
+        return;
+      }
       invalidateResources('/api/messages/unread');
     });
     return () => { alive = false; };
@@ -259,31 +291,83 @@ export default function Messages({ account, state, notify, go, contactId = '', g
     setInfoOpen(false);
     setText('');
     setError('');
-    const hash = next.kind === 'group' ? `#mensagens?grupo=${encodeURIComponent(next.id)}` : next.kind === 'direct' ? `#mensagens?com=${encodeURIComponent(next.id)}` : '#mensagens';
+    const hash = next?.kind === 'group' ? `#mensagens?grupo=${encodeURIComponent(next.id)}` : next?.kind === 'direct' ? `#mensagens?com=${encodeURIComponent(next.id)}` : '#mensagens';
     try { history.replaceState(null, '', hash); } catch { /* Hash indisponível. */ }
   }
 
   async function send(event) {
     event.preventDefault();
-    if (!selected || busy) return;
+    if (!selected) return;
     const body = text.trim();
     const course = state.courses.find((item) => item.id === referenceId);
     const reference = course ? { type: course.type || 'course', id: course.id, title: course.title } : null;
     if (!body && !reference) return;
-    setBusy(true);
+
+    const tempId = `optimistic:${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
+    const previewText = body || (reference ? referenceLabel(reference) : '');
+    const optimisticMessage = {
+      id: tempId,
+      kind: 'text',
+      body,
+      reference,
+      at: now,
+      fromMe: true,
+      senderId: account.id,
+      ...(isGroup ? { sender: { id: account.id, name: account.name, avatar: state.profile?.avatar || account.avatar } } : {}),
+    };
+
+    let previousLast = null;
     setError('');
+    setText('');
+    setReferenceId('');
+    setPickerOpen(false);
+    threadResource.mutate((previous) => (previous ? { ...previous, messages: [...(previous.messages || []), optimisticMessage] } : previous));
+    conversationsResource.mutate((previous) => {
+      if (!previous) return previous;
+      const updateList = (list) => (list || []).map((item) => {
+        if (item.id !== selected) return item;
+        previousLast = item.lastMessage || null;
+        return { ...item, lastMessage: { id: tempId, fromMe: true, preview: previewText.length > 120 ? `${previewText.slice(0, 120)}…` : previewText, at: now } };
+      });
+      return {
+        ...previous,
+        conversations: isGroup ? previous.conversations : updateList(previous.conversations),
+        groups: isGroup ? updateList(previous.groups) : previous.groups,
+      };
+    });
+
     try {
       const result = await api(isGroup ? `/api/groups/${encodeURIComponent(selected)}/messages` : `/api/messages/${encodeURIComponent(selected)}`, { method: 'POST', body: { body, reference } });
       if (!result.ok) throw new Error(apiError(result));
-      await threadResource.refresh();
-      setText('');
-      setReferenceId('');
-      setPickerOpen(false);
-      await conversationsResource.refresh();
+      const saved = result.data?.message;
+      if (saved) {
+        threadResource.mutate((previous) => (previous ? {
+          ...previous,
+          messages: (previous.messages || []).map((item) => (item.id === tempId ? { ...optimisticMessage, ...saved } : item)),
+        } : previous));
+      } else {
+        threadResource.refresh();
+      }
+      conversationsResource.refresh();
     } catch (exception) {
+      threadResource.mutate((previous) => (previous ? {
+        ...previous,
+        messages: (previous.messages || []).filter((item) => item.id !== tempId),
+      } : previous));
+      conversationsResource.mutate((previous) => {
+        if (!previous) return previous;
+        const restoreList = (list) => (list || []).map((item) => (item.id === selected && item.lastMessage?.id === tempId ? { ...item, lastMessage: previousLast } : item));
+        return {
+          ...previous,
+          conversations: isGroup ? previous.conversations : restoreList(previous.conversations),
+          groups: isGroup ? restoreList(previous.groups) : previous.groups,
+        };
+      });
+      setText((current) => current || body);
+      if (reference?.id) setReferenceId((current) => current || reference.id);
       setError(exception.message);
-    } finally {
-      setBusy(false);
+      notify(exception.message);
     }
   }
 
@@ -291,50 +375,70 @@ export default function Messages({ account, state, notify, go, contactId = '', g
     if (!selected || !thread) return;
     const blocked = thread.blockedByMe;
     if (!blocked && !window.confirm('Bloquear esta pessoa? Novas mensagens serão interrompidas nos dois sentidos; o histórico continua guardado.')) return;
-    setBusy(true);
+    const prevThread = threadResource.data;
+    const prevConvs = conversationsResource.data;
+    threadResource.mutate((previous) => previous ? { ...previous, blockedByMe: !blocked, canMessage: blocked && !previous.blockedMe } : previous);
+    conversationsResource.mutate((previous) => previous ? {
+      ...previous,
+      conversations: (previous.conversations || []).map((item) => item.id === selected ? { ...item, blockedByMe: !blocked } : item),
+    } : previous);
     try {
       const result = await api(`/api/blocks/${encodeURIComponent(selected)}`, { method: blocked ? 'DELETE' : 'POST' });
       if (!result.ok) throw new Error(apiError(result));
       notify(blocked ? 'Contato desbloqueado. A conversa pode continuar.' : 'Contato bloqueado. O histórico foi preservado.');
-      await Promise.all([threadResource.refresh(), conversationsResource.refresh()]);
+      threadResource.refresh();
+      conversationsResource.refresh();
     } catch (exception) {
+      if (prevThread) threadResource.mutate(prevThread);
+      if (prevConvs) conversationsResource.mutate(prevConvs);
       setError(exception.message);
-    } finally {
-      setBusy(false);
+      notify(exception.message);
     }
   }
 
   async function leaveGroup() {
     if (!window.confirm('Sair deste grupo? Você deixa de ver as mensagens.')) return;
-    setBusy(true);
+    const target = selected;
+    const prevConvs = conversationsResource.data;
+    conversationsResource.mutate((previous) => previous ? {
+      ...previous,
+      groups: (previous.groups || []).filter((item) => item.id !== target),
+    } : previous);
+    select(null);
     try {
-      const result = await api(`/api/groups/${encodeURIComponent(selected)}/members/${encodeURIComponent(account.id)}`, { method: 'DELETE' });
+      const result = await api(`/api/groups/${encodeURIComponent(target)}/members/${encodeURIComponent(account.id)}`, { method: 'DELETE' });
       if (!result.ok) throw new Error(apiError(result));
       notify('Você saiu do grupo.');
       invalidateResources('/api/groups/');
-      await conversationsResource.refresh();
-      select(null);
+      conversationsResource.refresh();
     } catch (exception) {
+      if (prevConvs) conversationsResource.mutate(prevConvs);
+      select({ kind: 'group', id: target });
       setError(exception.message);
-    } finally {
-      setBusy(false);
+      notify(exception.message);
     }
   }
 
   async function deleteGroup() {
     if (!window.confirm('Apagar este grupo para todas as pessoas? Isso não pode ser desfeito.')) return;
-    setBusy(true);
+    const target = selected;
+    const prevConvs = conversationsResource.data;
+    conversationsResource.mutate((previous) => previous ? {
+      ...previous,
+      groups: (previous.groups || []).filter((item) => item.id !== target),
+    } : previous);
+    select(null);
     try {
-      const result = await api(`/api/groups/${encodeURIComponent(selected)}`, { method: 'DELETE' });
+      const result = await api(`/api/groups/${encodeURIComponent(target)}`, { method: 'DELETE' });
       if (!result.ok) throw new Error(apiError(result));
       notify('Grupo apagado.');
       invalidateResources('/api/groups/');
-      await conversationsResource.refresh();
-      select(null);
+      conversationsResource.refresh();
     } catch (exception) {
+      if (prevConvs) conversationsResource.mutate(prevConvs);
+      select({ kind: 'group', id: target });
       setError(exception.message);
-    } finally {
-      setBusy(false);
+      notify(exception.message);
     }
   }
 
@@ -427,7 +531,23 @@ export default function Messages({ account, state, notify, go, contactId = '', g
               {isGroup && thread.group.isOwner && <MenuItem icon="trash" danger onClick={deleteGroup} disabled={busy}>Apagar grupo</MenuItem>}
             </ThreadMenu>
           </header>
-          {isGroup && infoOpen && <GroupInfo thread={thread} friends={friends} notify={notify} onChanged={async () => { await Promise.all([threadResource.refresh(), conversationsResource.refresh()]); }} onReport={({ person, subjectId }) => setReport({ person, context: 'group', groupId: selected, subjectId })}/>}
+          {isGroup && infoOpen && <GroupInfo thread={thread} friends={friends} notify={notify} onChanged={() => Promise.all([threadResource.refresh(), conversationsResource.refresh()])} onOptimistic={{
+            rename: (groupIdValue, nextName) => {
+              const prevThread = threadResource.data;
+              const prevConvs = conversationsResource.data;
+              threadResource.mutate((previous) => previous ? { ...previous, group: { ...previous.group, name: nextName } } : previous);
+              conversationsResource.mutate((previous) => previous ? { ...previous, groups: (previous.groups || []).map((item) => item.id === groupIdValue ? { ...item, name: nextName } : item) } : previous);
+              return () => {
+                if (prevThread) threadResource.mutate(prevThread);
+                if (prevConvs) conversationsResource.mutate(prevConvs);
+              };
+            },
+            removeMember: (memberId) => {
+              const prevThread = threadResource.data;
+              threadResource.mutate((previous) => previous ? { ...previous, members: (previous.members || []).filter((item) => item.id !== memberId) } : previous);
+              return () => { if (prevThread) threadResource.mutate(prevThread); };
+            },
+          }} onReport={({ person, subjectId }) => setReport({ person, context: 'group', groupId: selected, subjectId })}/>}
           <div className="message-list" ref={listRef} onScroll={(event) => { const node = event.currentTarget; stuck.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80; }} tabIndex={0} role="log" aria-live="polite" aria-label={`Mensagens de ${title}`}>
             {thread.messages.length === 0 && <p className="messages-placeholder-copy">Nenhuma mensagem ainda. Diga olá ou compartilhe um material.</p>}
             {thread.messages.map((message) => {
