@@ -26,6 +26,12 @@ test('vídeo real em página de exemplo: selo, pausa, avanço pela barra, fim e 
   await expect.poll(()=>page.evaluate(()=>window.badge?.host.isConnected)).toBe(true);
   await expect.poll(()=>page.evaluate(()=>window.badge.textContent.includes('Aula 1 de 2'))).toBe(true);
   const video=page.locator('video');
+  const playerBefore = await video.evaluate(v => ({source:v.currentSrc, width:v.getBoundingClientRect().width, controls:v.controls}));
+  await page.evaluate(() => window.badge.querySelector('.on-page').click());
+  await expect(video).toHaveCSS('position','fixed');
+  await expect.poll(()=>video.evaluate(v=>v.controls)).toBe(true);
+  await page.keyboard.press('Escape');
+  expect(await video.evaluate(v=>({source:v.currentSrc,width:v.getBoundingClientRect().width,controls:v.controls}))).toEqual(playerBefore);
   await video.evaluate(async v => {
     await v.play();
     await new Promise(resolve => v.requestVideoFrameCallback(resolve));

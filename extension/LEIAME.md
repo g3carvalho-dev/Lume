@@ -6,7 +6,7 @@ No Chrome ou no Edge do computador, abra um curso com a sua conta e escolha **Le
 
 1. Entre no Lume no mesmo perfil do navegador. No popup, em **Acompanhar aulas**, ligue a plataforma e aceite o pedido de acesso do navegador.
 2. Abra uma aula importada. O selo do Lume mostra a posição no curso e o tempo da sessão. Pausar o vídeo pausa o tempo. Uma sessão de leitura ou foco já aberta conserva a prioridade.
-3. Se o player oferecer miniplayer, escolha **Assistir sobre o Lume** no selo. A aula continua na janela flutuante do navegador enquanto você usa o Lume. Mantenha a aba da plataforma aberta.
+3. Para consultar a grade enquanto assiste, escolha **Miniplayer nesta página** no selo. O vídeo fica no canto da página. Use **Voltar ao tamanho original** ou Esc para devolvê-lo ao lugar. Se o player oferecer janela flutuante nativa, **Assistir sobre o Lume** mantém o vídeo visível enquanto você usa o Lume em outra aba. Mantenha a aba da plataforma aberta.
 4. Desligue a plataforma no popup para remover o acesso. Para desligar o acompanhamento em toda a conta, use **Configurações › Ritmo de estudo**.
 
 No Gran e na Udemy, a extensão consulta as marcas da própria plataforma e aguarda a passagem de pendente para concluída. No Gran é preciso concluir todos os vídeos da aula. Nas demais plataformas reconhecidas, uma aula pode concluir aos 90% dos trechos tocados, com validação pelo relógio do servidor. O avanço pela barra pula trechos. O botão **Concluí esta aula** permite abrir o registro manual quando o player não é reconhecido.

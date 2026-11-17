@@ -404,6 +404,79 @@
     return `${minutes}:${String(rest).padStart(2, "0")}`;
   }
 
+  // extension/src/page-miniplayer.js
+  function openPageMiniplayer(video, onClose) {
+    const playerDoc = video.ownerDocument;
+    const frame = playerDoc !== document && playerDoc.defaultView.frameElement || video.closest('.video-js, [data-purpose="video-player"], [data-purpose="video-player-container"]') || video;
+    const doc = frame.ownerDocument;
+    const bounds = frame.getBoundingClientRect();
+    const ratio = video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : 16 / 9;
+    const placeholder = doc.createElement("div");
+    if (!["absolute", "fixed"].includes(doc.defaultView.getComputedStyle(frame).position)) {
+      Object.assign(placeholder.style, { width: "100%", maxWidth: bounds.width + "px", height: bounds.height + "px" });
+      frame.before(placeholder);
+    }
+    const size = "min(360px, 44vw, " + Math.round(55 * ratio) + "vh)";
+    const styles = {
+      position: "fixed",
+      top: "12px",
+      right: "12px",
+      bottom: "auto",
+      left: "auto",
+      width: size,
+      height: "auto",
+      "min-height": "0",
+      "min-width": "0",
+      "max-height": "none",
+      "max-width": "none",
+      "aspect-ratio": String(ratio),
+      "object-fit": "contain",
+      "z-index": "2147483645"
+    };
+    for (const side of ["top", "right", "bottom", "left"]) {
+      styles["margin-" + side] = "0";
+      styles["padding-" + side] = "0";
+    }
+    const original = Object.keys(styles).map((key) => [key, frame.style.getPropertyValue(key), frame.style.getPropertyPriority(key)]);
+    const nativeControls = video.controls;
+    let popover = false;
+    if (frame.showPopover && !frame.hasAttribute("popover") && !doc.fullscreenElement) {
+      frame.setAttribute("popover", "manual");
+      try {
+        frame.showPopover();
+        popover = true;
+      } catch {
+        frame.removeAttribute("popover");
+      }
+    }
+    for (const [key, value] of Object.entries(styles)) frame.style.setProperty(key, value, "important");
+    if (frame === video) video.controls = true;
+    let closed = false;
+    function close() {
+      if (closed) return;
+      closed = true;
+      if (popover) {
+        if (frame.matches(":popover-open")) frame.hidePopover();
+        frame.removeAttribute("popover");
+      }
+      for (const [key, value, priority] of original) {
+        if (value) frame.style.setProperty(key, value, priority);
+        else frame.style.removeProperty(key);
+      }
+      if (frame === video) video.controls = nativeControls;
+      placeholder.remove();
+      doc.removeEventListener("keydown", escape, true);
+      if (playerDoc !== doc) playerDoc.removeEventListener("keydown", escape, true);
+      onClose();
+    }
+    function escape(event) {
+      if (event.key === "Escape") close();
+    }
+    doc.addEventListener("keydown", escape, true);
+    if (playerDoc !== doc) playerDoc.addEventListener("keydown", escape, true);
+    return close;
+  }
+
   // extension/src/watch-badge.js
   function watchBadge() {
     const host = document.createElement("aside");
@@ -414,17 +487,33 @@
     button { color:inherit; background:transparent; border:0; cursor:pointer; font:inherit; padding:2px; display:flex; align-items:center; gap:8px }
     b {color:#f6c165} small {display:block;margin-top:6px} time {font-family:'JetBrains Mono',monospace}
     progress {width:100%;height:5px;accent-color:#9ec5ff} [hidden]{display:none}
-  </style><section><button type="button"><b>✦</b><span>Lume</span><time></time></button><div><small></small><progress max="100"></progress><button type="button" class="mini">Abrir miniplayer ↗</button><small role="status"></small></div></section>`;
+  </style><section><button type="button"><b>✦</b><span>Lume</span><time></time></button><div><small></small><progress max="100"></progress><button type="button" class="on-page" aria-pressed="false">Miniplayer nesta página</button><button type="button" class="mini">Assistir sobre o Lume ↗</button><small role="status"></small></div></section>`;
     const button = root.querySelector("button"), details = root.querySelector("div");
     const time = root.querySelector("time"), label = root.querySelector("span");
     let session = null, collapsed = false;
     let player = null;
     const mini = root.querySelector(".mini"), feedback = root.querySelector("[role=status]");
+    const pageMini = root.querySelector(".on-page");
+    let closePageMini;
+    pageMini.onclick = () => {
+      if (closePageMini) {
+        closePageMini();
+        return;
+      }
+      closePageMini = openPageMiniplayer(player, () => {
+        closePageMini = null;
+        pageMini.textContent = "Miniplayer nesta página";
+        pageMini.setAttribute("aria-pressed", "false");
+      });
+      pageMini.textContent = "Voltar ao tamanho original";
+      pageMini.setAttribute("aria-pressed", "true");
+    };
     mini.onclick = async () => {
       try {
         const doc = player.ownerDocument;
         if (doc.pictureInPictureElement === player) await doc.exitPictureInPicture();
         else {
+          closePageMini?.();
           await player.requestPictureInPicture();
           const result = await chrome.runtime.sendMessage({ type: "watch-open-lume" });
           if (!result?.ok) {
@@ -434,13 +523,14 @@
         }
         updateMini();
       } catch {
-        feedback.textContent = "O player bloqueou o miniplayer. Continue assistindo nesta aba.";
+        feedback.textContent = "O player bloqueou a janela flutuante. Use “Miniplayer nesta página”.";
       }
     };
     function updateMini() {
       mini.disabled = !player?.ownerDocument.pictureInPictureEnabled || player.disablePictureInPicture || !player.requestPictureInPicture;
       mini.textContent = player?.ownerDocument.pictureInPictureElement === player ? "Fechar miniplayer" : "Assistir sobre o Lume ↗";
-      feedback.textContent = mini.disabled ? "O miniplayer está indisponível neste vídeo." : "";
+      mini.hidden = mini.disabled;
+      feedback.textContent = "";
     }
     const renderToggle = () => {
       details.hidden = collapsed;
@@ -468,6 +558,7 @@
     return {
       show(result, video) {
         if (player !== video) {
+          closePageMini?.();
           player?.removeEventListener("leavepictureinpicture", updateMini);
           player = video;
           player?.addEventListener("leavepictureinpicture", updateMini);
@@ -485,6 +576,7 @@
         host.style.bottom = bounds && bounds.right > innerWidth - host.offsetWidth - 20 && bounds.bottom > innerHeight - host.offsetHeight - 26 ? Math.max(72, innerHeight - bounds.bottom + 74) + "px" : "16px";
       },
       remove() {
+        closePageMini?.();
         clearInterval(timer);
         player?.removeEventListener("leavepictureinpicture", updateMini);
         host.remove();

@@ -1,4 +1,5 @@
 import { formatSessionDuration, sessionElapsed } from '../../public/session-domain.js';
+import { openPageMiniplayer } from './page-miniplayer.js';
 
 export function watchBadge() {
   const host = document.createElement('aside');
@@ -9,28 +10,42 @@ export function watchBadge() {
     button { color:inherit; background:transparent; border:0; cursor:pointer; font:inherit; padding:2px; display:flex; align-items:center; gap:8px }
     b {color:#f6c165} small {display:block;margin-top:6px} time {font-family:'JetBrains Mono',monospace}
     progress {width:100%;height:5px;accent-color:#9ec5ff} [hidden]{display:none}
-  </style><section><button type="button"><b>✦</b><span>Lume</span><time></time></button><div><small></small><progress max="100"></progress><button type="button" class="mini">Abrir miniplayer ↗</button><small role="status"></small></div></section>`;
+  </style><section><button type="button"><b>✦</b><span>Lume</span><time></time></button><div><small></small><progress max="100"></progress><button type="button" class="on-page" aria-pressed="false">Miniplayer nesta página</button><button type="button" class="mini">Assistir sobre o Lume ↗</button><small role="status"></small></div></section>`;
   const button = root.querySelector('button'), details = root.querySelector('div');
   const time = root.querySelector('time'), label = root.querySelector('span');
   let session = null, collapsed = false;
   let player = null;
   const mini = root.querySelector('.mini'), feedback = root.querySelector('[role=status]');
+  const pageMini = root.querySelector('.on-page');
+  let closePageMini;
+  pageMini.onclick = () => {
+    if (closePageMini) { closePageMini(); return; }
+    closePageMini = openPageMiniplayer(player, () => {
+      closePageMini = null;
+      pageMini.textContent = 'Miniplayer nesta página';
+      pageMini.setAttribute('aria-pressed','false');
+    });
+    pageMini.textContent = 'Voltar ao tamanho original';
+    pageMini.setAttribute('aria-pressed','true');
+  };
   mini.onclick = async () => {
     try {
       const doc = player.ownerDocument;
       if (doc.pictureInPictureElement === player) await doc.exitPictureInPicture();
       else {
+        closePageMini?.();
         await player.requestPictureInPicture();
         const result = await chrome.runtime.sendMessage({type:'watch-open-lume'});
         if (!result?.ok) { feedback.textContent = 'Miniplayer aberto. Entre no Lume para ver a aula.'; return; }
       }
       updateMini();
-    } catch { feedback.textContent = 'O player bloqueou o miniplayer. Continue assistindo nesta aba.'; }
+    } catch { feedback.textContent = 'O player bloqueou a janela flutuante. Use “Miniplayer nesta página”.'; }
   };
   function updateMini() {
     mini.disabled = !player?.ownerDocument.pictureInPictureEnabled || player.disablePictureInPicture || !player.requestPictureInPicture;
     mini.textContent = player?.ownerDocument.pictureInPictureElement === player ? 'Fechar miniplayer' : 'Assistir sobre o Lume ↗';
-    feedback.textContent = mini.disabled ? 'O miniplayer está indisponível neste vídeo.' : '';
+    mini.hidden = mini.disabled;
+    feedback.textContent = '';
   }
   const renderToggle = () => {
     details.hidden = collapsed;
@@ -47,6 +62,7 @@ export function watchBadge() {
   return {
     show(result, video) {
       if (player !== video) {
+        closePageMini?.();
         player?.removeEventListener('leavepictureinpicture', updateMini);
         player = video;
         player?.addEventListener('leavepictureinpicture', updateMini);
@@ -65,6 +81,6 @@ export function watchBadge() {
       host.style.bottom = bounds && bounds.right > innerWidth - host.offsetWidth - 20 && bounds.bottom > innerHeight - host.offsetHeight - 26
         ? Math.max(72, innerHeight - bounds.bottom + 74) + 'px' : '16px';
     },
-    remove() { clearInterval(timer); player?.removeEventListener('leavepictureinpicture', updateMini); host.remove(); for (const face of faces) document.fonts.delete(face); },
+    remove() { closePageMini?.(); clearInterval(timer); player?.removeEventListener('leavepictureinpicture', updateMini); host.remove(); for (const face of faces) document.fonts.delete(face); },
   };
 }
