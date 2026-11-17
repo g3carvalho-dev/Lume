@@ -2,7 +2,7 @@ import SectionTabs from '../../app/SectionTabs.jsx';
 import { Heading } from '../../ui/ui.jsx';
 import { useResource } from '../../lib/resources.js';
 
-// Moldura comum das quatro abas do Social (Feed, Mensagens, Ranking e Amigos):
+// Moldura comum das abas do Social (Feed e Ranking):
 // o mesmo cabeçalho, as abas no mesmo lugar e a mesma largura de página. Cada
 // aba compõe o próprio conteúdo dentro dela. `wide` deixa o corpo ocupar a altura
 // restante da janela (Mensagens).

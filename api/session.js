@@ -12,13 +12,21 @@ export async function currentUser(db, request, now = Date.now()) {
   const token = sessionTokenFrom(request);
   if (!token) return null;
   const tokenHash = await hashSessionToken(token);
-  const session = await db.first('SELECT user_id, expires_at FROM sessions WHERE token_hash = ?', [tokenHash]);
-  if (!session) return null;
-  if (Date.parse(session.expires_at) <= now) {
+  // Sessão e conta numa consulta: no D1 cada consulta é uma ida à rede, e esta
+  // roda em toda requisição autenticada.
+  const row = await db.first(
+    `SELECT s.expires_at, u.id, u.name, u.email, u.created_at
+       FROM sessions s LEFT JOIN users u ON u.id = s.user_id
+      WHERE s.token_hash = ?`,
+    [tokenHash],
+  );
+  if (!row) return null;
+  if (Date.parse(row.expires_at) <= now) {
     await db.run('DELETE FROM sessions WHERE token_hash = ?', [tokenHash]);
     return null;
   }
-  return db.first('SELECT id, name, email, created_at FROM users WHERE id = ?', [session.user_id]);
+  if (!row.id) return null;
+  return { id: row.id, name: row.name, email: row.email, created_at: row.created_at };
 }
 
 export async function startSession(db, userId, now = Date.now()) {
@@ -38,14 +46,15 @@ export function publicUser(row) {
 // custar uma escrita extra em toda requisição.
 export async function tooManyAttempts(db, key, limit, now = Date.now()) {
   const windowStart = now - ATTEMPT_WINDOW_MS;
-  await db.run(
+  // Grava e lê o contador na mesma instrução (RETURNING), uma ida ao banco.
+  const row = await db.first(
     `INSERT INTO rate_limits (key, count, started_at) VALUES (?, 1, ?)
      ON CONFLICT(key) DO UPDATE SET
        count = CASE WHEN started_at < ? THEN 1 ELSE count + 1 END,
-       started_at = CASE WHEN started_at < ? THEN ? ELSE started_at END`,
+       started_at = CASE WHEN started_at < ? THEN ? ELSE started_at END
+     RETURNING count`,
     [key, now, windowStart, windowStart, now],
   );
-  const row = await db.first('SELECT count FROM rate_limits WHERE key = ?', [key]);
   if (Math.random() < 0.05) {
     await db.run('DELETE FROM rate_limits WHERE started_at < ?', [now - ATTEMPT_CLEANUP_MS]);
   }

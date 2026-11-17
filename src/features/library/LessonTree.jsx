@@ -1,3 +1,4 @@
+import { lessonProvider } from '../../../companion/electron/lesson-provider.mjs';
 import { useState } from 'react';
 import { materialSteps, materialStructure } from '../../../public/material-model.js';
 import { formatDuration, lessonOrigin } from '../../../public/import-domain.js';
@@ -33,6 +34,7 @@ export default function LessonTree({ course, state, disciplines, onComplete, onR
           return <li key={lesson.id} className={done ? 'is-done' : ''}>
             <button className="import-check small" role="checkbox" aria-checked={done ? 'true' : 'false'} aria-label={`${done ? 'Desmarcar' : 'Marcar'} a aula ${lesson.title}`} onClick={() => done ? onRevert(lesson.id) : onComplete(lesson.id)}><Icon name={done ? 'check' : 'plus'}/></button>
             <span className="import-lesson-title">{lesson.title}{lesson.removedFromSource && <small className="import-flag">removida da fonte</small>}</span>
+            {window.lumeWindow && lessonProvider(lesson.url) && <a className="text-link" href={lesson.url} target="_blank" rel="noopener noreferrer" aria-label={`Assistir no Lume: ${lesson.title}`}><Icon name="play"/>Assistir</a>}
             {lesson.duration ? <small className="import-lesson-time">{formatDuration(lesson.duration)}</small> : null}
             {done && <small className="import-origin">{ORIGINS[origin] || 'manual'}</small>}
           </li>;

@@ -193,7 +193,7 @@ test('o Lume recebe a leitura da extensão, importa como histórico e depois reg
   await expect(page.getByText(/1 aula já constava como concluída/)).toBeVisible();
   await page.getByRole('button', { name: 'Ver o curso' }).click();
   await expect(page.getByText(/Faltam 2 aulas · cerca de/)).toBeVisible();
-  await page.getByRole('button', { name: 'Fechar', exact:true }).click();
+  await page.getByRole('button', { name: 'Fechar janela' }).click();
 
   // Segunda leitura: o curso já existe e uma aula nova aparece concluída.
   await deliver(page, captured(2), 'leitura-2');

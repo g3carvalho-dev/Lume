@@ -1,6 +1,6 @@
 import { courseEstimateText, courseStats } from '../../../public/course-stats-domain.js';
 import { useExtension } from '../../lib/extension.js';
-import ExtensionInvite from '../library/ExtensionInvite.jsx';
+import { lessonProvider } from '../../../companion/electron/lesson-provider.mjs';
 import { providerById } from '../../../public/providers/registry.js';
 import { useState } from 'react';
 import { achievements, courseProgress, hasPreparation, materialType } from '../../../public/domain.js';
@@ -82,12 +82,12 @@ export default function StudyDialog({ modal, state, libraryActions, progressActi
   if (modal.type === 'delete') return <DeleteCourse course={course} actions={libraryActions} close={close} notify={notify}/>;
   if (modal.type === 'edit') return <CourseEditor course={course} actions={libraryActions} close={close} notify={notify}/>;
   if (course.pdf && ['pdf', 'session'].includes(modal.type)) return <PdfReader course={course} state={state} actions={libraryActions} progressActions={progressActions} notify={notify} open={open} close={close} account={account}/>;
-  if (course.pdf && modal.type === 'course') return <PdfDetails course={course} state={state} actions={libraryActions} open={open} close={close}/>;
+  if (course.pdf && modal.type === 'course') return <PdfDetails course={course} state={state} actions={libraryActions} open={open}/>;
   if (modal.type === 'slides') return <SlidesViewer course={course} state={state} actions={libraryActions} progressActions={progressActions} close={close} notify={notify} account={account}/>;
 
   if (isImportedCourse(course)) {
     if (modal.type === 'session') return <ImportedSession course={course} state={state} actions={progressActions} open={open} close={close} notify={notify} stepId={modal.stepId} account={account}/>;
-    return <ImportedCourse course={course} state={state} actions={libraryActions} progressActions={progressActions} open={open} close={close} notify={notify}/>;
+    return <ImportedCourse course={course} state={state} actions={libraryActions} progressActions={progressActions} open={open} notify={notify}/>;
   }
 
   const action = nextAction({ ...state, courses: [course] });
@@ -95,30 +95,39 @@ export default function StudyDialog({ modal, state, libraryActions, progressActi
   if (modal.type === 'course') {
     const progress = courseProgress(state, course);
     const deck = slidesSummary(course);
+    const complete = progress.total > 0 && progress.done === progress.total;
+    // Uma ação principal por estado (continuar, retomar ou nada a fazer); o resto
+    // são ferramentas discretas no rodapé.
     return <>
       <div className="dialog-course-cover"><Cover art={course.art}/></div>
-      <div className="dialog-content">
-        <div className="eyebrow">{course.example ? 'Curso de exemplo' : materialLabel(course)}</div>
-        <h2 id="dialog-title" className="headline">{course.title}</h2>
-        <p className="muted-text">{progress.done} de {progress.total} etapas concluídas. Seu progresso fica com você.</p>
-        {course.resumeAt && <p className="resume-pill"><Icon name="return"/>Parou em: {course.resumeAt}</p>}
-        <Progress value={progress.percent} tone="lume" label={`Progresso de ${course.title}`}/>
-        {course.url ? <a className="text-link" target="_blank" rel="noopener noreferrer" href={course.url}>Abrir conteúdo do curso<Icon name="external"/></a> : <p className="inline-note"><Icon name="book"/><span>Este curso não tem conteúdo vinculado.</span></p>}
+      <div className="dialog-content course-sheet">
+        <header className="course-sheet-head">
+          <div className="eyebrow">{course.example ? 'Curso de exemplo' : materialLabel(course)}{course.paused && !complete ? ' · pausado' : ''}</div>
+          <h2 id="dialog-title" className="headline">{course.title}</h2>
+          <div className="course-sheet-progress">
+            <Progress value={progress.percent} tone="lume" label={`Progresso de ${course.title}`}/>
+            <span className="mono">{progress.done} de {progress.total} etapas concluídas</span>
+          </div>
+          {course.resumeAt && <p className="resume-pill"><Icon name="return"/>Parou em: {course.resumeAt}</p>}
+        </header>
         <Steps course={course} state={state}/>
-        <div className="dialog-actions">
-          <Button secondary onClick={() => open({ type: 'edit', id: course.id })}><Icon name="edit"/>Editar material</Button>
-          {deck.total > 0
-            ? <Button secondary onClick={() => open({ type: 'slides', id: course.id })}><Icon name="book"/>Abrir apresentação ({deck.total})</Button>
-            : <Button secondary onClick={() => open({ type: 'edit', id: course.id })}><Icon name="plus"/>Adicionar slides</Button>}
-          {progress.done < progress.total && <Button secondary onClick={() => libraryActions.togglePause(course.id)}><Icon name={course.paused ? 'play' : 'pause'}/>{course.paused ? 'Retomar curso' : 'Pausar curso'}</Button>}
-          {mission && <Button onClick={() => { if (libraryActions.selectMaterial(course.id)) open({ type: 'session', id: course.id }); }}>Continuar<Icon name="arrow"/></Button>}
-          {progress.done === progress.total && <span className="completed-message"><Icon name="check"/>Um caminho concluído.</span>}
-        </div>
+        {course.url && <a className="text-link course-sheet-link" target="_blank" rel="noopener noreferrer" href={course.url}>Abrir conteúdo do curso<Icon name="external"/></a>}
         <details className="slides-details">
-          <summary>Apresentação e slides</summary>
+          <summary>Apresentação e slides{deck.total > 0 && <span className="mono course-sheet-count">{deck.total}</span>}</summary>
           <SlidesEditor course={course} actions={libraryActions} notify={notify}/>
         </details>
-        <p className="quiet-note">Editar o material não apaga o XP já confirmado. Excluir remove o progresso registrado neste material, com confirmação.</p>
+        <footer className="course-sheet-foot">
+          <div className="course-sheet-tools">
+            <button type="button" className="text-button" onClick={() => open({ type: 'edit', id: course.id })}><Icon name="edit"/>Editar material</button>
+            {deck.total > 0 && <button type="button" className="text-button" onClick={() => open({ type: 'slides', id: course.id })}><Icon name="book"/>Abrir apresentação ({deck.total})</button>}
+            {!complete && !course.paused && <button type="button" className="text-button" onClick={() => libraryActions.togglePause(course.id)}><Icon name="pause"/>Pausar curso</button>}
+          </div>
+          {complete
+            ? <span className="completed-message"><Icon name="check"/>Um caminho concluído.</span>
+            : course.paused
+              ? <Button onClick={() => libraryActions.togglePause(course.id)}><Icon name="play"/>Retomar curso</Button>
+              : mission && <Button onClick={() => { if (libraryActions.selectMaterial(course.id)) open({ type: 'session', id: course.id }); }}>Continuar<Icon name="arrow"/></Button>}
+        </footer>
       </div>
     </>;
   }
@@ -215,6 +224,9 @@ function ImportedSession({ course, state, actions, open, close, notify, stepId, 
   const done = isCompleted(state, step.id);
   const origin = lessonOrigin(state, step.id);
   const link = lesson?.url || course.url;
+  const provider = lessonProvider(lesson?.url);
+  const desktopPlayer = Boolean(window.lumeWindow && provider);
+  const desktopTracking = desktopPlayer && window.lumeWindow.tracksVideoLessons && account && state.preferences.watchLessons !== false;
   const upcoming = done ? null : nextLessonAfter(state, course, step.id);
   const watching = state.activeSession?.origin === 'watching' && state.activeSession.courseId === course.id && state.activeSession.stepId === step.id;
   const xpNote = account ? 'O XP é confirmado pelo servidor.' : 'Na prévia, o XP não é validado.';
@@ -241,30 +253,27 @@ function ImportedSession({ course, state, actions, open, close, notify, stepId, 
     notify(`Você concluiu ${step.title}. ${target ? 'Abrimos' : 'Agora é'} ${following.title}. ${xpNote}`);
     open({ type: 'session', id: course.id, stepId: following.id });
   }
-  return <div className="session-content">
-    <div className="dialog-emblem"><Icon name="focus"/></div>
-    <span className="eyebrow">{lesson?.discipline || sourceLabel(course.source)}{lesson?.module ? ` · ${lesson.module}` : ''}</span>
-    <h2 id="dialog-title" className="headline">{step.title}</h2>
-    <p className="session-course">{course.title}</p>
-    {lesson?.duration ? <p className="quiet-note"><Icon name="clock"/>Duração informada pela fonte: {formatDuration(lesson.duration)}</p> : null}
-    {watching ? <p className="inline-note"><Icon name="clock"/>{state.activeSession.status === 'active' ? 'Assistindo' : 'Vídeo pausado'} · Aula {materialSteps(course).findIndex(item => item.id === step.id) + 1} de {summary.total}</p>
-      : <p className="dialog-text">{tracking ? 'No selo da aula, escolha “Assistir sobre o Lume” para trazer o vídeo em uma janela flutuante. O timer acompanha a reprodução.' : 'Abra a aula na plataforma. Ao terminar, registre a conclusão aqui.'}</p>}
-    {!extension.installed && <ExtensionInvite provider={providerById(course.source?.provider)}/>}
-    {link ? <a href={link} className="button secondary full-width" target="_blank" rel="noopener noreferrer">Abrir aula na plataforma<Icon name="external"/></a> : <p className="inline-note"><Icon name="book"/><span>A fonte não publicou um link direto para esta aula. Use o link do curso.</span></p>}
-    <p className="inline-note"><Icon name="shield"/><span>Origem do registro: {origin ? ORIGIN_LABEL[origin] : 'ainda não concluída'} · {tracking ? 'acompanhamento pela extensão autorizado' : 'nenhuma integração de progresso ativa'}.</span></p>
-    <div className="session-actions">
-      {done
-        ? <p className="completed-message"><Icon name="check"/>Já registrada como concluída.</p>
-        : upcoming
-          ? <>
-            <Button className="full-width" onClick={finishAndContinue}><Icon name="arrow"/>Concluir e abrir a próxima</Button>
-            <Button secondary className="full-width" onClick={finish}><Icon name="check"/>Concluí esta aula</Button>
-            <p className="quiet-note">Próxima: {upcoming.title}{upcoming.duration ? ` · ${formatDuration(upcoming.duration)}` : ''}</p>
-          </>
-          : <Button className="full-width" onClick={finish}><Icon name="check"/>Concluí esta aula</Button>}
-      <button className="text-button centered" onClick={() => open({ type: 'course', id: course.id })}>Ver todas as aulas</button>
-      <button className="text-button centered" onClick={close}>Fechar · o progresso continua salvo</button>
+  const platform = provider || providerById(course.source?.provider)?.label;
+  return <div className="session-content lesson-dialog">
+    <header>
+      <p className="session-course">{course.title}</p>
+      <h2 id="dialog-title" className="headline">{step.title}</h2>
+      <p className="quiet-note">{[platform, lesson?.module, lesson?.duration && formatDuration(lesson.duration)].filter(Boolean).join(' · ')}</p>
+    </header>
+    {link && <a href={link} className="button primary full-width" target="_blank" rel="noopener noreferrer">
+      <Icon name={desktopPlayer ? 'play' : 'external'}/>{desktopPlayer ? 'Assistir no Lume' : lesson?.url ? 'Assistir na plataforma' : 'Abrir curso na plataforma'}
+    </a>}
+    {desktopPlayer && window.lumeWindow.openLessonInBrowser &&
+      <button className="text-button centered" onClick={() => window.lumeWindow.openLessonInBrowser(link)}>Abrir {provider === 'Udemy' ? 'na Udemy' : 'no Gran'} pelo navegador<Icon name="external"/></button>}
+    {watching ? <p className="quiet-note">{state.activeSession.status === 'active' ? 'Registrando tempo de estudo' : 'Contagem pausada'}</p>
+      : (desktopTracking || tracking) && <p className="quiet-note">O tempo de estudo acompanha a reprodução.</p>}
+    <div className="lesson-record">
+      {done ? <span className="completed-message"><Icon name="check"/>Aula concluída · {ORIGIN_LABEL[origin]}</span>
+        : <Button secondary onClick={finish}><Icon name="check"/>Concluí esta aula</Button>}
+      {!done && upcoming && <button className="text-button" onClick={finishAndContinue}>Concluir e abrir a próxima<Icon name="arrow"/></button>}
     </div>
+    {upcoming && <small className="quiet-note">Próxima: {upcoming.title}</small>}
+    <button className="text-button centered" onClick={() => open({ type: 'course', id: course.id })}>Ver todas as aulas</button>
   </div>;
 }
 
@@ -297,7 +306,7 @@ function BatchCompletion({ course, state, actions, notify }) {
   </details>;
 }
 
-function ImportedCourse({ course, state, actions, progressActions, open, close, notify }) {
+function ImportedCourse({ course, state, actions, progressActions, open, notify }) {
   const summary = courseSummary(state, course);
   const stats = courseStats(state, course.id);
   const [edition, setEdition] = useState(course.edital?.edition || '');
@@ -337,15 +346,9 @@ function ImportedCourse({ course, state, actions, progressActions, open, close, 
   const nextLesson = summary.next ? materialLesson(course, summary.next.id) : null;
   const deck = slidesSummary(course);
 
-  return <div className="dialog-content imported-course">
+  return <div className="dialog-content imported-course course-sheet">
     <span className="eyebrow">{sourceLabel(course.source)}{course.source?.demo ? ' · demonstração' : ''}</span>
     <h2 id="dialog-title" className="headline">{course.title}</h2>
-    <div className="dialog-actions inline-actions">
-      <Button secondary onClick={() => open({ type: 'edit', id: course.id })}><Icon name="edit"/>Editar material</Button>
-      {deck.total > 0
-        ? <Button secondary onClick={() => open({ type: 'slides', id: course.id })}><Icon name="book"/>Abrir apresentação ({deck.total})</Button>
-        : <Button secondary onClick={() => open({ type: 'edit', id: course.id })}><Icon name="plus"/>Adicionar slides</Button>}
-    </div>
     <div className="import-badges">
       <span className={`import-badge ${summary.partial ? 'tone-warn' : 'tone-mint'}`}><Icon name={summary.partial ? 'help' : 'check'}/>{summary.partial ? 'Grade parcial' : 'Grade publicada pela fonte'}</span>
       <span className="import-badge neutral"><Icon name="book"/>{summary.disciplines.length} {summary.disciplines.length === 1 ? 'área' : 'áreas'} · {summary.total} aulas</span>
@@ -375,7 +378,9 @@ function ImportedCourse({ course, state, actions, progressActions, open, close, 
       <strong>{nextLesson.title}</strong>
       <small>{nextLesson.discipline}{nextLesson.module ? ` · ${nextLesson.module}` : ''}{nextLesson.duration ? ` · ${formatDuration(nextLesson.duration)}` : ''}</small>
       <div className="action-row">
-        <Button onClick={() => open({ type: 'session', id: course.id, stepId: nextLesson.id })}><Icon name="play"/>Abrir e registrar</Button>
+        {window.lumeWindow && lessonProvider(nextLesson.url)
+          ? <a className="button primary" href={nextLesson.url} target="_blank" rel="noopener noreferrer"><Icon name="play"/>Assistir no Lume</a>
+          : <Button onClick={() => open({ type: 'session', id: course.id, stepId: nextLesson.id })}><Icon name="play"/>Abrir e registrar</Button>}
         <Button secondary onClick={() => markLesson(nextLesson.id)}><Icon name="check"/>Já concluí</Button>
       </div>
     </section>}
@@ -416,10 +421,13 @@ function ImportedCourse({ course, state, actions, progressActions, open, close, 
         : <p className="inline-note"><Icon name="help"/><span>{coverage.message}</span></p>)}
     </section>}
 
-    <div className="dialog-actions">
-      <Button secondary onClick={() => open({ type: 'import', id: course.id })}><Icon name="return"/>Atualizar grade</Button>
+    <footer className="course-sheet-foot">
+      <div className="course-sheet-tools">
+        <button type="button" className="text-button" onClick={() => open({ type: 'edit', id: course.id })}><Icon name="edit"/>Editar material</button>
+        <button type="button" className="text-button" onClick={() => open({ type: 'import', id: course.id })}><Icon name="return"/>Atualizar grade</button>
+        {deck.total > 0 && <button type="button" className="text-button" onClick={() => open({ type: 'slides', id: course.id })}><Icon name="book"/>Abrir apresentação ({deck.total})</button>}
+      </div>
       {nextStep && <Button onClick={() => open({ type: 'session', id: course.id, stepId: nextStep.id })}>Continuar<Icon name="arrow"/></Button>}
-      <button className="text-button centered" onClick={close}>Fechar</button>
-    </div>
+    </footer>
   </div>;
 }

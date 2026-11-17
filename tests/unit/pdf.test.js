@@ -359,7 +359,7 @@ test('upload por URL assinada (R2 e local) reserva cota, confirma %PDF- e limpa 
   assert.equal(bucket.objects.has('pdfs/u1/presign-1.pdf'), false);
 });
 
-test('cache de Markdown, condensação acima do teto, geração e stream SSE de insights', async (t) => {
+test('cache de Markdown, corte acima do teto, geração e stream SSE de insights', async (t) => {
   const { db, bucket } = fixture(t);
   await uploadPdf(db, bucket, 'u1', { fileId: FILE.fileId, name: FILE.name, bytes: PDF_BYTES });
 
@@ -373,7 +373,7 @@ test('cache de Markdown, condensação acima do teto, geração e stream SSE de 
     fetchImpl: async () => { llmCalls += 1; throw new Error('não deveria chamar'); },
   });
   assert.equal(saved.markdownStatus, 'ready');
-  assert.equal(saved.condensed, false);
+  assert.equal(saved.truncated, false);
   assert.equal(llmCalls, 0);
 
   // 2. Geração de insights com cache subsequente.
@@ -431,18 +431,19 @@ test('cache de Markdown, condensação acima do teto, geração e stream SSE de 
   assert.match(sseText, /Resumo atualizado via SSE/);
   assert.equal((await readPdfInsights(db, 'u1', FILE.fileId)).insights.overview, 'Resumo atualizado via SSE.');
 
-  // 4. Acima do teto: condensa via LLM e respeita MAX_MARKDOWN_CACHE_CHARS.
-  const hugeText = `## Página 1\n${'Conteúdo extenso sobre estruturas de dados. '.repeat(7000)}`;
+  // 4. Acima do teto: corta numa quebra de linha, sem chamar IA, e registra a origem.
+  const hugeText = Array.from({ length: 7000 }, (_, i) => `## Página ${i + 1}\nConteúdo extenso sobre estruturas de dados.`).join('\n\n');
   assert.ok(hugeText.length > MAX_MARKDOWN_CACHE_CHARS);
-  const condensed = await savePdfMarkdown(db, 'u1', FILE.fileId, { markdown: hugeText, source: 'pdfjs' }, {
+  const cut = await savePdfMarkdown(db, 'u1', FILE.fileId, { markdown: hugeText, source: 'pdfjs' }, {
     env: { LUME_AI_API_KEY: 'sk-test' },
-    fetchImpl: async () => new Response(JSON.stringify({
-      choices: [{ message: { content: '## Página 1\nResumo fiel condensado.' } }],
-    }), { status: 200 }),
+    fetchImpl: async () => { throw new Error('texto longo não deve chamar IA'); },
   });
-  assert.equal(condensed.condensed, true);
-  assert.equal(condensed.markdownSource, 'pdfjs_condensed');
-  assert.ok(condensed.markdownChars <= MAX_MARKDOWN_CACHE_CHARS);
+  assert.equal(cut.truncated, true);
+  assert.equal(cut.markdownSource, 'pdfjs_truncated');
+  assert.ok(cut.markdownChars <= MAX_MARKDOWN_CACHE_CHARS);
+  const stored = await db.first('SELECT markdown FROM library_file_ai WHERE user_id=? AND file_id=?', ['u1', FILE.fileId]);
+  assert.ok(hugeText.startsWith(stored.markdown), 'o texto guardado é o original até o corte');
+  assert.equal(hugeText[stored.markdown.length], '\n', 'corta em fim de linha');
 });
 
 test('estimativa de leitura do PDF: texto, IA limitada à faixa e tempo restante no lugar dos 25 min', () => {

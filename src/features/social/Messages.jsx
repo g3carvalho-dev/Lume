@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api, apiError } from '../../lib/api.js';
-import { invalidateResources, mutateResource, useResource } from '../../lib/resources.js';
+import { invalidateResources, mutateResource, peekResource, useResource } from '../../lib/resources.js';
+import { LIST_KEY, UNREAD_KEY, isOptimistic, mergeThread, optimisticId, prependPage, unreadFromList } from '../../lib/message-cache.js';
 import { useRealtimeStatus } from '../../lib/realtime.js';
 import { materialType } from '../../../public/domain.js';
 import { GROUP_MAX_MEMBERS, GROUP_MIN_OTHERS, GROUP_NAME_LIMIT } from '../../../public/report-domain.js';
@@ -19,6 +20,16 @@ import { PersonButton, profileRoute } from './PersonCard.jsx';
 
 const FILTERS = [['all', 'Todas'], ['direct', 'Privadas'], ['group', 'Grupos']];
 const RUN_GAP_MS = 5 * 60 * 1000;
+// Com o canal de tempo real aberto, as mensagens chegam por ele; a consulta
+// periódica fica só como reserva.
+const LIVE_INTERVAL_MS = 5 * 60 * 1000;
+
+// O contador do menu sai da lista em cache, sem ir ao servidor; sem lista, relê.
+function syncUnreadCount() {
+  const total = unreadFromList(peekResource(LIST_KEY));
+  if (total === null || !peekResource(UNREAD_KEY)) { invalidateResources(UNREAD_KEY); return; }
+  mutateResource(UNREAD_KEY, (summary) => (summary ? { ...summary, unread: total } : summary));
+}
 
 function timeLabel(value) {
   if (!value) return '';
@@ -119,7 +130,7 @@ function NewChat({ friends, onDirect, onCreated, onBack, onOpenConnections, noti
     try {
       const result = await api('/api/groups', { method: 'POST', body: { name, memberIds: picked } });
       if (!result.ok) throw new Error(apiError(result));
-      invalidateResources('/api/messages');
+      invalidateResources((key) => key === LIST_KEY);
       notify('Grupo criado.');
       onCreated(result.data.id);
     } catch (exception) {
@@ -305,7 +316,7 @@ function Message({ message, isGroup, person, me, startsRun, endsRun, canMessage,
           {message.gif && <img className="mg-gif" src={message.gif} alt="GIF" loading="lazy"/>}
           {message.reference && <span className="message-reference"><Icon name="book"/>{referenceLabel(message.reference)}</span>}
         </div>
-        {canMessage && !String(message.id).startsWith('optimistic:') && <div className="mg-tools" role="group" aria-label="Ações da mensagem">
+        {canMessage && !isOptimistic(message.id) && <div className="mg-tools" role="group" aria-label="Ações da mensagem">
           <button type="button" className="mg-tool" aria-label="Responder" title="Responder" onClick={() => onReply(message)} disabled={busy}><Icon name="reply"/></button>
           <EmojiButton className="mg-tool" label="Reagir" align={mine ? 'right' : 'left'} disabled={busy} onEmoji={(emoji) => onReact(message, emoji, Boolean(message.reactions?.some((item) => item.emoji === emoji && item.mine)))}><Icon name="smile-plus"/></EmojiButton>
           {isGroup && !mine && <button type="button" className="mg-tool" aria-label={`Denunciar mensagem de ${message.sender.name}`} title="Denunciar mensagem" onClick={() => onReport(message)}><Icon name="flag"/></button>}
@@ -327,6 +338,8 @@ export default function Messages({
   leftView = 'chats',
   setLeftView,
   requestsResource,
+  inviteCode = '',
+  onInviteDone,
   onMinimize,
 }) {
   const [search, setSearch] = useState('');
@@ -348,6 +361,10 @@ export default function Messages({
   const inputRef = useRef(null);
   const stuck = useRef(true);
   const shownFor = useRef('');
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  // Altura da lista antes de entrar uma página anterior, para manter a leitura no lugar.
+  const keepFrom = useRef(null);
+  const prepended = useRef(false);
 
   useEffect(() => {
     const narrowQuery = matchMedia('(max-width: 820px)');
@@ -359,13 +376,13 @@ export default function Messages({
   }, []);
 
   const live = useRealtimeStatus();
-  const conversationsResource = useResource('/api/messages', { interval: live ? 60000 : 10000, enabled: Boolean(account) });
+  const conversationsResource = useResource(LIST_KEY, { interval: live ? LIVE_INTERVAL_MS : 10000, enabled: Boolean(account) });
   const friendsActivityResource = useResource('/api/friends', { interval: 45000, enabled: Boolean(account) });
   const isGroup = selection?.kind === 'group';
   const isDirect = selection?.kind === 'direct';
   const selected = selection && selection.kind !== 'new' ? selection.id : '';
   const threadPath = isGroup ? `/api/groups/${encodeURIComponent(selected)}` : isDirect ? `/api/messages/${encodeURIComponent(selected)}` : '';
-  const threadResource = useResource(threadPath, { interval: live ? 60000 : 5000, enabled: Boolean(account && threadPath) });
+  const threadResource = useResource(threadPath, { interval: live ? LIVE_INTERVAL_MS : 5000, enabled: Boolean(account && threadPath), merge: mergeThread });
   const settingsResource = useResource('/api/messages/settings', { enabled: Boolean(account) });
   const friends = conversationsResource.data?.conversations || [];
   const groups = conversationsResource.data?.groups || [];
@@ -376,7 +393,7 @@ export default function Messages({
   const loadError = conversationsResource.error || (threadPath ? threadResource.error : '');
   const inThread = Boolean(selection);
 
-  const incomingCount = requestsResource?.data?.incoming?.length || 0;
+  const incomingCount = requestsResource?.data?.received?.length || 0;
   const query = normalize(search.trim());
   const all = [
     ...friends.map((item) => ({ ...item, kind: 'direct' })),
@@ -389,12 +406,19 @@ export default function Messages({
 
   // Abrir (ou receber novas mensagens na) conversa marca como lida e atualiza
   // o contador do menu, que usa o mesmo cache.
-  const lastMessageId = thread?.messages?.at(-1)?.id || '';
+  const lastMessage = thread?.messages?.at(-1);
+  const lastMessageId = lastMessage?.id || '';
+  const readFor = useRef('');
   useEffect(() => {
+    if (!selected) readFor.current = '';
     if (!account || !selected || !threadResource.data) return undefined;
+    // Mensagem própria no fim não tem o que marcar; abrir a conversa sempre confere.
+    const opening = readFor.current !== threadPath;
+    readFor.current = threadPath;
+    if (!opening && (!lastMessage || lastMessage.fromMe)) return undefined;
     let alive = true;
     let previousUnread = 0;
-    mutateResource('/api/messages', (previous) => {
+    mutateResource(LIST_KEY, (previous) => {
       if (!previous) return previous;
       const clear = (item) => {
         if (item.id !== selected) return item;
@@ -408,7 +432,7 @@ export default function Messages({
       if (!alive) return;
       if (!read.ok) {
         if (previousUnread > 0) {
-          mutateResource('/api/messages', (previous) => {
+          mutateResource(LIST_KEY, (previous) => {
             if (!previous) return previous;
             const restore = (item) => item.id === selected ? { ...item, unread: previousUnread } : item;
             return { ...previous, conversations: (previous.conversations || []).map(isGroup ? (item) => item : restore), groups: (previous.groups || []).map(isGroup ? restore : (item) => item) };
@@ -416,10 +440,30 @@ export default function Messages({
         }
         return;
       }
-      invalidateResources('/api/messages/unread');
+      syncUnreadCount();
     });
     return () => { alive = false; };
   }, [account, selected, isGroup, lastMessageId, Boolean(threadResource.data)]);
+
+  // Página anterior: entra na frente e a lista continua mostrando o mesmo trecho.
+  const firstMessageId = thread?.messages?.find((item) => !isOptimistic(item.id))?.id || '';
+  async function loadOlder() {
+    if (!threadPath || !thread?.hasMore || !firstMessageId || loadingOlder) return;
+    const path = threadPath;
+    setLoadingOlder(true);
+    const result = await api(`${path}?before=${encodeURIComponent(firstMessageId)}`);
+    setLoadingOlder(false);
+    if (!result.ok) { notify(apiError(result)); return; }
+    const node = listRef.current;
+    keepFrom.current = node ? node.scrollHeight - node.scrollTop : null;
+    prepended.current = true;
+    mutateResource(path, (previous) => prependPage(previous, result.data));
+  }
+  useLayoutEffect(() => {
+    const node = listRef.current;
+    if (node && keepFrom.current !== null) node.scrollTop = node.scrollHeight - keepFrom.current;
+    keepFrom.current = null;
+  }, [firstMessageId]);
 
   const messageCount = thread?.messages?.length || 0;
   const lastFromMe = Boolean(thread?.messages?.at(-1)?.fromMe);
@@ -428,6 +472,8 @@ export default function Messages({
     if (!node) return;
     const opening = shownFor.current !== selected;
     shownFor.current = selected;
+    // Página anterior carregada: a lista fica onde a pessoa estava lendo.
+    if (prepended.current) { prepended.current = false; return; }
     if (opening || lastFromMe || stuck.current) node.scrollTop = node.scrollHeight;
   }, [messageCount, lastFromMe, selected, Boolean(thread)]);
 
@@ -473,7 +519,8 @@ export default function Messages({
     const draftGif = gif;
     const draftReply = replyTo;
 
-    const tempId = `optimistic:${crypto.randomUUID()}`;
+    const clientId = crypto.randomUUID();
+    const tempId = optimisticId(clientId);
     const now = new Date().toISOString();
     const previewText = body || (draftGif ? 'GIF' : reference ? referenceLabel(reference) : '');
     const optimisticMessage = {
@@ -512,18 +559,23 @@ export default function Messages({
     });
 
     try {
-      const result = await api(isGroup ? `/api/groups/${encodeURIComponent(selected)}/messages` : `/api/messages/${encodeURIComponent(selected)}`, { method: 'POST', body: { body, reference, gifUrl: draftGif?.url, replyToId: draftReply?.id } });
+      const result = await api(isGroup ? `/api/groups/${encodeURIComponent(selected)}/messages` : `/api/messages/${encodeURIComponent(selected)}`, { method: 'POST', body: { body, reference, gifUrl: draftGif?.url, replyToId: draftReply?.id, clientId } });
       if (!result.ok) throw new Error(apiError(result));
       const saved = result.data?.message;
       if (saved) {
         threadResource.mutate((previous) => (previous ? {
           ...previous,
-          messages: (previous.messages || []).map((item) => (item.id === tempId ? { ...optimisticMessage, ...saved } : item)),
+          messages: (previous.messages || []).filter((item) => item.id !== saved.id).map((item) => (item.id === tempId ? { ...optimisticMessage, ...saved } : item)),
         } : previous));
+        conversationsResource.mutate((previous) => {
+          if (!previous) return previous;
+          const confirm = (list) => (list || []).map((item) => (item.id === selected && item.lastMessage?.id === tempId ? { ...item, lastMessage: { ...item.lastMessage, id: saved.id, at: saved.at } } : item));
+          return { ...previous, conversations: isGroup ? previous.conversations : confirm(previous.conversations), groups: isGroup ? confirm(previous.groups) : previous.groups };
+        });
       } else {
         threadResource.refresh();
+        conversationsResource.refresh();
       }
-      conversationsResource.refresh();
       stuck.current = true;
       inputRef.current?.focus();
     } catch (exception) {
@@ -562,8 +614,10 @@ export default function Messages({
       }),
     }));
     const result = await api(path, { method: mine ? 'DELETE' : 'PUT' });
-    if (!result.ok) setError(apiError(result));
-    await threadResource.refresh();
+    if (!result.ok) {
+      setError(apiError(result));
+      await threadResource.refresh();
+    }
   }
 
   function startReply(message) {
@@ -573,7 +627,7 @@ export default function Messages({
 
   function jumpTo(id) {
     const node = document.getElementById(`mg-msg-${id}`);
-    if (!node) { notify('A mensagem citada é mais antiga que as exibidas aqui.'); return; }
+    if (!node) { notify(thread?.hasMore ? 'A mensagem citada é mais antiga que as exibidas aqui. Carregue as anteriores para vê-la.' : 'A mensagem citada não está mais disponível.'); return; }
     node.scrollIntoView({ block: 'center', behavior: 'smooth' });
     node.classList.add('is-flash');
     setTimeout(() => node.classList.remove('is-flash'), 1200);
@@ -583,7 +637,7 @@ export default function Messages({
     const path = isGroup ? `/api/groups/${encodeURIComponent(selected)}/mute` : `/api/messages/${encodeURIComponent(selected)}/mute`;
     const next = !thread?.muted;
     if (await run(() => api(path, { method: 'PUT', body: { muted: next } }), next ? 'Conversa silenciada. As mensagens continuam chegando.' : 'Avisos desta conversa ligados de novo.')) {
-      invalidateResources('/api/messages/unread');
+      syncUnreadCount();
     }
   }
 
@@ -669,7 +723,7 @@ export default function Messages({
     }
     settingsResource.mutate({ notifications: next });
     setNotificationsOverride(null);
-    invalidateResources('/api/messages/unread');
+    invalidateResources(UNREAD_KEY);
     notify(next ? 'Notificações de mensagens ativadas.' : 'Notificações de mensagens silenciadas. As mensagens continuam guardadas.');
   }
 
@@ -709,6 +763,8 @@ export default function Messages({
         account={account}
         requestsResource={requestsResource}
         searchQuery={search}
+        inviteCode={inviteCode}
+        onInviteDone={onInviteDone}
         notify={notify}
         onOpenDirect={(id) => { setLeftView?.('chats'); select({ kind: 'direct', id }); }}
         onBack={() => { setLeftView?.('chats'); if (search.startsWith('@')) setSearch(''); }}
@@ -845,6 +901,7 @@ export default function Messages({
         {onMinimize && <button type="button" className="icon-button" aria-label="Minimizar mensagens" title="Minimizar" onClick={onMinimize}><Icon name="minus"/></button>}
       </header>
       <div className="message-list" ref={listRef} onScroll={(event) => { const node = event.currentTarget; stuck.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80; }} tabIndex={0} role="log" aria-live="polite" aria-label={`Mensagens de ${title}`}>
+        {thread.hasMore && <p className="mg-older"><Button ghost disabled={loadingOlder} onClick={loadOlder}>{loadingOlder ? 'Carregando…' : 'Carregar mensagens anteriores'}</Button></p>}
         {messages.length === 0 && <p className="messages-placeholder-copy">Nenhuma mensagem ainda. Diga olá ou compartilhe um material da sua biblioteca.</p>}
         {messages.map((message, index) => {
           const day = new Date(message.at).toDateString();

@@ -5,7 +5,7 @@ import HandleField from '../account/HandleField.jsx';
 import { invalidateResources } from '../../lib/resources.js';
 
 // @usuário em Configurações: mostra o atual, confere a disponibilidade de um novo
-// e só então grava. É por ele que amigos encontram a pessoa na aba Amigos.
+// e só então grava. É por ele que amigos encontram a pessoa em Mensagens.
 export default function HandleSetting({ notify }) {
   const [current, setCurrent] = useState(null);
   const [value, setValue] = useState('');
@@ -40,7 +40,7 @@ export default function HandleSetting({ notify }) {
 
   return <form className="cfg-block" onSubmit={save}>
     <h3>Seu @usuário</h3>
-    <p className="cfg-sub">É por ele que seus amigos encontram você na aba Amigos. {current === '' ? 'Você ainda não escolheu um.' : 'Você pode trocar quando quiser; o antigo fica livre para outras pessoas.'}</p>
+    <p className="cfg-sub">É por ele que seus amigos encontram você em Mensagens. {current === '' ? 'Você ainda não escolheu um.' : 'Você pode trocar quando quiser; o antigo fica livre para outras pessoas.'}</p>
     {current !== null && <>
       <label className="field" htmlFor="cfg-handle"><span className="sr-only">@usuário</span>
         <HandleField id="cfg-handle" value={value} onChange={setValue} current={current || ''} onStatus={setOk} disabled={busy}/>

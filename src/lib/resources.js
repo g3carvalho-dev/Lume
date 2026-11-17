@@ -11,7 +11,7 @@ const EMPTY = Object.freeze({ data: undefined, error: '', loading: false, update
 function entryFor(key) {
   let entry = entries.get(key);
   if (!entry) {
-    entry = { snapshot: EMPTY, listeners: new Set(), intervals: new Map(), timer: null, inflight: null, path: key, generation: 0, controller: null };
+    entry = { snapshot: EMPTY, listeners: new Set(), intervals: new Map(), timer: null, inflight: null, path: key, generation: 0, controller: null, merge: null, again: false };
     entries.set(key, entry);
   }
   return entry;
@@ -33,7 +33,9 @@ export function refreshResource(key) {
   entry.inflight = api(entry.path, { signal: controller.signal })
     .then((result) => {
       if (generation !== entry.generation) return { ok: false, status: 0, data: null };
-      if (result.ok) publish(entry, { data: result.data, error: '', loading: false, updatedAt: Date.now() });
+      // `merge` junta a resposta com o que já está em cache (conversa com páginas
+      // anteriores carregadas e mensagens que chegaram pelo canal durante a busca).
+      if (result.ok) publish(entry, { data: entry.merge ? entry.merge(entry.snapshot.data, result.data) : result.data, error: '', loading: false, updatedAt: Date.now() });
       else publish(entry, { error: apiError(result), loading: false, status: result.status });
       return result;
     })
@@ -42,8 +44,31 @@ export function refreshResource(key) {
       publish(entry, { error: error.message, loading: false });
       return { ok: false, status: 0, data: null };
     })
-    .finally(() => { if (generation === entry.generation) { entry.inflight = null; entry.controller = null; } });
+    .finally(() => {
+      if (generation !== entry.generation) return;
+      entry.inflight = null;
+      entry.controller = null;
+      if (entry.again) { entry.again = false; refreshResource(key); }
+    });
   return entry.inflight;
+}
+
+// Busca de novo e, se já há uma busca em curso (que pode ter começado antes da
+// novidade), repete assim que ela terminar.
+export function refreshResourceFresh(key) {
+  const entry = entryFor(key);
+  if (entry.inflight) { entry.again = true; return entry.inflight; }
+  return refreshResource(key);
+}
+
+// Valor em cache, sem buscar nem assinar.
+export function peekResource(key) {
+  return entries.get(key)?.snapshot.data;
+}
+
+// Há uma busca em curso para este endereço?
+export function resourceBusy(key) {
+  return Boolean(entries.get(key)?.inflight);
 }
 
 // Atualiza o valor em cache sem ir ao servidor (ex.: mensagem recém-enviada).
@@ -61,10 +86,12 @@ export function prefetchResource(key, maxAge = 30000) {
   return refreshResource(key);
 }
 
-// Marca como desatualizados todos os recursos cujo endereço começa com `prefix`.
-export function invalidateResources(prefix) {
+// Busca de novo os recursos em uso cujo endereço começa com `match` (texto) ou
+// que `match` aceita (função).
+export function invalidateResources(match) {
+  const wanted = typeof match === 'function' ? match : (key) => key.startsWith(match);
   for (const [key, entry] of entries) {
-    if (key.startsWith(prefix) && entry.listeners.size) refreshResource(key);
+    if (wanted(key) && entry.listeners.size) refreshResourceFresh(key);
   }
 }
 
@@ -75,6 +102,7 @@ export function clearResources() {
     entry.controller?.abort();
     entry.controller = null;
     entry.inflight = null;
+    entry.again = false;
     clearInterval(entry.timer);
     entry.timer = null;
     entry.snapshot = EMPTY;
@@ -98,11 +126,12 @@ if (typeof document !== 'undefined') {
   });
 }
 
-export function useResource(key, { interval = 0, enabled = true } = {}) {
+export function useResource(key, { interval = 0, enabled = true, merge = null } = {}) {
   const active = Boolean(enabled && key);
   const subscribe = useCallback((listener) => {
     if (!active) return () => {};
     const entry = entryFor(key);
+    if (merge) entry.merge = merge;
     entry.listeners.add(listener);
     entry.intervals.set(listener, interval);
     reschedule(entry);
@@ -114,7 +143,7 @@ export function useResource(key, { interval = 0, enabled = true } = {}) {
       entry.intervals.delete(listener);
       reschedule(entry);
     };
-  }, [key, interval, active]);
+  }, [key, interval, active, merge]);
   const snapshot = useSyncExternalStore(subscribe, () => (active ? entryFor(key).snapshot : EMPTY), () => EMPTY);
   const refresh = useCallback(() => (active ? refreshResource(key) : Promise.resolve(null)), [key, active]);
   const mutate = useCallback((updater) => mutateResource(key, updater), [key]);

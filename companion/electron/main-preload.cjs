@@ -3,6 +3,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('lumeWindow', {
+  tracksVideoLessons: true,
+  openLessonInBrowser(url) { return ipcRenderer.invoke('lume:lesson-browser', url); },
   // Avisa a cor do tema para os botões nativos da janela acompanharem o app.
   setTheme(theme) {
     ipcRenderer.send('lume:theme', String(theme || 'dark'));

@@ -112,6 +112,76 @@ test('conversa e cabeçalho da conversa trazem a foto saneada da amizade', async
   assert.equal(thread.friend.avatar, '/api/media/profiles/u2/avatar-1.webp');
 });
 
+test('histórico em páginas, envio repetido não duplica e a leitura só grava quando há novidade', async () => {
+  const sqlite = new DatabaseSync(':memory:');
+  applyMigrations(sqlite, fileURLToPath(new URL('../../migrations/', import.meta.url)));
+  for (const [id, name] of [['u1', 'Ana'], ['u2', 'Bia']]) {
+    sqlite.prepare('INSERT INTO users (id, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)').run(id, name, `${id}@example.test`, 'x', '2026-10-31T12:00:00Z');
+  }
+  for (const [a, b] of [['u1', 'u2'], ['u2', 'u1']]) {
+    sqlite.prepare('INSERT INTO friendships (user_id, friend_id, created_at) VALUES (?, ?, ?)').run(a, b, '2026-10-31T12:00:00Z');
+  }
+  // Conta consultas e linhas gravadas, como o D1 cobra (uma linha por índice).
+  const base = sqliteAdapter(sqlite);
+  const calls = { queries: 0 };
+  const db = {
+    run: (...args) => { calls.queries += 1; return base.run(...args); },
+    first: (...args) => { calls.queries += 1; return base.first(...args); },
+    all: (...args) => { calls.queries += 1; return base.all(...args); },
+    batch: (...args) => { calls.queries += 1; return base.batch(...args); },
+  };
+  const count = (table) => sqlite.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n;
+
+  for (let index = 0; index < 7; index += 1) await sendMessage(db, 'u1', 'u2', { body: `m${index}` }, NOW + index * 1000);
+  assert.equal(count('conversations'), 1, 'a conversa é criada uma vez, no primeiro envio');
+  assert.equal(count('conversation_members'), 2);
+
+  calls.queries = 0;
+  const before = count('conversation_messages');
+  await sendMessage(db, 'u1', 'u2', { body: 'm7' }, NOW + 7000);
+  assert.equal(calls.queries, 2, 'envio: uma consulta de contexto e uma gravação');
+  assert.equal(count('conversation_messages') - before, 1, 'uma linha por mensagem');
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'index' AND tbl_name = 'conversation_messages' AND sql IS NOT NULL").get().n, 0, 'sem índice secundário');
+
+  const latest = await getThread(db, 'u2', 'u1', { limit: 3 });
+  assert.deepEqual(latest.messages.map((item) => item.body), ['m5', 'm6', 'm7']);
+  assert.equal(latest.hasMore, true);
+  const older = await getThread(db, 'u2', 'u1', { limit: 3, before: latest.messages[0].id });
+  assert.deepEqual(older.messages.map((item) => item.body), ['m2', 'm3', 'm4']);
+  const first = await getThread(db, 'u2', 'u1', { limit: 3, before: older.messages[0].id });
+  assert.deepEqual(first.messages.map((item) => item.body), ['m0', 'm1']);
+  assert.equal(first.hasMore, false);
+  const newer = await getThread(db, 'u2', 'u1', { after: latest.messages[1].id });
+  assert.deepEqual(newer.messages.map((item) => item.body), ['m7']);
+
+  // Mesmo clientId: a mesma mensagem, sem gravar nem avisar de novo.
+  const clientId = '0f0e0d0c-0b0a-4908-8706-050403020100';
+  const sent = await sendMessage(db, 'u2', 'u1', { body: 'Uma vez', clientId }, NOW + 8000);
+  assert.equal(sent.duplicate, false);
+  assert.equal(sent.deliver.to, 'u1');
+  assert.deepEqual(sent.deliver.conversation, { kind: 'direct', id: 'u2' });
+  assert.equal(sent.deliver.message.fromMe, false);
+  const again = await sendMessage(db, 'u2', 'u1', { body: 'Uma vez', clientId }, NOW + 9000);
+  assert.equal(again.duplicate, true);
+  assert.equal(again.deliver, null);
+  assert.equal(again.message.id, sent.message.id);
+  assert.equal(count('conversation_messages'), 9);
+  await assert.rejects(() => sendMessage(db, 'u2', 'u1', { body: 'x', clientId: 'a b' }, NOW), { code: 'invalid_client_id' });
+
+  // Ler marca até a última; "lida" aparece para quem enviou; reabrir em dia não grava.
+  assert.equal((await unreadSummary(db, 'u2')).unread, 8);
+  assert.equal((await getThread(db, 'u1', 'u2')).messages.at(-2).readAt, null);
+  const marked = await markThreadRead(db, 'u2', 'u1', NOW + 10000);
+  assert.equal(marked.read, 1);
+  assert.equal((await unreadSummary(db, 'u2')).unread, 0);
+  assert.ok((await getThread(db, 'u1', 'u2')).messages.at(-2).readAt, 'a outra pessoa leu');
+  assert.equal((await markThreadRead(db, 'u2', 'u1', NOW + 11000)).read, 0, 'nada novo, nenhuma gravação');
+  await sendMessage(db, 'u1', 'u2', { body: 'Depois da leitura' }, NOW + 12000);
+  assert.equal((await unreadSummary(db, 'u2')).unread, 1);
+  assert.equal((await getThread(db, 'u1', 'u2')).messages.at(-1).readAt, null);
+  await assert.rejects(() => markThreadRead(db, 'u2', 'u3', NOW), { code: 'not_friends' });
+});
+
 test('aviso de mensagem nova: mais recente, uma vez, nunca da conversa aberta nem silenciado', () => {
   const conversations = [
     { id: 'u2', name: 'Bia', avatar: '/api/media/profiles/u2/avatar-1.webp', unread: 1, lastMessage: { id: 'm2', fromMe: false, preview: 'Oi!\n  Vamos   estudar?', at: '2026-10-31T12:05:00Z' } },

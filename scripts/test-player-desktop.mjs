@@ -6,9 +6,25 @@ import { join, resolve } from 'node:path';
 import { createServer } from 'node:http';
 import assert from 'node:assert/strict';
 
+async function assertEventually(check) {
+  const deadline = Date.now()+8000;
+  while (!check() && Date.now()<deadline) await new Promise(resolve => setTimeout(resolve,50));
+  assert.ok(check(), String(check));
+}
+
 const dir = await mkdtemp(join(tmpdir(), 'lume-player-'));
 await mkdir(join(dir,'appdata'));
-const host = createServer((req,res) => {
+const events = [];
+const host = createServer(async (req,res) => {
+  if (req.method === 'POST' && req.url.startsWith('/api/extension/')) {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    const payload = JSON.parse(body);
+    const match = {found:true, courseId:'curso', stepId:'aula', videoKey:'video', lesson:{completed:false}};
+    if (req.url.endsWith('/watch')) events.push(payload);
+    res.setHeader('Content-Type','application/json');
+    return res.end(JSON.stringify(match));
+  }
   if (req.url.startsWith('/api/extension/lesson?')) {
     res.setHeader('Content-Type','application/json');
     return res.end(JSON.stringify({found:true, lessonTitle:'Aula importada', courseTitle:'Curso importado', duration:240}));
@@ -21,7 +37,7 @@ delete env.ELECTRON_RUN_AS_NODE;
 let desktop;
 try {
   const executablePath = createRequire(new URL('../companion/package.json',import.meta.url))('electron');
-  desktop = await electron.launch({executablePath,args:[resolve('companion'),'--user-data-dir='+dir],env});
+  desktop = await electron.launch({executablePath,args:[resolve('companion'),'--lume-test-electron-player','--user-data-dir='+dir],env});
   desktop.context().setDefaultTimeout(10000);
   const page = await desktop.firstWindow();
   await page.waitForURL(origin+'/**');
@@ -59,6 +75,12 @@ try {
     const nav = desktop.context().pages().find(p => p.url().includes('/renderer/lesson-nav.html'));
     assert.equal(await nav.evaluate(() => innerHeight), 36);
     assert.equal(await nav.evaluate(() => innerWidth), await toolbar.evaluate(() => innerWidth-150));
+    const eventFor = state => events.some(e => e.pageUrl === address && e.state === state);
+    await assertEventually(() => eventFor('playing'));
+    await guest.locator('video').evaluate(v => v.pause());
+    await assertEventually(() => events.at(-1)?.state === 'paused');
+    await guest.locator('video').evaluate(v => v.play());
+    await assertEventually(() => events.at(-1)?.state === 'playing');
     await guest.locator('button').evaluate(button => button.onclick = () => button.parentElement.requestFullscreen());
     await guest.locator('button').click();
     await guest.waitForFunction(() => document.fullscreenElement && innerHeight === screen.height);
@@ -70,12 +92,36 @@ try {
     }, address);
     await guest.waitForFunction(() => !document.fullscreenElement);
     await guest.waitForFunction(width => Math.abs(innerWidth-width)<8, stage.width);
+    const nextAddress = address.replace(/1$/, '2');
+    await guest.evaluate(url => history.pushState({}, '', url), nextAddress);
+    await assertEventually(() => eventFor('ended') && events.some(e => e.pageUrl === nextAddress && e.state === 'playing'));
     await desktop.evaluate(async ({webContents})=>{
       const toolbar=webContents.getAllWebContents().find(w=>w.getURL().includes('/renderer/lesson-nav.html'));
       await toolbar.executeJavaScript('document.querySelector("a").click()');
     });
+    await assertEventually(() => events.some(e => e.pageUrl === nextAddress && e.state === 'ended'));
     await page.getByText('Continuar').waitFor();
     assert.equal(await desktop.evaluate(({webContents},url)=>webContents.getAllWebContents().some(w=>w.getURL()===url),address),false);
   }
+  const loginLesson = 'https://www.udemy.com/course/teste/learn/lecture/3';
+  await desktop.evaluate(async ({session,shell}) => {
+    const protocol = session.fromPartition('persist:lume-courses').protocol;
+    await protocol.unhandle('https');
+    protocol.handle('https', request => {
+      const path = new URL(request.url).pathname;
+      if (path.includes('/learn/lecture/')) return Response.redirect('https://www.udemy.com/join/passwordless-auth/');
+      if (path.startsWith('/api-2.0/auth/')) return new Response('',{status:403});
+      return new Response('<button onclick="fetch(\`/api-2.0/auth/code-generation/login/4.0/\`)">Continuar</button>',{headers:{'Content-Type':'text/html'}});
+    });
+    shell.openExternal = async address => { globalThis.testOpenedLesson = address; };
+  });
+  await page.evaluate(url => window.open(url, '_blank'), loginLesson);
+  const login = await desktop.context().waitForEvent('page', {predicate:p => p.url().includes('/join/')}).catch(() =>
+    desktop.context().pages().find(p => p.url().includes('/join/')));
+  await login.getByRole('button',{name:'Continuar'}).click();
+  const bar = desktop.context().pages().find(p => p.url().includes('/renderer/lesson.html'));
+  await bar.getByRole('link',{name:/Abrir esta aula no navegador/}).click();
+  await page.getByText('Continuar').waitFor();
+  assert.equal(await desktop.evaluate(() => globalThis.testOpenedLesson),loginLesson);
   console.log('Gran e Udemy: vídeo de teste reproduzido e fechado na mesma janela.');
 } finally { if(desktop) await desktop.close(); host.close(); }

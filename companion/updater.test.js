@@ -3,6 +3,17 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createUpdater, nativeUpdatesSupported } from './updater.mjs';
 
+test('a edição da Microsoft Store delega todas as atualizações à loja', async () => {
+  const unexpected = () => assert.fail('A edição da loja chamou o atualizador externo');
+  const updater = createUpdater({ store: true, currentVersion: '0.8.0', native: true,
+    autoUpdater: { on: unexpected }, fallback: { checkForUpdate: unexpected }, setTimer: unexpected, setRepeat: unexpected });
+  updater.start();
+  for (const action of [updater.check, updater.download, updater.install]) {
+    assert.equal((await action()).mode, 'store');
+  }
+  updater.stop();
+});
+
 function fakeAutoUpdater({ version = '0.7.0', fail = null } = {}) {
   const emitter = new EventEmitter();
   emitter.calls = [];

@@ -29,7 +29,7 @@ export default function DesktopUpdate() {
     return () => { alive = false; clearTimeout(timer); off?.(); };
   }, [api]);
 
-  if (!api) return null;
+  if (!api || info.mode === 'store') return null;
 
   const status = info.status || 'idle';
   const available = status === 'available';

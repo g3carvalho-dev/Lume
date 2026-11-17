@@ -26,7 +26,7 @@ test('Social publica, comenta, reage e persiste; desfazer amizade revoga o feed'
     await expect(page.getByRole('heading', { name: 'Social', exact: true })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegação', exact: true }).getByRole('link', { name: 'Social', exact: true })).toHaveAttribute('aria-current', 'page');
     await page.getByLabel('Sua publicação').fill('Alguém tem uma dica para revisar determinantes? Hoje vou fechar o capítulo 3.');
-    await page.getByLabel('Tipo de publicação').selectOption('question');
+    await page.getByRole('radiogroup', { name: 'Tipo de publicação' }).getByRole('radio', { name: 'Dúvida rápida' }).click();
     await page.getByRole('button', { name: 'Publicar', exact: true }).click();
     const mine = page.getByRole('article').filter({ hasText: 'Alguém tem uma dica para revisar determinantes?' });
     await expect(mine).toBeVisible();
@@ -45,7 +45,8 @@ test('Social publica, comenta, reage e persiste; desfazer amizade revoga o feed'
     await expect(mine).toBeVisible();
     await expect(theirs.getByRole('button', { name: /^❤️ 1/ })).toHaveAttribute('aria-pressed', 'true');
     await expect(theirs.getByText('Quero revisar! Vou começar pelos exemplos do capítulo.')).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Seções de Social' }).getByRole('link', { name: 'Amigos', exact: true })).toBeVisible();
+    // Amigos, pedidos e convites ficam na dock de Mensagens, não numa aba.
+    await expect(page.getByRole('navigation', { name: 'Seções de Social' }).getByRole('link', { name: 'Amigos', exact: true })).toHaveCount(0);
     await expect(page.getByRole('navigation', { name: 'Seções de Social' }).getByRole('link', { name: 'Ranking', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath('social.png'), fullPage: true });
