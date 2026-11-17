@@ -35,6 +35,27 @@ async function register(origin, name) {
 export async function runContract(target, t) {
   const { origin } = target;
 
+  await t.test('extensão autenticada resolve a aula, registra reprodução e conserva as origens das rotas antigas',async()=>{
+    const headers={Origin:'chrome-extension://'+'a'.repeat(32)};
+    const {browser}=await register(origin,'Extensao');
+    assert.equal((await client(origin).request('GET','/api/extension/status',{headers})).data.code,'extension_signed_out');
+    assert.equal((await browser.request('POST','/api/extension/status',{headers,body:{}})).data.signedIn,true);
+    assert.equal((await browser.request('GET','/api/library',{headers})).status,403);
+    assert.equal((await browser.request('GET','/api/extension/status',{sameOrigin:false})).status,403);
+    const current=(await browser.request('GET','/api/library')).data;
+    const url='https://cursos.alura.com.br/course/exemplo/task/1';
+    const payload=normalizePayload({title:'Curso de teste',sourceUrl:url,provider:{id:'alura'},disciplines:[{title:'D',modules:[{title:'M',lessons:[{title:'Aula',url}]}]}]});
+    const next=applyCourseImport(current.state,payload);
+    assert.equal((await browser.request('POST','/api/library/actions',{body:{id:'import',revision:current.revision,actions:libraryActions(current.state,next)}})).status,200);
+    const read=await browser.request('GET','/api/extension/lesson?url='+encodeURIComponent(url),{headers});
+    assert.equal(read.data.found,true);
+    const {courseId,stepId,videoKey}=read.data;
+    const body={courseId,stepId,videoKey,pageUrl:url,streamId:'tab',eventId:'ev',duration:100,coveredSeconds:0,state:'playing'};
+    const write=await browser.request('POST','/api/extension/watch',{headers,body});
+    assert.equal(write.data.session.origin,'watching');
+    assert.equal(write.data.lesson.completed,false);
+  });
+
   await t.test('@usuário no cadastro: escolha, disponibilidade e troca', async () => {
     const handle = ('u' + Math.random().toString(36).slice(2, 12)).toLowerCase();
     const guest = client(origin);

@@ -114,7 +114,7 @@ export default function App() {
   // Uma sessão ativa continua sendo gravada em qualquer tela, com o leitor
   // aberto ou fechado: sem isso, trocar de tela podia perder o tempo até o último batimento.
   useEffect(() => {
-    if (!state.activeSession || state.activeSession.status !== 'active') return undefined;
+    if (!state.activeSession || state.activeSession.origin === 'watching' || state.activeSession.status !== 'active') return undefined;
     const beat = setInterval(() => model.progressActions.touchSession(), 60000);
     return () => clearInterval(beat);
   }, [state.activeSession?.id, state.activeSession?.status, model.progressActions]);

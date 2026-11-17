@@ -30,9 +30,15 @@ export function useLume(notify) {
       adopt().catch(() => {});
     };
     window.addEventListener('focus', check);
+    const changed = event => {
+      if (event.source === window && event.origin === location.origin && event.data?.source === 'lume-extension' && event.data.type === 'library-changed') {
+        if (document.visibilityState === 'visible') adopt().then(updated => { if (updated) refreshXP(); }).catch(()=>{});
+      }
+    };
+    window.addEventListener('message', changed);
     document.addEventListener('visibilitychange', check);
     const timer = setInterval(check, 60000);
-    return () => { window.removeEventListener('focus', check); document.removeEventListener('visibilitychange', check); clearInterval(timer); };
+    return () => { window.removeEventListener('message',changed); window.removeEventListener('focus', check); document.removeEventListener('visibilitychange', check); clearInterval(timer); };
   }, [account, adopt]);
   const planActions = useMemo(() => createPlanActions(act), [act]);
   const agendaActions = useMemo(() => createAgendaActions(act), [act]);

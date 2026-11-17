@@ -112,6 +112,23 @@
     return { courseExternalId: code, canonicalUrl: `${url.origin}/aluno/curso/video/codigo/${code}` };
   }
   var seconds = (video) => Number(video?._tempo_duracao) || toSeconds(video?.st_tempo_duracao) || 0;
+  function videoId(url) {
+    const part = /\/v\/([^/]+)/.exec(url.pathname)?.[1];
+    try {
+      return part ? decodeURIComponent(part) : "";
+    } catch {
+      return "";
+    }
+  }
+  async function readLesson({ pageUrl, origin, externalId, fetchJson }) {
+    const url = new URL(pageUrl);
+    const course = identify5(url);
+    if (!course || url.origin !== origin || !/^\d+\/\d+$/.test(externalId || "")) return null;
+    const [subject, lesson] = externalId.split("/");
+    const items = await fetchJson(`/aluno/curso/listar-conteudo-aula/codigo/${course.courseExternalId}/tipo/video/disciplina/${subject}/conteudo/${lesson}?audiobooks=true`);
+    if (!Array.isArray(items) || !items.some((item) => item.id_video === videoId(url)) || !items.every((item) => typeof item.visualizado === "boolean")) return null;
+    return items.every((item) => item.visualizado);
+  }
   async function readPage({ pageUrl, origin, fetchJson, report = () => {
   }, limits = {} }) {
     let url;
@@ -141,17 +158,18 @@
       const videoLists = await mapLimited(items, CONCURRENCY, (item) => fetchJson(`${path}/conteudo/${encodeURIComponent(item.id)}${query}`).catch(() => null));
       const lessons = items.map((item, position) => {
         const videos = Array.isArray(videoLists[position]) ? videoLists[position].filter((video) => video?.id_video) : null;
-        const progress = item?.progressoConteudo;
+        const progress2 = item?.progressoConteudo;
         const title = clean(`Aula ${item?.index ?? position + 1}${clean(item?.desc) ? ` - ${clean(item.desc)}` : ""}`).slice(0, 200);
         const externalId = item?.id != null ? `${subject.id}/${item.id}` : "";
         if (!videos?.length) {
           unread += 1;
-          return { title, externalId, url: "", duration: null, completed: Number(progress?.qtdAulas) > 0 && Number(progress?.qtdAulasAssistidas) >= Number(progress?.qtdAulas) };
+          return { title, externalId, url: "", duration: null, completed: Number(progress2?.qtdAulas) > 0 && Number(progress2?.qtdAulasAssistidas) >= Number(progress2?.qtdAulas) };
         }
         const total = videos.reduce((sum, video) => sum + seconds(video), 0);
         return {
           title,
           externalId,
+          ...videos.length > 1 ? { videoIds: videos.map((video) => String(video.id_video)) } : {},
           url: `${origin}/aluno/curso/video/codigo/${course.courseExternalId}/v/${encodeURIComponent(videos[0].id_video)}`,
           duration: total || null,
           completed: videos.every((video) => video.visualizado === true)
@@ -180,7 +198,8 @@
     note: "A página pública costuma mostrar as disciplinas do pacote. Módulos e aulas detalhados normalmente ficam na área autenticada: abra o curso logado e use a extensão do Lume, ou copie a página e cole, ou envie o texto.",
     capabilities: { syllabus: "full", progress: "lesson-flags", resume: false, requiresLogin: true },
     identify: identify5,
-    readers: { page: readPage }
+    videoId,
+    readers: { page: readPage, lesson: readLesson }
   };
 
   // public/providers/hotmart.js
@@ -225,6 +244,67 @@
     if (!found) return null;
     return { courseExternalId: found[1].split("/").pop(), canonicalUrl: `${url.origin}${found[1]}` };
   }
+  function courseNumber(origin) {
+    const prefix = origin + "/api-2.0/courses/";
+    const entries = globalThis.performance?.getEntriesByType?.("resource") || [];
+    for (const entry of entries.slice().reverse()) {
+      if (!entry.name.startsWith(prefix)) continue;
+      const id = /^(\d+)\/subscriber-curriculum-items\//.exec(entry.name.slice(prefix.length))?.[1];
+      if (id) return id;
+    }
+    return null;
+  }
+  async function progress(fetchJson, courseId) {
+    if (!/^\d+$/.test(courseId || "")) return null;
+    const result = await fetchJson(`/api-2.0/users/me/subscribed-courses/${courseId}/progress/?fields[course]=completed_lecture_ids`);
+    return Array.isArray(result?.completed_lecture_ids) ? new Set(result.completed_lecture_ids.map(String)) : null;
+  }
+  async function readPage2({ pageUrl, origin, fetchJson }) {
+    const course = identify8(new URL(pageUrl)), id = courseNumber(origin);
+    if (!course || !id || new URL(pageUrl).origin !== origin) return null;
+    const completed = await progress(fetchJson, id);
+    if (!completed) return null;
+    const path = `/api-2.0/courses/${id}/subscriber-curriculum-items/`;
+    let url = path + "?curriculum_types=chapter,lecture&page_size=200&fields[lecture]=title,asset,is_published&fields[chapter]=title&fields[asset]=time_estimation,asset_type";
+    const modules = [], visited = /* @__PURE__ */ new Set();
+    let module, count = 0;
+    while (url && count < 600 && visited.size < 16 && !visited.has(url)) {
+      visited.add(url);
+      const data = await fetchJson(url);
+      if (!Array.isArray(data?.results)) return null;
+      for (const item of data.results) {
+        if (!item.title || item.is_published === false) continue;
+        if (item._class === "chapter") {
+          module = { title: item.title, lessons: [] };
+          modules.push(module);
+        }
+        if (item._class !== "lecture" || !Number.isSafeInteger(item.id)) continue;
+        if (!module) {
+          module = { title: "Aulas", lessons: [] };
+          modules.push(module);
+        }
+        module.lessons.push({
+          title: item.title,
+          externalId: String(item.id),
+          duration: item.asset?.time_estimation || null,
+          url: `${course.canonicalUrl}/learn/lecture/${item.id}`,
+          completed: completed.has(String(item.id))
+        });
+        count++;
+      }
+      const next = data.next && new URL(data.next, origin);
+      if (next && (next.origin !== origin || next.pathname !== path)) return null;
+      url = next ? next.pathname + next.search : "";
+    }
+    return { externalId: id, truncated: Boolean(url), disciplines: [{ title: "Conteúdo do curso", modules }], notes: ["Aulas e seções da grade da Udemy. Exercícios e questionários ficam na plataforma."] };
+  }
+  async function readLesson2({ pageUrl, courseExternalId, externalId, origin, fetchJson }) {
+    const url = new URL(pageUrl);
+    const id = /\/learn\/lecture\/(\d+)/.exec(url.pathname)?.[1];
+    if (url.origin !== origin || !id || externalId && externalId !== id) return null;
+    const completed = await progress(fetchJson, /^\d+$/.test(courseExternalId || "") ? courseExternalId : courseNumber(origin));
+    return completed ? completed.has(id) : null;
+  }
   var udemy_default = {
     id: "udemy",
     label: "Udemy",
@@ -236,7 +316,7 @@
     note: "O catálogo publica título e parte do currículo em dados estruturados. Aulas pagas não são acessíveis ao Lume.",
     capabilities: { syllabus: "partial", progress: "lesson-flags", resume: false, requiresLogin: false },
     identify: identify8,
-    readers: {}
+    readers: { page: readPage2, lesson: readLesson2 }
   };
 
   // public/providers/registry.js
@@ -777,6 +857,7 @@
                 lessons: entry.lessons.map((lesson) => ({
                   title: lesson.title,
                   ...lesson.externalId ? { externalId: lesson.externalId } : {},
+                  ...lesson.videoIds ? { videoIds: lesson.videoIds } : {},
                   url: lesson.url,
                   duration: lesson.duration,
                   completed: lesson.completed

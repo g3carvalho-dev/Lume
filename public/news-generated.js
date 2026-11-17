@@ -1,50 +1,107 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
-    "id": "news-84c118df",
-    "at": "2026-11-17T02:37:17.000Z",
-    "title": "Diálogos de material mais organizados",
-    "body": "Curso importado e PDF agora têm as ações reunidas no rodapé, com um só botão principal.",
+    "id": "news-98d4cd08",
+    "at": "2026-11-17T01:31:02.000Z",
+    "title": "Cabeçalho da aula",
+    "body": "O título tem sua própria linha, com o curso, a plataforma e a duração logo acima.",
+    "href": "#aplicativo",
+    "area": "desktop"
+  },
+  {
+    "id": "news-9d4d4f4f",
+    "at": "2026-11-17T01:31:02.000Z",
+    "title": "Mais espaço na tela de aula",
+    "body": "Os links ficam junto aos controles da janela. Você pode ampliar o vídeo em tela cheia e voltar com Esc.",
+    "href": "#aplicativo",
+    "area": "desktop",
+    "details": [
+      "O player se ajusta em 16:9 com espaço para o rodapé."
+    ]
+  },
+  {
+    "id": "news-3fe5307a",
+    "at": "2026-11-17T01:31:02.000Z",
+    "title": "Nova tela de videoaula",
+    "body": "Veja o título da aula, o curso, a plataforma e a duração enquanto assiste no Lume.",
+    "href": "#aplicativo",
+    "area": "desktop",
+    "details": [
+      "O player original conserva os controles de reprodução dentro da janela."
+    ]
+  },
+  {
+    "id": "news-ae033165",
+    "at": "2026-11-17T01:31:01.000Z",
+    "title": "Player da aula em destaque",
+    "body": "Ao abrir uma videoaula compatível no aplicativo, o vídeo e seus controles ocupam a área de estudo.",
+    "href": "#aplicativo",
+    "area": "desktop"
+  },
+  {
+    "id": "news-8b564cfb",
+    "at": "2026-11-17T01:31:01.000Z",
+    "title": "Aula na janela do Lume",
+    "body": "No aplicativo de desktop, Continuar abre a página da videoaula do Gran ou da Udemy dentro da janela. Voltar ao Lume retorna ao seu curso.",
+    "href": "#aplicativo",
+    "area": "desktop",
+    "details": [
+      "A sessão da plataforma é separada da conta do Lume. A barra da aula também oferece abrir o endereço no navegador."
+    ]
+  },
+  {
+    "id": "news-7f01e310",
+    "at": "2026-11-17T01:31:01.000Z",
+    "title": "Miniplayer na página da aula",
+    "body": "No selo do Lume, escolha Miniplayer nesta página para consultar a grade enquanto o vídeo continua no canto. Esc restaura o tamanho original.",
+    "href": "#biblioteca",
+    "area": "extensao",
+    "details": [
+      "O mesmo player da plataforma mantém a posição de reprodução. A opção Assistir sobre o Lume abre a janela flutuante do navegador quando disponível."
+    ]
+  },
+  {
+    "id": "news-5370e32b",
+    "at": "2026-11-17T01:31:01.000Z",
+    "title": "Quanto falta no curso",
+    "body": "Veja as aulas e seções concluídas, as horas restantes e uma estimativa pelo seu ritmo recente ou pela disponibilidade do Plano.",
     "href": "#biblioteca",
     "area": "site",
     "details": [
-      "A lista de aulas do curso importado ganhou mais espaço entre os itens."
+      "A estimativa usa o ritmo após três dias de estudo e 60 minutos no curso nos últimos 14 dias."
     ]
   },
   {
-    "id": "news-e14b8360",
-    "at": "2026-11-17T02:25:00.000Z",
-    "title": "Conversas com histórico completo",
-    "body": "As mensagens antigas voltam a aparecer: use \"Carregar mensagens anteriores\" no topo da conversa. Mensagens, reações e leituras também chegam mais rápido.",
-    "href": "#amigos",
+    "id": "news-d5f8a5cc",
+    "at": "2026-11-17T01:31:01.000Z",
+    "title": "O timer acompanha a aula",
+    "body": "Ao tocar ou pausar um vídeo autorizado, a sessão acompanha o player. A conclusão e o XP passam pela validação da conta.",
+    "href": "#configuracoes",
     "area": "site",
     "details": [
-      "Reenviar uma mensagem após falha de rede não a duplica mais.",
-      "Reações em grupos aparecem para todos na hora."
+      "O acompanhamento funciona com a aba do Lume fechada e respeita o timer de foco ou leitura que já está em uso."
     ]
   },
   {
-    "id": "news-df4c2ea6",
-    "at": "2026-11-17T02:24:57.000Z",
-    "title": "Amigos dentro de Mensagens",
-    "body": "Buscar pessoas, aceitar pedidos e enviar convites agora ficam nas conexões de Mensagens. A aba Amigos saiu do Social.",
-    "href": "#amigos",
-    "area": "site",
-    "details": [
-      "O link de convite abre as conexões com o código já preenchido.",
-      "O nível aparece no cartão da conta, sob o seu nome."
-    ]
-  },
-  {
-    "id": "news-05d8d7b7",
-    "at": "2026-11-17T01:58:18.000Z",
-    "title": "Texto do PDF pronto ao anexar",
-    "body": "O texto dos seus PDFs agora é guardado assim que você anexa, sem precisar gerar o resumo com IA. PDFs antigos são preparados ao abrir no leitor.",
+    "id": "news-246dc1cb",
+    "at": "2026-11-17T01:31:00.000Z",
+    "title": "Assista sobre o Lume",
+    "body": "Nas aulas reconhecidas, o selo mostra a reprodução e permite abrir o vídeo em uma janela flutuante sobre o Lume quando o player oferece esse recurso.",
     "href": "#biblioteca",
-    "area": "site",
+    "area": "extensao",
     "details": [
-      "Assistentes conectados pelo MCP leem o texto do PDF sem depender do resumo com IA.",
-      "Documentos muito longos têm o texto cortado no limite, em vez de resumido."
+      "As permissões são opcionais por plataforma. O curso da Udemy e os vídeos de cada aula do Gran são identificados pelos leitores da extensão."
+    ]
+  },
+  {
+    "id": "news-7692f661",
+    "at": "2026-11-17T01:31:00.000Z",
+    "title": "Instale a extensão ao adicionar um curso",
+    "body": "Abra a ficha da extensão e confira os passos para importar as aulas no Chrome ou no Edge do computador.",
+    "href": "#biblioteca",
+    "area": "extensao",
+    "details": [
+      "O painel reconhece a plataforma da aba e o Lume verifica a versão instalada."
     ]
   },
   {

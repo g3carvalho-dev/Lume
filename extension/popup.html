@@ -21,14 +21,14 @@
       --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; width: 340px; padding: 18px; background: var(--bg); color: var(--text); font-family: var(--font-sans); }
+    body { margin: 0; width: 360px; padding: 20px; background: var(--bg); color: var(--text); font-family: var(--font-sans); }
     header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
     header svg { width: 28px; height: 28px; flex: none; }
     h1 { font: 700 18px/1.1 var(--font-display); margin: 0; letter-spacing: -.01em; }
     .tag { margin-left: auto; font: 500 10px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-subtle); }
     p { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--text-muted); }
     .muted { color: var(--text-subtle); font-size: 12px; }
-    button { width: 100%; padding: 10px 12px; border: 1px solid transparent; border-radius: 10px; font: 700 14px var(--font-sans); cursor: pointer; background: var(--action); color: var(--action-ink); transition: background-color .15s ease, border-color .15s ease; }
+    button { width: 100%; padding: 10px 12px; border: 1px solid transparent; border-radius: 12px; font: 700 14px var(--font-sans); cursor: pointer; background: var(--action); color: var(--action-ink); transition: background-color .15s ease, border-color .15s ease; }
     button:hover:not(:disabled) { background: var(--action-hover); }
     button.secondary { margin-top: 8px; background: transparent; color: var(--text); border-color: var(--border-strong); font-weight: 500; }
     button.secondary:hover:not(:disabled) { background: var(--surface-2); border-color: var(--text-subtle); }
@@ -38,6 +38,18 @@
     select { width: 100%; margin-top: 4px; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: inherit; }
     #status { margin: 12px 0 0; min-height: 2.9em; padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); color: var(--text); }
     #status:empty { visibility: hidden; }
+    main { border: 1px solid var(--border); background: var(--surface); border-radius: 16px; padding: 16px; }
+    h2 { margin: 0 0 6px; font: 700 21px/1.2 var(--font-display); }
+    [hidden], #status:empty { display: none; }
+    .platform-settings { margin-top:16px }
+    .platform-settings h2 {font-size:16px}
+    .platform-settings label {display:flex; justify-content:space-between;align-items:center;margin:0;padding:6px 0;border-bottom:1px solid var(--border);font-size:14px}
+    .platform-settings input {appearance:none;cursor:pointer;width:32px;height:18px;border-radius:12px;border:1px solid var(--border-strong);background:var(--surface-2);position:relative;flex:none}
+    .platform-settings input::before {content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;background:var(--text-muted);border-radius:50%}
+    .platform-settings input:checked {background:var(--lume)}
+    .platform-settings input:checked::before {left:16px;background:var(--bg)}
+    .platform-settings input:focus-visible {outline:2px solid var(--lume);outline-offset:2px}
+    a {color:var(--lume)}
     .privacy { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--border); }
   </style>
 </head>
@@ -47,11 +59,19 @@
     <h1>Lume</h1>
     <span class="tag">Leitor de curso</span>
   </header>
-  <p>Abra a lista de aulas do curso na plataforma, com a sua conta, e clique em Ler. O Lume recebe os nomes das aulas e o que aparece como concluído. Na página de uma aula, depois de assistir, use Concluí esta aula: o Lume abre a aula certa para você confirmar.</p>
-  <button id="read" type="button">Ler esta página e enviar</button>
-  <button id="complete" type="button" class="secondary">Concluí esta aula</button>
+  <p id="account"></p>
+  <main>
+    <h2 id="platform">Abra um curso</h2>
+    <p id="hint">Abra a grade em uma plataforma de cursos para enviá-la à sua biblioteca.</p>
+    <p id="lesson" hidden></p>
+    <div id="actions" hidden>
+      <button id="read" type="button">Ler este curso</button>
+      <button id="complete" type="button" class="secondary">Concluí esta aula</button>
+    </div>
+  </main>
+  <section class="platform-settings"><h2>Acompanhar aulas</h2><div id="platforms"></div></section>
   <p id="status" role="status" aria-live="polite"></p>
-  <p class="muted privacy">Não lê senha, cookie nem vídeo, e só age quando você clica. No Gran, pede a grade às mesmas rotas que a página do curso usa. Nas outras plataformas, abre e fecha as seções que encontrar, uma por vez; em cursos grandes isso leva um ou dois minutos. Não feche o popup nem troque de aba até terminar.</p>
+  <p class="muted privacy">Nas plataformas ligadas, o Lume recebe duração, tempo tocado e marcas de conclusão da aula. O conteúdo do vídeo e o áudio ficam no player.</p>
   <!-- Some no pacote da loja (scripts/package-extension.mjs): lá só existe o Lume publicado. -->
   <label data-dev>Lume que recebe a leitura
     <select id="target">
@@ -59,6 +79,6 @@
       <option value="local">Lume local (localhost:4173)</option>
     </select>
   </label>
-  <script src="popup.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>

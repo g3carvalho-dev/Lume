@@ -1,0 +1,33 @@
+[data-lume-player-path] > :not([data-lume-player-path]):not([data-lume-lesson-player]) {
+  display: none !important;
+}
+[data-lume-player-path] {
+  transform: none !important;
+  filter: none !important;
+  contain: none !important;
+  perspective: none !important;
+  overflow: visible !important;
+}
+html[data-lume-player-path], body[data-lume-player-path] {
+  margin: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  background: black !important;
+}
+[data-lume-lesson-player] {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: black !important;
+  object-fit: contain !important;
+}
+[data-lume-lesson-player] video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
