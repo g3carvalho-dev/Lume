@@ -29,6 +29,9 @@ export const PDF_PLANS = Object.freeze({
 });
 export const MAX_OUTLINE = 300;
 export const MAX_PAGES = 20000;
+// Teto do texto extraído guardado por PDF (linha do D1). Acima dele o texto é
+// cortado numa quebra de linha, nunca reescrito.
+export const MAX_MARKDOWN_CHARS = 250_000;
 export const PDF_STEP_TITLE = 'Ler o PDF até o fim';
 export const FILE_ID = /^[A-Za-z0-9_-]{8,80}$/;
 

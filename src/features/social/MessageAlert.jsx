@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { api } from '../../lib/api.js';
 import { mutateResource, refreshResource, useResource } from '../../lib/resources.js';
-import { messageAlert } from '../../../public/social-domain.js';
-import { useRealtime, useRealtimeStatus } from '../../lib/realtime.js';
+import { messageAlert, messageAlertFromEvent } from '../../../public/social-domain.js';
+import { onRealtimeEvent, useRealtime, useRealtimeStatus } from '../../lib/realtime.js';
 import { getOpenDockContactId, openMessagesDock, subscribeDockState } from './dock-bus.js';
 import { playMessagePing } from '../progress/soundscape.js';
 import Icon from '../../ui/Icon.jsx';
@@ -16,9 +16,12 @@ function openContactId() {
   return getOpenDockContactId();
 }
 
-// Aviso flutuante de mensagem direta nova. Usa o mesmo contador de não lidas do
-// menu; quando ele sobe, relê as conversas (mesmo cache da tela de Mensagens)
-// para saber quem escreveu. Mensagens já não lidas ao abrir o Lume não avisam.
+// Aviso flutuante de mensagem direta nova. Com o canal de tempo real aberto, o
+// aviso sai do próprio aviso do canal, que traz a mensagem e quem escreveu, sem
+// ir ao servidor. Sem o canal (ou logo depois de ele reabrir), vale o contador de
+// não lidas do menu: com mensagens pendentes, relê as conversas (mesmo cache da
+// tela de Mensagens) para saber quem escreveu. Mensagens já não lidas ao abrir o
+// Lume não avisam.
 export default function MessageAlert({ account, quiet = false }) {
   useRealtime(account);
   const live = useRealtimeStatus();
@@ -33,8 +36,24 @@ export default function MessageAlert({ account, quiet = false }) {
   const quietRef = useRef(quiet);
   quietRef.current = quiet;
   const timer = useRef(null);
+  const liveRef = useRef(live);
+  liveRef.current = live;
+  const notificationsRef = useRef(true);
+  // O canal acabou de (re)abrir: a próxima leitura do contador confere as conversas.
+  const recheck = useRef(false);
   const count = account && unread.data ? Number(unread.data.unread) || 0 : null;
   const notifications = unread.data?.notifications !== false;
+  notificationsRef.current = notifications;
+
+  useEffect(() => {
+    if (!account) return undefined;
+    return onRealtimeEvent((event) => {
+      if (event.type === 'sync') { recheck.current = true; return; }
+      const next = messageAlertFromEvent(event, { seen: seen.current, openContactId: openContactId(), notifications: notificationsRef.current && !quietRef.current });
+      if (event.type === 'message' && event.message) seen.current.add(event.message.id);
+      if (next) { setAlert(next); playMessagePing(); }
+    });
+  }, [account?.id]);
 
   useEffect(() => {
     seen.current = new Set();
@@ -56,7 +75,10 @@ export default function MessageAlert({ account, quiet = false }) {
   // (ao montar e ao conectar o tempo real) antes de essa primeira leitura voltar.
   useEffect(() => {
     if (count === null) return;
-    if (count === 0) { primed.current = true; return; }
+    if (count === 0) { primed.current = true; recheck.current = false; return; }
+    // Com o canal aberto e as pendentes já conhecidas, quem avisa é o canal.
+    if (liveRef.current && primed.current && !recheck.current) return;
+    recheck.current = false;
     let alive = true;
     const owner = accountId.current;
     // Leitura própria: uma consulta já em andamento no cache pode ter começado antes da

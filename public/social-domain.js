@@ -19,6 +19,21 @@ export const MESSAGE_ALERT_PREVIEW = 90;
 // da amizade, que ainda não foi avisada. Fica em silêncio com as notificações
 // de mensagens desligadas, com a conversa silenciada ou quando a conversa dessa
 // pessoa já está aberta.
+// Aviso flutuante a partir do aviso do canal de tempo real (mensagem direta com
+// conteúdo). Mesmas regras de `messageAlert`: uma vez por mensagem, nunca da
+// conversa aberta nem de conversa silenciada.
+export function messageAlertFromEvent(event, { seen = new Set(), openContactId = '', notifications = true } = {}) {
+  const message = event?.message;
+  if (!notifications || event?.type !== 'message' || event.conversation?.kind !== 'direct' || !message || !event.sender) return null;
+  if (event.muted || message.fromMe || message.kind === 'system' || seen.has(message.id) || event.conversation.id === openContactId) return null;
+  const text = socialText(message.body || (message.gif ? 'GIF' : message.reference ? 'Material compartilhado' : '')).replace(/\s+/g, ' ');
+  return {
+    messageId: message.id,
+    from: { id: event.sender.id, name: event.sender.name, avatar: event.sender.avatar || '' },
+    preview: text.length > MESSAGE_ALERT_PREVIEW ? `${text.slice(0, MESSAGE_ALERT_PREVIEW).trimEnd()}…` : text,
+  };
+}
+
 export function messageAlert(conversations, { seen = new Set(), openContactId = '', notifications = true } = {}) {
   if (!notifications || !Array.isArray(conversations)) return null;
   const candidate = conversations

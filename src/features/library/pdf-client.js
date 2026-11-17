@@ -4,7 +4,7 @@
 
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { api, apiError } from '../../lib/api.js';
-import { linesFromItems } from '../../../public/pdf-domain.js';
+import { MAX_MARKDOWN_CHARS, linesFromItems } from '../../../public/pdf-domain.js';
 
 let engine = null;
 async function pdfjs() {
@@ -47,19 +47,52 @@ export async function uploadPdf(file, fileId) {
   const confirmed = await api(`/api/library/files/${fileId}/confirm`, { method: 'POST' });
   if (!confirmed.ok) throw new Error(apiError(confirmed));
 
-  // Pré-processamento assíncrono do Markdown para cache no banco (não bloqueia o anexo).
-  extractAndSaveMarkdown(file, fileId).catch(() => {});
+  // O texto do PDF é guardado junto do envio, sem IA: é o que o resumo, a
+  // estimativa e o MCP leem. Espera um pouco para a maioria dos PDFs sair
+  // daqui pronta; se demorar ou falhar, segue em segundo plano e o leitor
+  // refaz ao abrir (o anexo nunca fica preso por isso).
+  const text = extractAndSaveMarkdown(file, fileId).catch(() => null);
+  await Promise.race([text, wait(EXTRACT_WAIT)]);
   return confirmed.data;
 }
 
-export async function extractDocumentMarkdown(doc, { maxPages = 200 } = {}) {
-  const total = Math.min(doc.numPages || 0, maxPages);
+const EXTRACT_WAIT = 6000;
+const SAVE_RETRY_WAITS = [1000, 4000];
+// Sem nenhum texto até aqui, o PDF é tratado como digitalização.
+const SCAN_PROBE_PAGES = 100;
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Lê o documento inteiro, parando quando passa do teto guardado no servidor
+// (que corta e registra o texto como incompleto).
+export async function extractDocumentMarkdown(doc, { maxChars = MAX_MARKDOWN_CHARS } = {}) {
+  const total = doc.numPages || 0;
   const parts = [];
-  for (let p = 1; p <= total; p += 1) {
+  let chars = 0;
+  for (let p = 1; p <= total && chars <= maxChars; p += 1) {
+    if (!chars && p > SCAN_PROBE_PAGES) break;
     const { text } = await readPageText(doc, p).catch(() => ({ text: '' }));
-    if (text && text.trim()) parts.push(`## Página ${p}\n${text.trim()}`);
+    if (!text || !text.trim()) continue;
+    const part = `## Página ${p}\n${text.trim()}`;
+    parts.push(part);
+    chars += part.length + 2;
   }
   return parts.join('\n\n');
+}
+
+// Extrai e grava o texto de um documento aberto, repetindo a gravação em falha
+// de rede. Com `signal` abortado (leitor fechado no meio) nada é gravado, para
+// não guardar um texto pela metade como se fosse o documento.
+export async function ensurePdfMarkdown(fileId, doc, { signal } = {}) {
+  const markdown = await extractDocumentMarkdown(doc);
+  for (let attempt = 0; ; attempt += 1) {
+    if (signal?.aborted) return null;
+    try {
+      return await savePdfMarkdown(fileId, markdown, 'pdfjs');
+    } catch (error) {
+      if (attempt >= SAVE_RETRY_WAITS.length) throw error;
+      await wait(SAVE_RETRY_WAITS[attempt]);
+    }
+  }
 }
 
 export async function savePdfMarkdown(fileId, markdown, source = 'pdfjs') {
@@ -74,8 +107,7 @@ export async function savePdfMarkdown(fileId, markdown, source = 'pdfjs') {
 async function extractAndSaveMarkdown(file, fileId) {
   const { doc, close } = await openDocument(new Uint8Array(await file.arrayBuffer()));
   try {
-    const markdown = await extractDocumentMarkdown(doc);
-    await savePdfMarkdown(fileId, markdown, 'pdfjs');
+    await ensurePdfMarkdown(fileId, doc);
   } finally {
     await close().catch(() => {});
   }

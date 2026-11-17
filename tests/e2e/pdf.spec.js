@@ -56,6 +56,49 @@ test('anexar PDF, vincular à disciplina, ler no leitor e retomar na página dep
   await expect(subjectPanel.getByRole('button', { name: /Continuar: Apostila de Processo Penal · p\. 4/ })).toBeVisible();
 });
 
+const textStatus = (page, fileId) => page.evaluate(async (id) => (await fetch(`/api/library/files/${id}/insights`, { credentials: 'same-origin' })).json(), fileId);
+
+test('o texto do PDF é guardado no envio, sem IA, e recuperado ao abrir o leitor quando o envio falhou', async ({ page }) => {
+  await seedAccount(page, seeded());
+  await page.goto('/#biblioteca');
+  await addMaterial(page, 'Anexar PDF');
+  let dialog = page.getByRole('dialog');
+  await dialog.locator('input[type=file]').setInputFiles({ name: 'apostila-penal.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
+  await dialog.getByRole('button', { name: 'Anexar PDF' }).click();
+  await expect(dialog.locator('.pdf-page canvas')).toBeVisible();
+  const first = (await readAccount(page)).courses[0].pdf.fileId;
+  await expect.poll(async () => (await textStatus(page, first)).markdownStatus).toBe('ready');
+  expect((await textStatus(page, first)).markdownChars).toBeGreaterThan(100);
+  await dialog.getByRole('button', { name: 'Voltar para a biblioteca' }).click();
+
+  // Segundo PDF: toda gravação do texto falha durante o envio (inclusive as repetições).
+  let failing = true;
+  let attempts = 0;
+  await page.route('**/api/library/files/*/markdown', (route) => {
+    if (!failing) return route.continue();
+    attempts += 1;
+    return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Indisponível.', code: 'unavailable' }) });
+  });
+  await addMaterial(page, 'Anexar PDF');
+  dialog = page.getByRole('dialog');
+  await dialog.locator('input[type=file]').setInputFiles({ name: 'segunda.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
+  await dialog.getByLabel('Título').fill('Segunda apostila');
+  await dialog.getByRole('button', { name: 'Anexar PDF' }).click();
+  await expect(dialog.locator('.pdf-page canvas')).toBeVisible({ timeout: 15000 });
+  const second = (await readAccount(page)).courses.find((course) => course.title === 'Segunda apostila').pdf.fileId;
+  await expect.poll(() => attempts, { timeout: 15000 }).toBeGreaterThanOrEqual(3);
+  expect((await textStatus(page, second)).markdownStatus).toBe('pending');
+
+  // Reabrir o leitor com a rede de volta extrai e guarda o texto.
+  failing = false;
+  await page.reload();
+  await page.goto('/#biblioteca');
+  await page.locator('.reading-row').filter({ hasText: 'Segunda apostila' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /Abrir no leitor|Continuar na p[.]/ }).click();
+  await expect(page.getByRole('dialog').locator('.pdf-page canvas')).toBeVisible();
+  await expect.poll(async () => (await textStatus(page, second)).markdownStatus, { timeout: 15000 }).toBe('ready');
+});
+
 test('leitor de PDF registra leitura automática, pausa por inatividade e retoma com interação', async ({ page }) => {
   await seedAccount(page, seeded());
   await page.goto('/#biblioteca');

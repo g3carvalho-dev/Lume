@@ -102,6 +102,16 @@ function cleanText(value, max) {
   return String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
+// O texto do PDF é extraído no navegador de quem estuda (no envio e ao abrir o
+// leitor). O MCP só lê o que já foi guardado e diz o que falta quando não há texto.
+function contentNote(status, { truncated = false, condensed = false } = {}) {
+  if (status === 'pending') return 'O texto deste PDF ainda não foi extraído. Peça para a pessoa abrir o PDF no Lume uma vez: a extração é automática e não usa IA.';
+  if (status === 'unavailable') return 'Este PDF não tem texto extraível (provavelmente é uma digitalização). Use o sumário, a página de leitura e as marcações.';
+  if (truncated) return 'O documento é maior que o limite guardado: o texto está fiel, mas vai só até o ponto de corte.';
+  if (condensed) return 'Texto condensado por IA numa versão antiga do Lume: não é o original palavra por palavra.';
+  return '';
+}
+
 async function commitMcpActions(db, userId, revision, actions, now) {
   return applyLibraryActions(db, userId, {
     id: `mcp-${crypto.randomUUID()}`,
@@ -142,7 +152,7 @@ export const MCP_TOOLS = [
   },
   {
     name: 'lume_get_material_content',
-    description: 'Retorna o conteúdo textual extraído (Markdown), insights de IA, sumário (outline), página atual de leitura e marcações (highlights) de um material PDF. Suporta paginação por caracteres (offset/limit).',
+    description: 'Retorna o texto extraído (Markdown, com marcadores "## Página N") de um material PDF, além de sumário (outline), página atual de leitura, marcações (highlights) e insights de IA quando existirem. O texto não depende de IA; content.status diz se está pronto (ready), ainda não extraído (pending) ou indisponível por ser digitalização (unavailable), e content.note explica o que fazer. Suporta paginação por caracteres (offset/limit).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -369,6 +379,11 @@ async function executeTool(db, userId, name, args = {}, now = Date.now()) {
           ...(h.note ? { note: h.note } : {}),
         }))
         : undefined;
+      const status = aiRow?.markdown_status || 'pending';
+      const source = aiRow?.markdown_source || null;
+      const truncated = String(source || '').endsWith('_truncated');
+      const condensed = String(source || '').endsWith('_condensed');
+      const note = contentNote(status, { truncated, condensed });
       return {
         ...base,
         hasPdf: true,
@@ -382,8 +397,11 @@ async function executeTool(db, userId, name, args = {}, now = Date.now()) {
         insights,
         insightsUpdatedAt: aiRow?.insights_updated_at || null,
         content: {
-          status: aiRow?.markdown_status || 'pending',
-          source: aiRow?.markdown_source || null,
+          status,
+          source,
+          truncated,
+          condensed,
+          ...(note ? { note } : {}),
           totalChars: aiRow?.markdown_chars ?? fullMarkdown.length,
           offset,
           limit,

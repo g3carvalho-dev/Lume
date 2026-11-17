@@ -12,6 +12,8 @@ import { PersonButton } from './PersonCard.jsx';
 import EmojiButton from './EmojiPicker.jsx';
 import ReportDialog from './ReportDialog.jsx';
 
+// Só dois tipos se escolhem ao publicar: cabem lado a lado, sem menu.
+const KINDS = [['post', 'users', 'Entre amigos'], ['question', 'help', 'Dúvida rápida']];
 const LABELS = { post: ['message', 'Entre amigos'], question: ['help', 'Dúvida rápida'], material: ['file', 'Material compartilhado'], image: ['image', 'Foto / Print'], achievement: ['trophy', 'Conquista'] };
 
 function isPdfFile(file) {
@@ -243,13 +245,11 @@ export function Composer({ account, avatar, xp, onPosted, note = '' }) {
       <div className="sf-composer-head">
         <SocialAvatar person={{ name: account.name, avatar }}/>
         <strong>{account.name}</strong>
-        <label className="sf-audience"><Icon name="users"/><span className="sr-only">Tipo de publicação</span>
-          <select value={kind} onChange={event => setKind(event.target.value)} disabled={busyAny}>
-            <option value="post">Entre amigos</option>
-            <option value="question">Dúvida rápida</option>
-          </select>
-          <Icon name="chevron-down"/>
-        </label>
+        <div className="sf-kind" role="radiogroup" aria-label="Tipo de publicação">
+          {KINDS.map(([value, icon, label]) => <button key={value} type="button" role="radio" aria-checked={kind === value} className={`sf-kind-option ${kind === value ? 'active' : ''}`} onClick={() => setKind(value)} disabled={busyAny}>
+            <Icon name={icon}/>{label}
+          </button>)}
+        </div>
       </div>
       <label className="field social-compose-field"><span className="sr-only">Sua publicação</span>
         <textarea value={body} onChange={event => setBody(event.target.value)} placeholder="O que você quer compartilhar?" rows={3} maxLength={SOCIAL_POST_LIMIT} disabled={busyAny}/>

@@ -48,32 +48,49 @@
   min-width: 0;
   font-size: 0.95rem;
 }
-.sf-audience {
-  position: relative;
+.sf-composer-head {
+  flex-wrap: wrap;
+}
+/* Tipo da publicação: duas opções lado a lado, a escolhida em papel. */
+.sf-kind {
+  display: inline-flex;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--inner);
+}
+.sf-kind-option {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.3rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  color: var(--lume);
+  padding: 0.35rem 0.7rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
   font-size: 0.78rem;
   font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.16s ease, background-color 0.16s ease;
 }
-.sf-audience .icon {
+.sf-kind-option .icon {
   width: 0.9rem;
   height: 0.9rem;
-  pointer-events: none;
 }
-.sf-audience select {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  padding: 0 0.1rem;
-  cursor: pointer;
+.sf-kind-option:hover:not(.active, :disabled) {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.sf-kind-option.active {
+  background: var(--text);
+  color: var(--bg);
+}
+.sf-kind-option:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 .sf-composer .social-compose-field textarea {
   min-height: 5rem;

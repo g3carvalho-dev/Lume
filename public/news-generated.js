@@ -1,6 +1,28 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-3fc13691",
+    "at": "2026-11-17T03:48:08.000Z",
+    "title": "Aulas dentro do Lume",
+    "body": "Abra aulas importadas e acompanhe seu progresso no aplicativo de desktop.",
+    "href": "#biblioteca",
+    "area": "desktop",
+    "details": [
+      "A tela da aula reúne o player, o título, a plataforma e a duração."
+    ]
+  },
+  {
+    "id": "news-649a2696",
+    "at": "2026-11-17T03:15:36.000Z",
+    "title": "Política de privacidade",
+    "body": "Consulte como o site e o desktop usam seus dados e como falar com o Lume.",
+    "href": "#conheca",
+    "area": "site",
+    "details": [
+      "A política está disponível sem login no cadastro e no rodapé da apresentação."
+    ]
+  },
+  {
     "id": "news-98d4cd08",
     "at": "2026-11-17T01:31:02.000Z",
     "title": "Cabeçalho da aula",
@@ -281,18 +303,6 @@ export const GENERATED_NEWS = [
     "details": [
       "Envie a capa de novo para poder reposicionar a imagem inteira.",
       "O selo de presença aparece em qualquer perfil que você abre, e o tema só aparece se a pessoa compartilha a biblioteca."
-    ]
-  },
-  {
-    "id": "news-a8f3d772",
-    "at": "2026-11-15T20:52:55.000Z",
-    "title": "Altura da capa do perfil",
-    "body": "Em Editar perfil, um controle deslizante ajusta a altura da capa, e o seu perfil mostra Online quando você não está em sessão de estudo.",
-    "href": "#perfil",
-    "area": "site",
-    "details": [
-      "A altura vai de 120 a 360 px e aparece igual para os seus amigos.",
-      "Com sessão ativa, o selo continua mostrando o que você está estudando."
     ]
   }
 ];

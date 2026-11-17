@@ -403,10 +403,26 @@ export async function runContract(target, t) {
     await new Promise((resolve, reject) => { channel.once('open', resolve); channel.once('error', reject); });
     const heard = new Promise((resolve) => channel.once('message', (data) => resolve(String(data))));
 
-    const sent = await bia.browser.request('POST', `/api/messages/${encodeURIComponent(ana.user.id)}`, { body: { body: 'Oi!' } });
+    const clientId = crypto.randomUUID();
+    const sent = await bia.browser.request('POST', `/api/messages/${encodeURIComponent(ana.user.id)}`, { body: { body: 'Oi!', clientId } });
     assert.equal(sent.status, 201, JSON.stringify(sent.data));
-    assert.deepEqual(JSON.parse(await Promise.race([heard, new Promise((_, reject) => setTimeout(() => reject(new Error('aviso não chegou')), 5000))])), { type: 'message', from: bia.user.id });
+    // O aviso leva a mensagem e quem enviou: quem recebe não precisa reler a conversa.
+    const event = JSON.parse(await Promise.race([heard, new Promise((_, reject) => setTimeout(() => reject(new Error('aviso não chegou')), 5000))]));
+    assert.equal(event.type, 'message');
+    assert.equal(event.from, bia.user.id);
+    assert.deepEqual(event.conversation, { kind: 'direct', id: bia.user.id });
+    assert.equal(event.message.id, sent.data.message.id);
+    assert.equal(event.message.body, 'Oi!');
+    assert.equal(event.message.fromMe, false);
+    assert.equal(event.sender.id, bia.user.id);
+    assert.equal(event.sender.email, undefined);
+    assert.equal(event.muted, false);
     channel.close();
+    // Repetir o mesmo envio (mesmo clientId) devolve a mensagem já gravada, sem duplicar.
+    const resent = await bia.browser.request('POST', `/api/messages/${encodeURIComponent(ana.user.id)}`, { body: { body: 'Oi!', clientId } });
+    assert.equal(resent.status, 200, JSON.stringify(resent.data));
+    assert.equal(resent.data.message.id, sent.data.message.id);
+    assert.equal((await bia.browser.request('POST', `/api/messages/${encodeURIComponent(ana.user.id)}`, { body: { body: 'x', clientId: '!' } })).data.code, 'invalid_client_id');
     const empty = await bia.browser.request('POST', `/api/messages/${encodeURIComponent(ana.user.id)}`, { body: {} });
     assert.equal(empty.status, 400);
     assert.equal(empty.data.code, 'empty_message');
@@ -430,6 +446,16 @@ export async function runContract(target, t) {
     const reacted = await bia.browser.request('GET', `/api/messages/${encodeURIComponent(ana.user.id)}`);
     assert.deepEqual(reacted.data.messages[0].reactions, [{ emoji: '👍', count: 1, mine: false }]);
     assert.equal((await ana.browser.request('DELETE', reactionPath)).status, 200);
+    // Páginas: a mais recente primeiro, as anteriores por `before` e só as novas por `after`.
+    const latest = await bia.browser.request('GET', `/api/messages/${encodeURIComponent(ana.user.id)}?limit=2`);
+    assert.equal(latest.data.messages.length, 2);
+    assert.equal(latest.data.hasMore, true);
+    const older = await bia.browser.request('GET', `/api/messages/${encodeURIComponent(ana.user.id)}?limit=2&before=${encodeURIComponent(latest.data.messages[0].id)}`);
+    assert.deepEqual(older.data.messages.map((item) => item.id), [quoted]);
+    assert.equal(older.data.hasMore, false);
+    const newer = await bia.browser.request('GET', `/api/messages/${encodeURIComponent(ana.user.id)}?after=${encodeURIComponent(quoted)}`);
+    assert.deepEqual(newer.data.messages.map((item) => item.id), latest.data.messages.map((item) => item.id));
+    assert.equal((await bia.browser.request('GET', `/api/messages/${encodeURIComponent(ana.user.id)}?before=${encodeURIComponent('a b')}`)).data.code, 'invalid_cursor');
     assert.equal((await bia.browser.request('PUT', `/api/messages/${encodeURIComponent(ana.user.id)}/mute`, { body: { muted: true } })).data.muted, true);
     assert.equal((await bia.browser.request('GET', '/api/messages/unread')).data.unread, 0);
     assert.equal((await bia.browser.request('PUT', `/api/messages/${encodeURIComponent(ana.user.id)}/mute`, { body: {} })).data.code, 'invalid_preference');

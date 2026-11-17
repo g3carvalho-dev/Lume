@@ -7,13 +7,19 @@
 // - mensagens, referências e notificações não geram XP;
 // - referências compartilhadas carregam apenas tipo, id e título, nunca o
 //   conteúdo privado do material.
+//
+// O armazenamento é o modelo comum de conversas (conversations.js): a conversa
+// direta é a de `pair_key` igual aos dois ids em ordem, criada no primeiro envio.
 
 import { sanitizeProfileImage } from '../../public/domain.js';
 import { AppError } from '../errors.js';
-import { gifOf, isMuted, reactionSummaries, replyIdOf, replyPreview, setMuted, setReaction } from './message-extras.js';
+import {
+  clientIdOf, ensureDirect, findMessage, findResent, insertMessage, markRead, messageId, pageExtras, pairKey, readCursor, setMuted,
+  setReaction, threadPage, unreadTotal,
+} from './conversations.js';
+import { gifOf, replyIdOf, replyOf, replyPreview } from './message-extras.js';
 
 export const MAX_MESSAGE_LENGTH = 4000;
-export const MAX_MESSAGES_PER_THREAD = 200;
 export const MAX_REFERENCE_TITLE = 160;
 export const MESSAGE_WINDOW_LIMIT = 120;
 
@@ -64,39 +70,56 @@ export function previewText(body, { gif = null, reference = null } = {}) {
   return '';
 }
 
-function serializeMessage(row, userId, { replyTo = null, reactions = [] } = {}) {
+// `friendId` é a outra pessoa da conversa; `readAt` só existe em mensagem de
+// quem pede, quando a outra pessoa já leu até ela.
+function serializeMessage(row, userId, friendId, { replyTo = null, reactions = [], readAt = null } = {}) {
+  const fromMe = row.sender_id === userId;
   return {
     id: row.id,
-    fromMe: row.sender_id === userId,
+    fromMe,
     senderId: row.sender_id,
-    recipientId: row.recipient_id,
+    recipientId: fromMe ? friendId : userId,
     body: row.body,
     reference: serializeReference(row.reference),
     gif: row.gif_url || null,
     replyTo,
     reactions,
     at: row.created_at,
-    readAt: row.read_at || null,
+    readAt: fromMe ? readAt : null,
   };
 }
 
-async function assertFriendship(db, userId, friendId) {
-  if (!userId || !friendId || userId === friendId) {
+const BLOCKED_BY_ME = 'EXISTS (SELECT 1 FROM contact_blocks b WHERE b.user_id = ? AND b.blocked_id = ?)';
+
+// Amizade, bloqueios, a conversa e os nomes numa consulta.
+async function directContext(db, userId, friendId) {
+  if (!userId || !friendId || userId === friendId || !cleanId(friendId)) {
     throw new MessagesError('Escolha uma amizade para conversar.', 'invalid_contact', 400);
   }
-  const linked = await db.first(
-    'SELECT 1 AS linked FROM friendships WHERE user_id = ? AND friend_id = ?',
-    [userId, friendId],
+  const row = await db.first(
+    `SELECT EXISTS (SELECT 1 FROM friendships WHERE user_id = ? AND friend_id = ?) AS linked,
+            ${BLOCKED_BY_ME} AS blocked_by_me, ${BLOCKED_BY_ME} AS blocked_me,
+            (SELECT id FROM conversations WHERE pair_key = ?) AS conversation_id,
+            (SELECT p.muted FROM conversation_members p JOIN conversations c ON c.id = p.conversation_id
+              WHERE c.pair_key = ? AND p.user_id = ?) AS friend_muted,
+            u.name AS my_name, json_extract(d.data, '$.profile.avatar') AS my_avatar,
+            (SELECT handle FROM user_handles h WHERE h.user_id = u.id) AS my_handle,
+            (SELECT name FROM users WHERE id = ?) AS friend_name
+       FROM users u LEFT JOIN account_documents d ON d.user_id = u.id
+      WHERE u.id = ?`,
+    [userId, friendId, userId, friendId, friendId, userId, pairKey(userId, friendId), pairKey(userId, friendId), friendId, friendId, userId],
   );
-  if (!linked) {
+  if (!row?.linked) {
     throw new MessagesError('Mensagens diretas existem apenas entre amizades aceitas.', 'not_friends', 403);
   }
-}
-
-async function blockState(db, userId, friendId) {
-  const mine = await db.first('SELECT 1 AS blocked FROM contact_blocks WHERE user_id = ? AND blocked_id = ?', [userId, friendId]);
-  const theirs = await db.first('SELECT 1 AS blocked FROM contact_blocks WHERE user_id = ? AND blocked_id = ?', [friendId, userId]);
-  return { blockedByMe: Boolean(mine), blockedMe: Boolean(theirs) };
+  return {
+    conversationId: row.conversation_id || '',
+    blockedByMe: Boolean(row.blocked_by_me),
+    blockedMe: Boolean(row.blocked_me),
+    friendMuted: Boolean(row.friend_muted),
+    names: new Map([[userId, row.my_name || 'Você'], [friendId, row.friend_name || 'Alguém']]),
+    me: { id: userId, name: row.my_name || '', handle: row.my_handle || null, avatar: sanitizeProfileImage(row.my_avatar) },
+  };
 }
 
 function assertCanMessage(blocks) {
@@ -104,24 +127,24 @@ function assertCanMessage(blocks) {
   if (blocks.blockedMe) throw new MessagesError('Esta pessoa não está aceitando mensagens suas agora.', 'blocked_by_them', 403);
 }
 
-// Uma consulta só para a lista inteira: no D1 cada consulta é uma ida à rede, e a
-// versão anterior fazia quatro por amizade, em sequência.
-export async function listConversations(db, userId, now = Date.now()) {
+// Uma consulta para a lista inteira. A última mensagem e as não lidas de cada
+// conversa saem do índice (conversa, id), sem percorrer o histórico.
+export async function listConversations(db, userId) {
   if (!userId) throw new MessagesError('Entre na sua conta para ver suas mensagens.', 'unauthenticated', 401);
   const friends = await db.all(
     `SELECT u.id, u.name, f.created_at AS since, json_extract(d.data, '$.profile.avatar') AS avatar,
             (SELECT json_object('id', m.id, 'sender', m.sender_id, 'body', m.body, 'gif', m.gif_url, 'reference', m.reference, 'at', m.created_at)
-               FROM direct_messages m
-              WHERE (m.sender_id = f.user_id AND m.recipient_id = f.friend_id) OR (m.sender_id = f.friend_id AND m.recipient_id = f.user_id)
-              ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last,
-            (SELECT COUNT(*) FROM direct_messages m
-              WHERE m.sender_id = f.friend_id AND m.recipient_id = f.user_id AND m.read_at IS NULL) AS unread,
+               FROM conversation_messages m WHERE m.conversation_id = c.id ORDER BY m.id DESC LIMIT 1) AS last,
+            (SELECT COUNT(*) FROM conversation_messages m
+              WHERE m.conversation_id = c.id AND m.id > COALESCE(p.last_read_id, '') AND m.sender_id <> f.user_id) AS unread,
             EXISTS (SELECT 1 FROM contact_blocks b WHERE b.user_id = f.user_id AND b.blocked_id = f.friend_id) AS blocked_by_me,
             EXISTS (SELECT 1 FROM contact_blocks b WHERE b.user_id = f.friend_id AND b.blocked_id = f.user_id) AS blocked_me,
-            EXISTS (SELECT 1 FROM conversation_mutes x WHERE x.user_id = f.user_id AND x.scope = 'direct' AND x.target_id = f.friend_id) AS muted,
+            COALESCE(p.muted, 0) AS muted,
             (SELECT handle FROM user_handles h WHERE h.user_id = u.id) AS handle
        FROM friendships f JOIN users u ON u.id = f.friend_id
        LEFT JOIN account_documents d ON d.user_id = u.id
+       LEFT JOIN conversations c ON c.pair_key = CASE WHEN f.user_id < f.friend_id THEN f.user_id || '|' || f.friend_id ELSE f.friend_id || '|' || f.user_id END
+       LEFT JOIN conversation_members p ON p.conversation_id = c.id AND p.user_id = f.user_id
       WHERE f.user_id = ?
       ORDER BY u.name COLLATE NOCASE`,
     [userId],
@@ -158,54 +181,50 @@ export async function listConversations(db, userId, now = Date.now()) {
   return { conversations: rows, count: rows.length };
 }
 
-// Amizade, dados da pessoa e bloqueios numa consulta, e as mensagens em outra.
-export async function getThread(db, userId, friendId) {
-  if (!userId || !friendId || userId === friendId) {
+// Cabeçalho da conversa numa consulta e uma página de mensagens em outra.
+// `page` é { before, after, limit }: sem cursor, as mais recentes.
+export async function getThread(db, userId, friendId, page = {}) {
+  if (!userId || !friendId || userId === friendId || !cleanId(friendId)) {
     throw new MessagesError('Escolha uma amizade para conversar.', 'invalid_contact', 400);
   }
   const friend = await db.first(
     `SELECT u.id, u.name, json_extract(d.data, '$.profile.avatar') AS avatar,
             (SELECT handle FROM user_handles h WHERE h.user_id = u.id) AS handle,
-            EXISTS (SELECT 1 FROM conversation_mutes x WHERE x.user_id = f.user_id AND x.scope = 'direct' AND x.target_id = f.friend_id) AS muted,
+            (SELECT name FROM users WHERE id = f.user_id) AS my_name,
             EXISTS (SELECT 1 FROM contact_blocks b WHERE b.user_id = f.user_id AND b.blocked_id = f.friend_id) AS blocked_by_me,
-            EXISTS (SELECT 1 FROM contact_blocks b WHERE b.user_id = f.friend_id AND b.blocked_id = f.user_id) AS blocked_me
+            EXISTS (SELECT 1 FROM contact_blocks b WHERE b.user_id = f.friend_id AND b.blocked_id = f.user_id) AS blocked_me,
+            c.id AS conversation_id, COALESCE(me.muted, 0) AS muted,
+            other.last_read_id AS other_read_id, other.last_read_at AS other_read_at
        FROM friendships f JOIN users u ON u.id = f.friend_id
        LEFT JOIN account_documents d ON d.user_id = u.id
+       LEFT JOIN conversations c ON c.pair_key = ?
+       LEFT JOIN conversation_members me ON me.conversation_id = c.id AND me.user_id = f.user_id
+       LEFT JOIN conversation_members other ON other.conversation_id = c.id AND other.user_id = f.friend_id
       WHERE f.user_id = ? AND f.friend_id = ?`,
-    [userId, friendId],
+    [pairKey(userId, friendId), userId, friendId],
   );
   if (!friend) {
     throw new MessagesError('Mensagens diretas existem apenas entre amizades aceitas.', 'not_friends', 403);
   }
-  const rows = await db.all(
-    `SELECT id, sender_id, recipient_id, body, reference, gif_url, reply_to, created_at, read_at
-       FROM direct_messages
-      WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)
-      ORDER BY created_at DESC, id DESC LIMIT ?`,
-    [userId, friendId, friendId, userId, MAX_MESSAGES_PER_THREAD],
-  );
+  const { rows, hasMore } = friend.conversation_id
+    ? await threadPage(db, friend.conversation_id, userId, page)
+    : { rows: [], hasMore: false };
+  const { quoted, reactions } = rows.length
+    ? await pageExtras(db, friend.conversation_id, userId, rows)
+    : { quoted: new Map(), reactions: new Map() };
+  const names = new Map([[userId, friend.my_name || 'Você'], [friend.id, friend.name]]);
+  const otherReadId = friend.other_read_id || '';
   const blockedByMe = Boolean(friend.blocked_by_me);
   const blockedMe = Boolean(friend.blocked_me);
-  const me = await db.first('SELECT name FROM users WHERE id = ?', [userId]);
-  const names = new Map([[userId, me?.name || 'Você'], [friend.id, friend.name]]);
-  const byId = new Map(rows.map((row) => [row.id, row]));
-  const missing = [...new Set(rows.map((row) => row.reply_to).filter((id) => id && !byId.has(id)))];
-  if (missing.length) {
-    const older = await db.all(
-      `SELECT id, sender_id, body, reference, gif_url FROM direct_messages
-        WHERE id IN (${missing.map(() => '?').join(', ')})
-          AND ((sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?))`,
-      [...missing, userId, friendId, friendId, userId],
-    );
-    for (const row of older) byId.set(row.id, row);
-  }
-  const reactions = await reactionSummaries(db, 'direct', userId, rows.map((row) => row.id));
   return {
     friend: { id: friend.id, name: friend.name, handle: friend.handle || null, avatar: sanitizeProfileImage(friend.avatar) },
-    messages: rows.reverse().map((row) => serializeMessage(row, userId, {
-      replyTo: row.reply_to ? replyPreview(byId.get(row.reply_to), names) || { id: row.reply_to, senderName: '', preview: 'Mensagem indisponível' } : null,
+    messages: rows.map((row) => serializeMessage(row, userId, friend.id, {
+      replyTo: replyOf(row, quoted, names),
       reactions: reactions.get(row.id) || [],
+      readAt: row.id <= otherReadId ? friend.other_read_at || row.created_at : null,
     })),
+    hasMore,
+    readUpTo: otherReadId,
     blockedByMe,
     blockedMe,
     muted: Boolean(friend.muted),
@@ -213,89 +232,85 @@ export async function getThread(db, userId, friendId) {
   };
 }
 
-async function directMessage(db, userId, friendId, messageId) {
-  const row = await db.first(
-    `SELECT id, sender_id, body, reference, gif_url FROM direct_messages
-      WHERE id = ? AND ((sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?))`,
-    [messageId, userId, friendId, friendId, userId],
-  );
-  if (!row) throw new MessagesError('Mensagem não encontrada nesta conversa.', 'message_not_found', 404);
-  return row;
-}
-
-export async function sendMessage(db, userId, friendId, { body, reference, replyToId, gifUrl } = {}, now = Date.now()) {
-  await assertFriendship(db, userId, friendId);
-  const blocks = await blockState(db, userId, friendId);
-  assertCanMessage(blocks);
+// Devolve a mensagem para quem enviou e, em `deliver`, o que vai pelo canal de
+// tempo real para a outra pessoa. Repetir o envio com o mesmo `clientId` devolve
+// a mensagem já gravada (`duplicate`), sem gravar nem avisar de novo.
+export async function sendMessage(db, userId, friendId, { body, reference, replyToId, gifUrl, clientId } = {}, now = Date.now()) {
+  const context = await directContext(db, userId, friendId);
+  assertCanMessage(context);
   const text = cleanBody(body);
   const ref = cleanReference(reference);
   const gif = gifOf(gifUrl);
   const replyId = replyIdOf(replyToId);
+  const sendId = clientIdOf(clientId);
   if (!text && !ref && !gif) throw new MessagesError('Escreva uma mensagem ou escolha um material.', 'empty_message', 400);
-  const quoted = replyId ? await directMessage(db, userId, friendId, replyId) : null;
-  const id = crypto.randomUUID();
-  await db.run(
-    `INSERT INTO direct_messages (id, sender_id, recipient_id, body, reference, gif_url, reply_to, created_at, read_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-    [id, userId, friendId, text, ref ? JSON.stringify(ref) : null, gif, quoted?.id || null, iso(now)],
-  );
-  const row = await db.first('SELECT * FROM direct_messages WHERE id = ?', [id]);
-  let replyTo = null;
-  if (quoted) {
-    const people = await db.all('SELECT id, name FROM users WHERE id IN (?, ?)', [userId, friendId]);
-    replyTo = replyPreview(quoted, new Map(people.map((person) => [person.id, person.name])));
+  const [quoted, resent] = await Promise.all([
+    replyId ? findMessage(db, context.conversationId, replyId) : null,
+    findResent(db, context.conversationId, userId, sendId, now),
+  ]);
+  if (replyId && !quoted) throw new MessagesError('Mensagem não encontrada nesta conversa.', 'message_not_found', 404);
+  if (resent) {
+    const known = resent.reply_to ? await findMessage(db, context.conversationId, resent.reply_to) : null;
+    return { message: serializeMessage(resent, userId, friendId, { replyTo: replyPreview(known, context.names) }), duplicate: true, deliver: null };
   }
-  return { message: serializeMessage(row, userId, { replyTo }) };
+  const row = {
+    id: messageId(now, sendId), sender_id: userId, body: text, reference: ref ? JSON.stringify(ref) : null,
+    gif_url: gif, reply_to: quoted?.id || null, created_at: iso(now),
+  };
+  await db.batch([
+    ...(context.conversationId ? [] : ensureDirect(userId, friendId, now)),
+    insertMessage(context.conversationId ? { id: context.conversationId } : { pairKey: pairKey(userId, friendId) }, {
+      id: row.id, senderId: userId, body: text, reference: ref, gif, replyTo: row.reply_to, now,
+    }),
+  ]);
+  const replyTo = replyPreview(quoted, context.names);
+  return {
+    message: serializeMessage(row, userId, friendId, { replyTo }),
+    duplicate: false,
+    // Para quem recebe, a conversa é identificada por quem enviou.
+    deliver: { to: friendId, muted: context.friendMuted, conversation: { kind: 'direct', id: userId }, message: serializeMessage(row, friendId, userId, { replyTo }), sender: context.me },
+  };
 }
 
 // Reagir exige a conversa aberta (amizade e sem bloqueio), como escrever.
-export async function reactToDirectMessage(db, userId, friendId, messageId, emoji, on, now = Date.now()) {
-  await assertFriendship(db, userId, friendId);
-  if (on) assertCanMessage(await blockState(db, userId, friendId));
-  const row = await directMessage(db, userId, friendId, String(messageId || ''));
-  return setReaction(db, 'direct', userId, row.id, emoji, on, now);
+export async function reactToDirectMessage(db, userId, friendId, messageIdValue, emoji, on, now = Date.now()) {
+  const context = await directContext(db, userId, friendId);
+  if (on) assertCanMessage(context);
+  const row = await findMessage(db, context.conversationId, String(messageIdValue || ''));
+  if (!row) throw new MessagesError('Mensagem não encontrada nesta conversa.', 'message_not_found', 404);
+  return setReaction(db, context.conversationId, userId, row.id, emoji, on, now);
 }
 
 export async function muteDirect(db, userId, friendId, muted, now = Date.now()) {
-  await assertFriendship(db, userId, friendId);
-  return setMuted(db, userId, 'direct', friendId, muted, now);
+  const context = await directContext(db, userId, friendId);
+  if (typeof muted !== 'boolean') throw new MessagesError('Escolha se quer silenciar a conversa.', 'invalid_preference', 400);
+  let { conversationId } = context;
+  if (!conversationId) {
+    await db.batch(ensureDirect(userId, friendId, now));
+    conversationId = (await db.first('SELECT id FROM conversations WHERE pair_key = ?', [pairKey(userId, friendId)]))?.id;
+  }
+  return setMuted(db, conversationId, userId, muted);
 }
 
-export async function directMuted(db, userId, friendId) {
-  return isMuted(db, userId, 'direct', friendId);
-}
-
+// `read` diz se havia algo novo para marcar (só então há gravação).
 export async function markThreadRead(db, userId, friendId, now = Date.now()) {
-  await assertFriendship(db, userId, friendId);
-  const read = await db.run(
-    'UPDATE direct_messages SET read_at = ? WHERE sender_id = ? AND recipient_id = ? AND read_at IS NULL',
-    [iso(now), friendId, userId],
-  );
-  return { read };
+  if (!userId || !friendId || userId === friendId || !cleanId(friendId)) {
+    throw new MessagesError('Escolha uma amizade para conversar.', 'invalid_contact', 400);
+  }
+  const read = await markRead(db, { pairKey: pairKey(userId, friendId) }, userId, now);
+  if (!read) await directContext(db, userId, friendId);
+  return { read, readUpTo: readCursor(now), at: iso(now) };
 }
 
+// Não lidas das conversas diretas e a preferência de aviso.
 export async function unreadSummary(db, userId) {
   if (!userId) throw new MessagesError('Entre na sua conta para ver suas notificações.', 'unauthenticated', 401);
-  const row = await db.first(
-    `SELECT COUNT(*) AS total FROM direct_messages m
-      WHERE m.recipient_id = ? AND m.read_at IS NULL
-        AND NOT EXISTS (SELECT 1 FROM contact_blocks b WHERE b.user_id = ? AND b.blocked_id = m.sender_id)
-        AND NOT EXISTS (SELECT 1 FROM conversation_mutes x WHERE x.user_id = ? AND x.scope = 'direct' AND x.target_id = m.sender_id)`,
-    [userId, userId, userId],
-  );
-  const preferences = await messagePreferences(db, userId);
-  return { unread: Number(row?.total || 0), notifications: preferences.notifications };
+  return unreadTotal(db, userId, 'direct');
 }
 
+// Sem linha gravada, vale o padrão (avisos ligados); ler não grava.
 export async function messagePreferences(db, userId) {
-  let row = await db.first('SELECT notifications FROM message_preferences WHERE user_id = ?', [userId]);
-  if (!row) {
-    await db.run(
-      'INSERT OR IGNORE INTO message_preferences (user_id, notifications, updated_at) VALUES (?, 1, ?)',
-      [userId, iso(Date.now())],
-    );
-    row = await db.first('SELECT notifications FROM message_preferences WHERE user_id = ?', [userId]);
-  }
+  const row = await db.first('SELECT notifications FROM message_preferences WHERE user_id = ?', [userId]);
   return { notifications: row ? Number(row.notifications) !== 0 : true };
 }
 

@@ -8,12 +8,20 @@
 // - quem sai deixa de ver o grupo; se a dona sai, o grupo passa à pessoa mais
 //   antiga que ficou, e sem ninguém o grupo é apagado;
 // - mensagens de grupo não geram XP.
+//
+// O armazenamento é o modelo comum de conversas (conversations.js): o grupo é a
+// conversa de `kind = 'group'` e o id do grupo é o id da conversa.
 import { sanitizeProfileImage } from '../../public/domain.js';
 import { GROUP_MAX_MEMBERS, GROUP_MIN_OTHERS, GROUP_NAME_LIMIT } from '../../public/report-domain.js';
-import { MAX_MESSAGES_PER_THREAD, MessagesError, cleanBody, cleanReference, previewText, serializeReference } from './messages.js';
-import { gifOf, reactionSummaries, replyIdOf, replyPreview, setMuted, setReaction } from './message-extras.js';
+import { MessagesError, cleanBody, cleanReference, previewText, serializeReference } from './messages.js';
+import {
+  clientIdOf, findMessage, findResent, insertMessage, markRead, messageId, pageExtras, readCursor, setMuted, setReaction, threadPage,
+  unreadTotal,
+} from './conversations.js';
+import { gifOf, replyIdOf, replyOf, replyPreview } from './message-extras.js';
 
 const iso = (now) => new Date(now).toISOString();
+const marks = (list) => list.map(() => '?').join(', ');
 
 function groupId(value) {
   if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,120}$/.test(value)) throw new MessagesError('Grupo inválido.', 'invalid_group', 400);
@@ -27,41 +35,59 @@ function groupName(value) {
   return name;
 }
 
-const MUTED = (group) => `EXISTS (SELECT 1 FROM conversation_mutes x WHERE x.user_id = ? AND x.scope = 'group' AND x.target_id = ${group})`;
 const HIDDEN = (sender) => `NOT EXISTS (SELECT 1 FROM contact_blocks b WHERE b.user_id = ? AND b.blocked_id = ${sender})`;
+const notFound = () => new MessagesError('Grupo não encontrado.', 'group_not_found', 404);
 
 async function membership(db, userId, id) {
   const row = await db.first(
-    `SELECT g.id, g.name, g.owner_id, g.created_at FROM chat_groups g
-       JOIN chat_group_members m ON m.group_id = g.id AND m.user_id = ? WHERE g.id = ?`,
+    `SELECT c.id, c.name, c.owner_id, c.created_at, p.muted FROM conversations c
+       JOIN conversation_members p ON p.conversation_id = c.id AND p.user_id = ?
+      WHERE c.id = ? AND c.kind = 'group'`,
     [userId, groupId(id)],
   );
-  if (!row) throw new MessagesError('Grupo não encontrado.', 'group_not_found', 404);
+  if (!row) throw notFound();
   return row;
 }
 
-async function addSystemMessage(db, id, actorId, body, now) {
-  await db.run(
-    "INSERT INTO chat_group_messages (id, group_id, sender_id, body, reference, kind, created_at) VALUES (?, ?, ?, ?, NULL, 'system', ?)",
-    [crypto.randomUUID(), id, actorId, body, iso(now)],
+// Pessoas do grupo, da mais antiga à mais nova. Com `senderId`, `hidden` diz
+// quem bloqueou essa pessoa (e por isso não vê as mensagens dela).
+async function groupPeople(db, id, senderId = '') {
+  return db.all(
+    `SELECT u.id, u.name, json_extract(d.data, '$.profile.avatar') AS avatar, p.joined_at, p.muted,
+            (SELECT handle FROM user_handles h WHERE h.user_id = u.id) AS handle,
+            EXISTS (SELECT 1 FROM contact_blocks b WHERE b.user_id = u.id AND b.blocked_id = ?) AS hidden
+       FROM conversation_members p
+       JOIN conversations c ON c.id = p.conversation_id AND c.kind = 'group'
+       JOIN users u ON u.id = p.user_id LEFT JOIN account_documents d ON d.user_id = u.id
+      WHERE p.conversation_id = ? ORDER BY p.joined_at, u.name COLLATE NOCASE, u.id`,
+    [senderId, id],
   );
 }
 
-async function userName(db, id) {
-  return (await db.first('SELECT name FROM users WHERE id = ?', [id]))?.name || 'Alguém';
+const person = (row) => ({ id: row.id, name: row.name, handle: row.handle || null, avatar: sanitizeProfileImage(row.avatar) });
+
+function systemMessage(id, actorId, body, now) {
+  return insertMessage({ id }, { id: messageId(now), senderId: actorId, kind: 'system', body, now });
 }
 
-// Só amizades de quem adiciona, sem bloqueio nos dois sentidos.
+// Só amizades de quem adiciona, sem bloqueio nos dois sentidos. Uma consulta
+// para a lista inteira; devolve o nome de quem adiciona e o das pessoas.
 async function assertAddable(db, ownerId, ids) {
+  const rows = await db.all(
+    `SELECT u.id, u.name,
+            EXISTS (SELECT 1 FROM friendships f WHERE f.user_id = ? AND f.friend_id = u.id) AS linked,
+            EXISTS (SELECT 1 FROM contact_blocks b WHERE (b.user_id = ? AND b.blocked_id = u.id) OR (b.user_id = u.id AND b.blocked_id = ?)) AS blocked
+       FROM users u WHERE u.id IN (${marks([ownerId, ...ids])})`,
+    [ownerId, ownerId, ownerId, ownerId, ...ids],
+  );
+  const byId = new Map(rows.map((row) => [row.id, row]));
   for (const id of ids) {
-    const friend = await db.first('SELECT 1 AS ok FROM friendships WHERE user_id = ? AND friend_id = ?', [ownerId, id]);
-    if (!friend) throw new MessagesError('Só é possível adicionar pessoas da sua lista de amigos.', 'not_friends', 403);
-    const blocked = await db.first(
-      'SELECT 1 AS ok FROM contact_blocks WHERE (user_id = ? AND blocked_id = ?) OR (user_id = ? AND blocked_id = ?)',
-      [ownerId, id, id, ownerId],
-    );
-    if (blocked) throw new MessagesError('Não é possível adicionar uma pessoa bloqueada ou que bloqueou você.', 'blocked', 403);
+    if (!byId.get(id)?.linked) throw new MessagesError('Só é possível adicionar pessoas da sua lista de amigos.', 'not_friends', 403);
   }
+  for (const id of ids) {
+    if (byId.get(id).blocked) throw new MessagesError('Não é possível adicionar uma pessoa bloqueada ou que bloqueou você.', 'blocked', 403);
+  }
+  return new Map(rows.map((row) => [row.id, row.name]));
 }
 
 function uniqueIds(value, self) {
@@ -69,38 +95,39 @@ function uniqueIds(value, self) {
   return [...new Set(list.filter((item) => typeof item === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(item) && item !== self))];
 }
 
+const addMember = (id, userId, now) => [
+  'INSERT INTO conversation_members (conversation_id, user_id, joined_at, last_read_id, last_read_at) VALUES (?, ?, ?, ?, ?)',
+  [id, userId, iso(now), readCursor(now), iso(now)],
+];
+
 export async function createGroup(db, userId, { name, memberIds } = {}, now = Date.now()) {
   const title = groupName(name);
   const others = uniqueIds(memberIds, userId);
   if (others.length < GROUP_MIN_OTHERS) throw new MessagesError(`Escolha pelo menos ${GROUP_MIN_OTHERS} amigos para o grupo.`, 'group_too_small', 400);
   if (others.length + 1 > GROUP_MAX_MEMBERS) throw new MessagesError(`Um grupo pode ter até ${GROUP_MAX_MEMBERS} pessoas.`, 'group_too_large', 400);
-  await assertAddable(db, userId, others);
+  const names = await assertAddable(db, userId, others);
   const id = crypto.randomUUID();
-  const at = iso(now);
   await db.batch([
-    ['INSERT INTO chat_groups (id, name, owner_id, created_at) VALUES (?, ?, ?, ?)', [id, title, userId, at]],
-    ...[userId, ...others].map((member) => [
-      'INSERT INTO chat_group_members (group_id, user_id, joined_at, last_read_at) VALUES (?, ?, ?, ?)',
-      [id, member, at, at],
-    ]),
+    ["INSERT INTO conversations (id, kind, name, owner_id, created_at) VALUES (?, 'group', ?, ?, ?)", [id, title, userId, iso(now)]],
+    ...[userId, ...others].map((member) => addMember(id, member, now)),
+    systemMessage(id, userId, `${names.get(userId) || 'Alguém'} criou o grupo.`, now),
   ]);
-  await addSystemMessage(db, id, userId, `${await userName(db, userId)} criou o grupo.`, now);
   return { id, memberIds: others };
 }
 
 export async function listGroups(db, userId) {
   const rows = await db.all(
-    `SELECT g.id, g.name, g.owner_id, m.last_read_at,
-            (SELECT COUNT(*) FROM chat_group_members x WHERE x.group_id = g.id) AS members,
-            ${MUTED('g.id')} AS muted,
-            (SELECT json_object('id', c.id, 'sender', c.sender_id, 'name', u.name, 'body', c.body, 'gif', c.gif_url, 'reference', c.reference, 'kind', c.kind, 'at', c.created_at)
-               FROM chat_group_messages c JOIN users u ON u.id = c.sender_id
-              WHERE c.group_id = g.id AND (c.kind = 'system' OR ${HIDDEN('c.sender_id')})
-              ORDER BY c.created_at DESC, c.id DESC LIMIT 1) AS last,
-            (SELECT COUNT(*) FROM chat_group_messages c
-              WHERE c.group_id = g.id AND c.kind = 'text' AND c.sender_id <> ? AND c.created_at > m.last_read_at AND ${HIDDEN('c.sender_id')}) AS unread
-       FROM chat_groups g JOIN chat_group_members m ON m.group_id = g.id AND m.user_id = ?`,
-    [userId, userId, userId, userId, userId],
+    `SELECT c.id, c.name, c.owner_id, p.muted,
+            (SELECT COUNT(*) FROM conversation_members x WHERE x.conversation_id = c.id) AS members,
+            (SELECT json_object('id', m.id, 'sender', m.sender_id, 'name', u.name, 'body', m.body, 'gif', m.gif_url, 'reference', m.reference, 'kind', m.kind, 'at', m.created_at)
+               FROM conversation_messages m JOIN users u ON u.id = m.sender_id
+              WHERE m.conversation_id = c.id AND (m.kind = 'system' OR ${HIDDEN('m.sender_id')})
+              ORDER BY m.id DESC LIMIT 1) AS last,
+            (SELECT COUNT(*) FROM conversation_messages m
+              WHERE m.conversation_id = c.id AND m.id > p.last_read_id AND m.kind = 'text' AND m.sender_id <> p.user_id AND ${HIDDEN('m.sender_id')}) AS unread
+       FROM conversation_members p JOIN conversations c ON c.id = p.conversation_id AND c.kind = 'group'
+      WHERE p.user_id = ?`,
+    [userId, userId, userId],
   );
   return rows.map((row) => {
     const last = row.last ? JSON.parse(row.last) : null;
@@ -118,123 +145,119 @@ export async function listGroups(db, userId) {
 }
 
 export async function unreadGroupMessages(db, userId) {
-  const row = await db.first(
-    `SELECT COUNT(*) AS total FROM chat_group_messages c
-       JOIN chat_group_members m ON m.group_id = c.group_id AND m.user_id = ?
-      WHERE c.kind = 'text' AND c.sender_id <> ? AND c.created_at > m.last_read_at AND ${HIDDEN('c.sender_id')} AND NOT ${MUTED('c.group_id')}`,
-    [userId, userId, userId, userId],
-  );
-  return Number(row?.total || 0);
+  return (await unreadTotal(db, userId, 'group')).unread;
 }
 
-export async function getGroupThread(db, userId, id) {
+function serializeGroupMessage(row, userId, sender, { replyTo = null, reactions = [] } = {}) {
+  return {
+    id: row.id,
+    kind: row.kind || 'text',
+    fromMe: row.sender_id === userId,
+    senderId: row.sender_id,
+    sender: sender ? person(sender) : { id: row.sender_id, name: 'Ex-participante', avatar: '' },
+    body: row.body,
+    reference: serializeReference(row.reference),
+    gif: row.gif_url || null,
+    replyTo,
+    reactions,
+    at: row.created_at,
+  };
+}
+
+// `page` é { before, after, limit }: sem cursor, as mensagens mais recentes.
+export async function getGroupThread(db, userId, id, page = {}) {
   const group = await membership(db, userId, id);
-  const members = await db.all(
-    `SELECT u.id, u.name, json_extract(d.data, '$.profile.avatar') AS avatar, m.joined_at,
-            (SELECT handle FROM user_handles h WHERE h.user_id = u.id) AS handle
-       FROM chat_group_members m JOIN users u ON u.id = m.user_id LEFT JOIN account_documents d ON d.user_id = u.id
-      WHERE m.group_id = ? ORDER BY m.joined_at, u.name COLLATE NOCASE`,
-    [group.id],
-  );
-  const rows = await db.all(
-    `SELECT c.id, c.sender_id, c.body, c.reference, c.gif_url, c.reply_to, c.kind, c.created_at FROM chat_group_messages c
-      WHERE c.group_id = ? AND (c.kind = 'system' OR ${HIDDEN('c.sender_id')})
-      ORDER BY c.created_at DESC, c.id DESC LIMIT ?`,
-    [group.id, userId, MAX_MESSAGES_PER_THREAD],
-  );
+  const [members, { rows, hasMore }] = await Promise.all([
+    groupPeople(db, group.id),
+    threadPage(db, group.id, userId, { ...page, hideBlocked: true }),
+  ]);
+  const { quoted, reactions } = await pageExtras(db, group.id, userId, rows, { hideBlocked: true });
   const byId = new Map(members.map((member) => [member.id, member]));
-  const quoted = new Map(rows.map((row) => [row.id, row]));
-  const missing = [...new Set(rows.map((row) => row.reply_to).filter((item) => item && !quoted.has(item)))];
-  if (missing.length) {
-    const older = await db.all(
-      `SELECT c.id, c.sender_id, c.body, c.reference, c.gif_url FROM chat_group_messages c
-        WHERE c.group_id = ? AND c.id IN (${missing.map(() => '?').join(', ')}) AND ${HIDDEN('c.sender_id')}`,
-      [group.id, ...missing, userId],
-    );
-    for (const row of older) quoted.set(row.id, row);
-  }
-  const senderIds = [...new Set([...quoted.values()].map((row) => row.sender_id).filter((id) => !byId.has(id)))];
   const names = new Map(members.map((member) => [member.id, member.name]));
-  if (senderIds.length) {
-    for (const row of await db.all(`SELECT id, name FROM users WHERE id IN (${senderIds.map(() => '?').join(', ')})`, senderIds)) names.set(row.id, row.name);
+  const gone = [...new Set([...quoted.values()].map((row) => row.sender_id).filter((sender) => !byId.has(sender)))];
+  if (gone.length) {
+    for (const row of await db.all(`SELECT id, name FROM users WHERE id IN (${marks(gone)})`, gone)) names.set(row.id, row.name);
   }
-  const reactions = await reactionSummaries(db, 'group', userId, rows.filter((row) => row.kind === 'text').map((row) => row.id));
-  const muted = await db.first(`SELECT ${MUTED('?')} AS muted`, [userId, group.id]);
   return {
     group: { id: group.id, name: group.name, ownerId: group.owner_id, isOwner: group.owner_id === userId, createdAt: group.created_at },
-    members: members.map((member) => ({
-      id: member.id, name: member.name, handle: member.handle || null, avatar: sanitizeProfileImage(member.avatar), isOwner: member.id === group.owner_id, isMe: member.id === userId,
+    members: members.map((member) => ({ ...person(member), isOwner: member.id === group.owner_id, isMe: member.id === userId })),
+    messages: rows.map((row) => serializeGroupMessage(row, userId, byId.get(row.sender_id), {
+      replyTo: replyOf(row, quoted, names),
+      reactions: reactions.get(row.id) || [],
     })),
-    messages: rows.reverse().map((row) => {
-      const sender = byId.get(row.sender_id);
-      return {
-        id: row.id,
-        kind: row.kind,
-        fromMe: row.sender_id === userId,
-        senderId: row.sender_id,
-        sender: sender ? { id: sender.id, name: sender.name, handle: sender.handle || null, avatar: sanitizeProfileImage(sender.avatar) } : { id: row.sender_id, name: 'Ex-participante', avatar: '' },
-        body: row.body,
-        reference: serializeReference(row.reference),
-        gif: row.gif_url || null,
-        replyTo: row.reply_to ? replyPreview(quoted.get(row.reply_to), names) || { id: row.reply_to, senderName: '', preview: 'Mensagem indisponível' } : null,
-        reactions: reactions.get(row.id) || [],
-        at: row.created_at,
-      };
-    }),
-    muted: Boolean(muted?.muted),
+    hasMore,
+    muted: Boolean(group.muted),
     canMessage: true,
   };
 }
 
 export async function groupMemberIds(db, id) {
-  return (await db.all('SELECT user_id FROM chat_group_members WHERE group_id = ?', [id])).map((row) => row.user_id);
+  return (await db.all('SELECT user_id FROM conversation_members WHERE conversation_id = ?', [id])).map((row) => row.user_id);
 }
 
-async function groupMessage(db, userId, groupIdValue, messageId) {
-  const row = await db.first(
-    `SELECT c.id, c.sender_id, c.body, c.reference, c.gif_url FROM chat_group_messages c
-      WHERE c.id = ? AND c.group_id = ? AND c.kind = 'text' AND ${HIDDEN('c.sender_id')}`,
-    [String(messageId || ''), groupIdValue, userId],
-  );
+async function groupMessage(db, userId, id, messageIdValue) {
+  const row = await findMessage(db, id, String(messageIdValue || ''), { viewerId: userId, hideBlocked: true, textOnly: true });
   if (!row) throw new MessagesError('Mensagem não encontrada neste grupo.', 'message_not_found', 404);
   return row;
 }
 
-export async function sendGroupMessage(db, userId, id, { body, reference, replyToId, gifUrl } = {}, now = Date.now()) {
-  const group = await membership(db, userId, id);
+// Devolve a mensagem para quem enviou e, em `deliver`, o que vai pelo canal de
+// tempo real: quem bloqueou quem enviou não recebe. Repetir o envio com o mesmo
+// `clientId` devolve a mensagem já gravada (`duplicate`).
+export async function sendGroupMessage(db, userId, id, { body, reference, replyToId, gifUrl, clientId } = {}, now = Date.now()) {
+  const people = await groupPeople(db, groupId(id), userId);
+  const me = people.find((member) => member.id === userId);
+  if (!me) throw notFound();
   const text = cleanBody(body);
   const ref = cleanReference(reference);
   const gif = gifOf(gifUrl);
   const replyId = replyIdOf(replyToId);
+  const sendId = clientIdOf(clientId);
   if (!text && !ref && !gif) throw new MessagesError('Escreva uma mensagem ou escolha um material.', 'empty_message', 400);
-  const quoted = replyId ? await groupMessage(db, userId, group.id, replyId) : null;
-  const messageId = crypto.randomUUID();
-  await db.run(
-    "INSERT INTO chat_group_messages (id, group_id, sender_id, body, reference, gif_url, reply_to, kind, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'text', ?)",
-    [messageId, group.id, userId, text, ref ? JSON.stringify(ref) : null, gif, quoted?.id || null, iso(now)],
-  );
-  await db.run('UPDATE chat_group_members SET last_read_at = ? WHERE group_id = ? AND user_id = ?', [iso(now), group.id, userId]);
-  const replyTo = quoted ? replyPreview(quoted, new Map([[quoted.sender_id, await userName(db, quoted.sender_id)]])) : null;
+  const [quoted, resent] = await Promise.all([
+    replyId ? groupMessage(db, userId, id, replyId) : null,
+    findResent(db, id, userId, sendId, now),
+  ]);
+  const names = new Map(people.map((member) => [member.id, member.name]));
+  const memberIds = people.map((member) => member.id);
+  if (resent) return { message: serializeGroupMessage(resent, userId, me), memberIds, duplicate: true, deliver: null };
+  if (quoted && !names.has(quoted.sender_id)) {
+    names.set(quoted.sender_id, (await db.first('SELECT name FROM users WHERE id = ?', [quoted.sender_id]))?.name || 'Alguém');
+  }
+  const row = {
+    id: messageId(now, sendId), sender_id: userId, kind: 'text', body: text, reference: ref ? JSON.stringify(ref) : null,
+    gif_url: gif, reply_to: quoted?.id || null, created_at: iso(now),
+  };
+  await db.batch([insertMessage({ id }, { id: row.id, senderId: userId, body: text, reference: ref, gif, replyTo: row.reply_to, now })]);
+  const replyTo = replyPreview(quoted, names);
   return {
-    message: { id: messageId, kind: 'text', fromMe: true, senderId: userId, body: text, reference: ref, gif, replyTo, reactions: [], at: iso(now) },
-    memberIds: await groupMemberIds(db, group.id),
+    message: serializeGroupMessage(row, userId, me, { replyTo }),
+    memberIds,
+    duplicate: false,
+    deliver: {
+      to: people.filter((member) => member.id !== userId && !member.hidden).map((member) => ({ id: member.id, muted: Boolean(member.muted) })),
+      conversation: { kind: 'group', id },
+      message: { ...serializeGroupMessage(row, '', me, { replyTo }), fromMe: false },
+    },
   };
 }
 
-export async function reactToGroupMessage(db, userId, id, messageId, emoji, on, now = Date.now()) {
+export async function reactToGroupMessage(db, userId, id, messageIdValue, emoji, on, now = Date.now()) {
   const group = await membership(db, userId, id);
-  const row = await groupMessage(db, userId, group.id, messageId);
-  return setReaction(db, 'group', userId, row.id, emoji, on, now);
+  const row = await groupMessage(db, userId, group.id, messageIdValue);
+  const reacted = await setReaction(db, group.id, userId, row.id, emoji, on, now);
+  return { ...reacted, memberIds: reacted.changed ? await groupMemberIds(db, group.id) : [] };
 }
 
-export async function muteGroup(db, userId, id, muted, now = Date.now()) {
+export async function muteGroup(db, userId, id, muted) {
   const group = await membership(db, userId, id);
-  return setMuted(db, userId, 'group', group.id, muted, now);
+  return setMuted(db, group.id, userId, muted);
 }
 
+// `read` diz se havia algo novo para marcar (só então há gravação).
 export async function markGroupRead(db, userId, id, now = Date.now()) {
-  const group = await membership(db, userId, id);
-  const read = await db.run('UPDATE chat_group_members SET last_read_at = ? WHERE group_id = ? AND user_id = ?', [iso(now), group.id, userId]);
+  const read = await markRead(db, { id: groupId(id) }, userId, now);
+  if (!read) await membership(db, userId, id);
   return { read };
 }
 
@@ -242,28 +265,28 @@ export async function renameGroup(db, userId, id, name, now = Date.now()) {
   const group = await membership(db, userId, id);
   if (group.owner_id !== userId) throw new MessagesError('Só quem criou o grupo pode mudar o nome.', 'not_owner', 403);
   const title = groupName(name);
-  await db.run('UPDATE chat_groups SET name = ? WHERE id = ?', [title, group.id]);
-  await addSystemMessage(db, group.id, userId, `${await userName(db, userId)} mudou o nome do grupo para “${title}”.`, now);
-  return { id: group.id, name: title, memberIds: await groupMemberIds(db, group.id) };
+  const people = await groupPeople(db, group.id);
+  const mine = people.find((member) => member.id === userId)?.name || 'Alguém';
+  await db.batch([
+    ['UPDATE conversations SET name = ? WHERE id = ?', [title, group.id]],
+    systemMessage(group.id, userId, `${mine} mudou o nome do grupo para “${title}”.`, now),
+  ]);
+  return { id: group.id, name: title, memberIds: people.map((member) => member.id) };
 }
 
 export async function addGroupMembers(db, userId, id, { memberIds } = {}, now = Date.now()) {
   const group = await membership(db, userId, id);
   if (group.owner_id !== userId) throw new MessagesError('Só quem criou o grupo pode adicionar pessoas.', 'not_owner', 403);
-  const current = new Set(await groupMemberIds(db, group.id));
-  const fresh = uniqueIds(memberIds, userId).filter((member) => !current.has(member));
+  const current = await groupMemberIds(db, group.id);
+  const fresh = uniqueIds(memberIds, userId).filter((member) => !current.includes(member));
   if (!fresh.length) throw new MessagesError('Escolha amigos que ainda não estão no grupo.', 'nobody_to_add', 400);
-  if (current.size + fresh.length > GROUP_MAX_MEMBERS) throw new MessagesError(`Um grupo pode ter até ${GROUP_MAX_MEMBERS} pessoas.`, 'group_too_large', 400);
-  await assertAddable(db, userId, fresh);
-  const at = iso(now);
-  await db.batch(fresh.map((member) => [
-    'INSERT INTO chat_group_members (group_id, user_id, joined_at, last_read_at) VALUES (?, ?, ?, ?)',
-    [group.id, member, at, at],
-  ]));
-  const names = [];
-  for (const member of fresh) names.push(await userName(db, member));
-  await addSystemMessage(db, group.id, userId, `${await userName(db, userId)} adicionou ${names.join(', ')}.`, now);
-  return { id: group.id, added: fresh, memberIds: await groupMemberIds(db, group.id) };
+  if (current.length + fresh.length > GROUP_MAX_MEMBERS) throw new MessagesError(`Um grupo pode ter até ${GROUP_MAX_MEMBERS} pessoas.`, 'group_too_large', 400);
+  const names = await assertAddable(db, userId, fresh);
+  await db.batch([
+    ...fresh.map((member) => addMember(group.id, member, now)),
+    systemMessage(group.id, userId, `${names.get(userId) || 'Alguém'} adicionou ${fresh.map((member) => names.get(member)).join(', ')}.`, now),
+  ]);
+  return { id: group.id, added: fresh, memberIds: [...current, ...fresh] };
 }
 
 // A própria pessoa sai; a dona do grupo também pode remover alguém.
@@ -271,21 +294,23 @@ export async function removeGroupMember(db, userId, id, targetId, now = Date.now
   const group = await membership(db, userId, id);
   const leaving = targetId === userId;
   if (!leaving && group.owner_id !== userId) throw new MessagesError('Só quem criou o grupo pode remover pessoas.', 'not_owner', 403);
-  const target = await db.first('SELECT 1 AS ok FROM chat_group_members WHERE group_id = ? AND user_id = ?', [group.id, targetId]);
+  const people = await groupPeople(db, group.id);
+  const target = people.find((member) => member.id === targetId);
   if (!target) throw new MessagesError('Essa pessoa não está no grupo.', 'not_member', 404);
-  const before = await groupMemberIds(db, group.id);
-  const name = await userName(db, targetId);
-  await db.run('DELETE FROM chat_group_members WHERE group_id = ? AND user_id = ?', [group.id, targetId]);
-  const remaining = before.filter((member) => member !== targetId);
+  const before = people.map((member) => member.id);
+  const remaining = people.filter((member) => member.id !== targetId);
   if (!remaining.length) {
-    await db.run('DELETE FROM chat_groups WHERE id = ?', [group.id]);
+    await db.run('DELETE FROM conversations WHERE id = ?', [group.id]);
     return { id: group.id, removed: targetId, deleted: true, memberIds: before };
   }
-  if (leaving && group.owner_id === userId) {
-    const heir = await db.first('SELECT user_id FROM chat_group_members WHERE group_id = ? ORDER BY joined_at, user_id LIMIT 1', [group.id]);
-    await db.run('UPDATE chat_groups SET owner_id = ? WHERE id = ?', [heir.user_id, group.id]);
-  }
-  await addSystemMessage(db, group.id, userId, leaving ? `${name} saiu do grupo.` : `${await userName(db, userId)} removeu ${name}.`, now);
+  const mine = people.find((member) => member.id === userId)?.name || 'Alguém';
+  // A lista vem da pessoa mais antiga à mais nova: a primeira que ficou herda o grupo.
+  const heir = [...remaining].sort((left, right) => left.joined_at.localeCompare(right.joined_at) || left.id.localeCompare(right.id))[0];
+  await db.batch([
+    ['DELETE FROM conversation_members WHERE conversation_id = ? AND user_id = ?', [group.id, targetId]],
+    ...(leaving && group.owner_id === userId ? [['UPDATE conversations SET owner_id = ? WHERE id = ?', [heir.id, group.id]]] : []),
+    systemMessage(group.id, userId, leaving ? `${target.name} saiu do grupo.` : `${mine} removeu ${target.name}.`, now),
+  ]);
   return { id: group.id, removed: targetId, deleted: false, memberIds: before };
 }
 
@@ -293,6 +318,6 @@ export async function deleteGroup(db, userId, id) {
   const group = await membership(db, userId, id);
   if (group.owner_id !== userId) throw new MessagesError('Só quem criou o grupo pode apagá-lo.', 'not_owner', 403);
   const memberIds = await groupMemberIds(db, group.id);
-  await db.run('DELETE FROM chat_groups WHERE id = ?', [group.id]);
+  await db.run('DELETE FROM conversations WHERE id = ?', [group.id]);
   return { deleted: true, memberIds };
 }
