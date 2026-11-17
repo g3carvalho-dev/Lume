@@ -10,6 +10,7 @@ import { client } from './harness.js';
 import { libraryActions } from '../../public/library-actions.js';
 import { applyCourseImport, normalizePayload } from '../../public/import-domain.js';
 import { createAppointment } from '../../public/agenda-domain.js';
+import { setPrivacy } from '../../public/settings-domain.js';
 
 const PNG = Uint8Array.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52,
@@ -79,10 +80,29 @@ export async function runContract(target, t) {
     assert.equal(page.status, 200);
     assert.match(await page.text(), /<!doctype html/i);
 
-    const current = (await owner.request('GET', '/api/library')).data;
-    const next = { ...current.state, preferences: { ...current.state.preferences, sharing: { ...current.state.preferences.sharing, public: false } } };
-    const saved = await owner.request('POST', '/api/library/actions', { body: { id: 'perfil-fechado', revision: current.revision, actions: libraryActions(current.state, next) } });
-    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    // Publicações no perfil: começam em Só amigos; com Todos, quem tem conta lê, sem reagir.
+    assert.equal((await owner.request('POST', '/api/social/posts', { body: { id: `perfil-${handle}`, body: 'Publicação no perfil' } })).status, 201);
+    assert.equal((await viewer.request('GET', `/api/profile/${ownerUser.id}/posts`)).data.hidden, true);
+    const privacy = async (id, patch) => {
+      const current = (await owner.request('GET', '/api/library')).data;
+      const next = setPrivacy(current.state, patch);
+      const saved = await owner.request('POST', '/api/library/actions', { body: { id, revision: current.revision, actions: libraryActions(current.state, next) } });
+      assert.equal(saved.status, 200, JSON.stringify(saved.data));
+      assert.deepEqual(saved.data.state.preferences.privacy, next.preferences.privacy);
+    };
+    await privacy('publicacoes-todos', { posts: 'all' });
+    const listed = await viewer.request('GET', `/api/profile/@${handle}/posts`);
+    assert.equal(listed.status, 200, JSON.stringify(listed.data));
+    assert.deepEqual(listed.data.posts.map((post) => post.body), ['Publicação no perfil']);
+    assert.equal(listed.data.readOnly, true);
+    assert.equal((await viewer.request('PUT', `/api/social/posts/perfil-${handle}/reaction`)).status, 404);
+    assert.equal((await viewer.request('PUT', `/api/social/posts/perfil-${handle}/pin`)).status, 404, 'só fixa a própria publicação');
+    assert.equal((await owner.request('PUT', `/api/social/posts/perfil-${handle}/pin`)).status, 200);
+    const pinned = await viewer.request('GET', `/api/profile/${ownerUser.id}/posts`);
+    assert.equal(pinned.data.pinned.body, 'Publicação no perfil');
+    assert.equal(pinned.data.posts.length, 0);
+
+    await privacy('perfil-fechado', { mode: 'private' });
     assert.equal((await viewer.request('GET', `/api/friends/search?handle=${handle}`)).status, 404, 'fechado não aparece na busca');
     assert.equal((await viewer.request('GET', `/api/profile/${ownerUser.id}`)).status, 403);
     assert.equal((await viewer.request('GET', `/api/profile/@${handle}`)).status, 404, 'fechado responde como inexistente pelo @usuário');

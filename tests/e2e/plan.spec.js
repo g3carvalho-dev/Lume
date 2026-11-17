@@ -120,7 +120,7 @@ test('tarefa vinculada conclui a aula uma vez; subtarefa vale 10 XP uma vez e re
   await readAccount(page);
   expect(await xp()).toBe(110);
   await page.goto('/#perfil');
-  await expect(page.locator('.profile-x-titles-row')).toContainText('Iniciante');
+  await expect(page.locator('.profile-level-role')).toContainText('Iniciante');
 });
 
 test('próximo marco do Início conta só provas e entregas', async ({ page }) => {

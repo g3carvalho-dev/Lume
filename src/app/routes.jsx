@@ -6,6 +6,7 @@ import { lazy } from 'react';
 import { LoadingScreen } from '../ui/ui.jsx';
 import { Login, Recovery } from '../features/account/Auth.jsx';
 import { Library } from '../features/library/Study.jsx';
+import { SubjectsPage } from '../features/library/Subjects.jsx';
 import { Home } from '../features/library/Today.jsx';
 import Onboarding from '../features/account/Onboarding.jsx';
 import Tasks from '../features/plan/Tasks.jsx';
@@ -24,7 +25,6 @@ const Agenda = lazy(() => import('../features/agenda/Agenda.jsx'));
 const Ranking = lazy(() => import('../features/social/Ranking.jsx'));
 const AddFriends = lazy(() => import('../features/social/AddFriends.jsx'));
 const Reports = lazy(() => import('../features/social/Reports.jsx'));
-const Subjects = lazy(() => import('../features/library/Subjects.jsx'));
 const ScheduleSession = lazy(() => import('../features/agenda/ScheduleSession.jsx'));
 const News = lazy(() => import('../features/news/News.jsx'));
 const Landing = lazy(() => import('../features/account/Landing.jsx'));
@@ -68,8 +68,9 @@ const ROUTES = [
 
   { id: 'hoje', title: 'Início', loading: 'panel', section: 'hoje', render: (ctx) => <Home state={ctx.state} open={ctx.open} go={ctx.go} planActions={ctx.model.planActions} progressActions={ctx.model.progressActions} notify={ctx.notify} account={ctx.model.account} xp={ctx.model.xp}/> },
 
-  { id: 'biblioteca', title: 'Biblioteca', loading: 'cards', section: 'biblioteca', tab: 'Materiais', hideTabs: () => true, render: (ctx) => <Library state={ctx.state} open={ctx.open} go={ctx.go} actions={ctx.model.libraryActions}/> },
-  { id: 'disciplinas', title: 'Disciplinas', loading: 'cards', section: 'biblioteca', tab: 'Disciplinas', render: (ctx) => <Subjects key={ctx.params.get('id') || 'todas'} state={ctx.state} actions={ctx.model.libraryActions} open={ctx.open} go={ctx.go} notify={ctx.notify} id={ctx.params.get('id') || ''}/> },
+  { id: 'biblioteca', title: 'Biblioteca', loading: 'cards', section: 'biblioteca', tab: 'Materiais', render: (ctx) => <Library state={ctx.state} open={ctx.open} go={ctx.go} actions={ctx.model.libraryActions}/> },
+
+  { id: 'disciplinas', title: 'Disciplinas', loading: 'cards', section: 'biblioteca', tab: 'Disciplinas', render: (ctx) => <SubjectsPage state={ctx.state} open={ctx.open}/> },
 
   { id: 'agendar', title: 'Agendar sessão', loading: 'panel', section: 'plano', hideTabs: () => true, render: (ctx) => <ScheduleSession state={ctx.state} actions={ctx.model.agendaActions} open={ctx.open} confirmSave={ctx.model.confirmSave} notify={ctx.notify} go={ctx.go}/> },
   { id: 'tarefas', title: 'Tarefas', loading: 'panel', section: 'plano', tab: 'Tarefas', tabIcon: 'check', hideTabs: () => true, render: (ctx) => <Tasks state={ctx.state} actions={ctx.model.planActions} notify={ctx.notify} onSchedule={(task) => ctx.go(`agenda?tarefa=${encodeURIComponent(task.id)}`)}/> },

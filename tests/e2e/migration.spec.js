@@ -77,9 +77,9 @@ test('prévia, dados legados, busca, filtros, teclado, curso e progresso', { tag
   expect(restored.preferences.essential).toBe(true); // Guardado como legado, sem efeito visual.
   await page.getByRole('button', { name: /^Menu da conta/ }).click();
   await page.getByRole('link', { name: 'Meu Perfil', exact: true }).click();
-  await expect(page.getByRole('tab', { name: 'Estudando', exact: true })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Atividade', exact: true })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Conquistas', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^Atividade/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^Publicações/ })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Nível', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Editar perfil' }).click();
   await page.getByLabel('Selecionar foto de perfil do computador').setInputFiles('tests/fixtures/avatar.png');
   await page.getByLabel('Selecionar imagem de capa (header) do computador').setInputFiles('tests/fixtures/header.png');

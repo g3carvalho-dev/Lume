@@ -963,29 +963,6 @@ dialog#dialog:has(.pdf-reader) > div {
 }
 
 /* --- Disciplinas --- */
-.subjects-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
-}
-.subject-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  padding: 1.25rem;
-}
-.subject-card .title {
-  margin: 0;
-}
-.subject-detail {
-  display: grid;
-  gap: 1rem;
-}
-.subject-resume, .subject-materials, .subject-settings {
-  padding: 1.25rem;
-  display: grid;
-  gap: 0.75rem;
-}
 .subject-material-list {
   list-style: none;
   margin: 0;
@@ -1013,11 +990,6 @@ dialog#dialog:has(.pdf-reader) > div {
   justify-self: start;
   color: var(--text-subtle);
   font-size: 0.85rem;
-}
-.subject-sections ul {
-  margin: 0.4rem 0 0;
-  padding-inline-start: 1.1rem;
-  color: var(--text-muted);
 }
 .subject-link {
   display: flex;
@@ -1179,24 +1151,9 @@ dialog#dialog:has(.pdf-reader) > div {
   }
 }
 
-/* Disciplinas: filete na cor escolhida e campos na largura do cartão. */
-.subject-card.card-surface {
-  border-left: 3px solid var(--subject-lume);
-}
-.subject-card.color-mint { border-left-color: var(--subject-mint); }
-.subject-card.color-violet { border-left-color: var(--subject-violet); }
-.subject-card.color-amber { border-left-color: var(--subject-amber); }
-.subject-card.color-coral { border-left-color: var(--subject-coral); }
-.subject-card.subject-new {
-  border-left-color: color-mix(in srgb, var(--surface-3) 55%, transparent);
-}
-.subject-form .field input {
-  width: 100%;
-}/* Sem disciplinas, o formulário ocupa uma coluna confortável em vez do cartão mínimo. */
-.subject-card.subject-new:only-child {
-  grid-column: 1 / -1;
-  max-width: 40rem;
-}
+
+
+
 
 /* Controle de upload no diálogo "Anexar PDF". */
 .pdf-file-picker {
@@ -1284,4 +1241,94 @@ dialog#dialog:has(.pdf-reader) > div {
     grid-column: 1 / -1;
     width: 100%;
   }
+}
+
+
+/* Aba Disciplinas: cartões clicáveis, cada um abre o painel da disciplina. */
+.subjects-root { display: grid; gap: 1.5rem; }
+.subject-group { display: grid; gap: 0.9rem; }
+.subject-group-head { display: flex; align-items: center; gap: 0.6rem; }
+.subject-group-head .title { margin: 0; }
+.subject-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.9rem;
+}
+.subject-card {
+  --chip: var(--subject-lume);
+  display: grid;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--chip);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) ease, background var(--dur-fast) ease;
+}
+.subject-card:hover { border-color: var(--border-strong); border-left-color: var(--chip); background: var(--surface-2); }
+.subject-card.color-mint { --chip: var(--subject-mint); }
+.subject-card.color-violet { --chip: var(--subject-violet); }
+.subject-card.color-amber { --chip: var(--subject-amber); }
+.subject-card.color-coral { --chip: var(--subject-coral); }
+.subject-card.is-finished { opacity: 0.85; }
+.subject-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
+.subject-card-title { min-width: 0; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.subject-card-percent { color: var(--text-subtle); font-size: 0.8rem; font-weight: 500; }
+.subject-card-top .icon { flex: none; width: 1rem; height: 1rem; color: var(--success); }
+.subject-card-meta { color: var(--text-muted); font-size: 0.85rem; }
+
+.subject-chip-dot { flex: none; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--chip, var(--subject-lume)); }
+
+/* Painel da disciplina (diálogo). */
+.subject-dialog { display: grid; gap: 1rem; }
+.subject-dialog > * { margin: 0; }
+.subject-dialog-eyebrow { display: inline-flex; align-items: center; gap: 0.45rem; }
+.subject-dialog-eyebrow.color-mint { --chip: var(--subject-mint); }
+.subject-dialog-eyebrow.color-violet { --chip: var(--subject-violet); }
+.subject-dialog-eyebrow.color-amber { --chip: var(--subject-amber); }
+.subject-dialog-eyebrow.color-coral { --chip: var(--subject-coral); }
+.subject-dialog-section { display: grid; gap: 0.75rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.subject-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.subject-dialog-head .metric-label { margin: 0; }
+.subject-material-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.9rem; }
+.subject-material-list > li { display: grid; gap: 0.35rem; }
+.subject-material-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.subject-material-head .text-button:first-child { min-width: 0; text-align: left; }
+.subject-material-list small { color: var(--text-muted); }
+.subject-material-list .text-button.subtle { color: var(--text-subtle); font-size: 0.8rem; flex: none; }
+.subject-sections ul { margin: 0.4rem 0 0; padding-inline-start: 1.1rem; color: var(--text-muted); }
+.subject-link { display: flex; gap: 0.6rem; }
+.subject-link select {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--inner);
+  color: var(--text);
+}
+.subject-dialog-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.subject-dialog-footer .field-hint { flex: 1 1 100%; margin: 0; }
+.subject-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.1rem 1.5rem;
+  align-items: end;
+}
+.subject-form-keywords, .subject-form-actions, .subject-form > .form-error { grid-column: 1 / -1; }
+.subject-form .field { display: grid; gap: 0.4rem; margin: 0; }
+.subject-form .field input { width: 100%; }
+.subject-form .field-hint { color: var(--text-subtle); font-size: 0.78rem; font-weight: 400; }
+.subject-form-color { display: grid; gap: 0.55rem; }
+@media (max-width: 640px) {
+  .subject-form { grid-template-columns: minmax(0, 1fr); }
 }

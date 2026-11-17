@@ -113,50 +113,51 @@ export default function CourseEditor({ course, actions, close, notify }) {
       <label className="field">Título
         <input value={title} maxLength={100} onChange={(event) => setTitle(event.target.value)} required/>
       </label>
-      {!imported && <label className="field">Link do material (opcional)
-        <input value={url} maxLength={2000} inputMode="url" onChange={(event) => setUrl(event.target.value)} placeholder="https://…"/>
-      </label>}
       <label className="field">Tipo de material
         <select value={type} onChange={(event) => setType(event.target.value)}>
           {STUDY_TYPES.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
         </select>
       </label>
-      {type === 'video' && <label className="field">{resumeLabel(type)}
-        <input value={position.value ?? (Number.isFinite(position.seconds) ? formatVideoTime(position.seconds) : '')} onChange={(event) => setPosition({ kind: 'video', value: event.target.value })} placeholder="Ex.: 12:30" inputMode="numeric"/>
-      </label>}
-      {type === 'article' && <div className="form-grid">
-        <label className="field">Página
-          <input value={position.page || ''} onChange={(event) => setPosition((previous) => ({ ...previous, page: event.target.value }))} placeholder="Ex.: 12" maxLength={40}/>
-        </label>
-        <label className="field">Seção
-          <input value={position.section || ''} onChange={(event) => setPosition((previous) => ({ ...previous, section: event.target.value }))} placeholder="Ex.: seção 3" maxLength={80}/>
-        </label>
-      </div>}
-      {type === 'book' && <label className="field">{resumeLabel(type)}
-        <input value={position.chapter || ''} onChange={(event) => setPosition({ chapter: event.target.value })} placeholder="Ex.: capítulo 4" maxLength={120}/>
-      </label>}
-      {type === 'exercise' && <div className="form-grid">
-        <label className="field">Exercício atual
-          <input value={position.current || ''} onChange={(event) => setPosition((previous) => ({ ...previous, current: event.target.value }))} placeholder="Ex.: questão 8" maxLength={120}/>
-        </label>
-        <label className="field">Tentativas
-          <input type="number" min="0" max="999" value={position.attempts || ''} onChange={(event) => setPosition((previous) => ({ ...previous, attempts: Number(event.target.value) || 0 }))}/>
-        </label>
-      </div>}
-      {(type === 'project' || type === 'lesson' || type === 'course') && <label className="field">{resumeLabel(type)}
-        <input value={position.next || ''} onChange={(event) => setPosition({ next: event.target.value })} placeholder={type === 'project' ? 'Ex.: implementar a autenticação' : 'Ex.: aula 3'} maxLength={120}/>
-      </label>}
-      <p className="quiet-note">A posição é declarada por você; o Lume não observa a reprodução ou a leitura de outro site.</p>
+      <details className="editor-more" open={Boolean(course.url || Object.keys(position).length)}>
+        <summary>Link e ponto de retomada</summary>
+        <div className="editor-more-body">
+          {!imported && <label className="field">Link do material (opcional)
+            <input value={url} maxLength={2000} inputMode="url" onChange={(event) => setUrl(event.target.value)} placeholder="https://…"/>
+          </label>}
+        {type === 'video' && <label className="field">{resumeLabel(type)}
+          <input value={position.value ?? (Number.isFinite(position.seconds) ? formatVideoTime(position.seconds) : '')} onChange={(event) => setPosition({ kind: 'video', value: event.target.value })} placeholder="Ex.: 12:30" inputMode="numeric"/>
+        </label>}
+        {type === 'article' && <div className="form-grid">
+          <label className="field">Página
+            <input value={position.page || ''} onChange={(event) => setPosition((previous) => ({ ...previous, page: event.target.value }))} placeholder="Ex.: 12" maxLength={40}/>
+          </label>
+          <label className="field">Seção
+            <input value={position.section || ''} onChange={(event) => setPosition((previous) => ({ ...previous, section: event.target.value }))} placeholder="Ex.: seção 3" maxLength={80}/>
+          </label>
+        </div>}
+        {type === 'book' && <label className="field">{resumeLabel(type)}
+          <input value={position.chapter || ''} onChange={(event) => setPosition({ chapter: event.target.value })} placeholder="Ex.: capítulo 4" maxLength={120}/>
+        </label>}
+        {type === 'exercise' && <div className="form-grid">
+          <label className="field">Exercício atual
+            <input value={position.current || ''} onChange={(event) => setPosition((previous) => ({ ...previous, current: event.target.value }))} placeholder="Ex.: questão 8" maxLength={120}/>
+          </label>
+          <label className="field">Tentativas
+            <input type="number" min="0" max="999" value={position.attempts || ''} onChange={(event) => setPosition((previous) => ({ ...previous, attempts: Number(event.target.value) || 0 }))}/>
+          </label>
+        </div>}
+        {(type === 'project' || type === 'lesson' || type === 'course') && <label className="field">{resumeLabel(type)}
+          <input value={position.next || ''} onChange={(event) => setPosition({ next: event.target.value })} placeholder={type === 'project' ? 'Ex.: implementar a autenticação' : 'Ex.: aula 3'} maxLength={120}/>
+        </label>}
+        </div>
+      </details>
 
       {imported
         ? <p className="inline-note"><Icon name="lock"/><span>As etapas deste curso vêm da fonte. Para mudar a grade, use <strong>Atualizar grade</strong> no detalhe do curso.</span></p>
         : <section className="course-steps-editor" aria-labelledby="steps-editor-title">
           <div className="course-steps-head">
-            <div>
-              <strong id="steps-editor-title" className="title">Etapas</strong>
-              <p className="quiet-note">Renomear mantém o progresso da mesma posição. Remover uma etapa apaga o registro dela.</p>
-            </div>
-            <Button secondary type="button" onClick={() => setSteps((previous) => [...previous, ''])} disabled={steps.length >= 40}><Icon name="plus"/>Adicionar etapa</Button>
+            <strong id="steps-editor-title" className="title">Etapas</strong>
+            <span className="metric-label mono">{steps.length}</span>
           </div>
           <ol className="course-steps-edit-list">
             {steps.map((step, index) => <li key={index} className="course-step-edit">
@@ -169,6 +170,8 @@ export default function CourseEditor({ course, actions, close, notify }) {
               </div>
             </li>)}
           </ol>
+          <button type="button" className="step-add" onClick={() => setSteps((previous) => [...previous, ''])} disabled={steps.length >= 40}><Icon name="plus"/>Adicionar etapa</button>
+          <p className="field-hint">Renomear mantém o progresso. Remover apaga o registro da etapa.</p>
         </section>}
 
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -181,14 +184,14 @@ export default function CourseEditor({ course, actions, close, notify }) {
     <section className="danger-zone" aria-labelledby="delete-course-title">
       <div>
         <strong id="delete-course-title" className="title">Excluir este material</strong>
-        <p className="muted-text">Remove o material, as etapas e o progresso registrado nele. O XP já confirmado permanece no extrato e nas conquistas.</p>
+        <p className="field-hint">{confirming ? 'Remove o material, as etapas e o progresso registrado nele. O XP já confirmado permanece no extrato e nas conquistas.' : 'Apaga etapas e progresso. O XP já ganho permanece.'}</p>
       </div>
       {confirming
         ? <div className="dialog-actions inline-actions">
           <Button className="danger-button" type="button" onClick={removeCourse}><Icon name="close"/>Sim, excluir</Button>
           <Button secondary type="button" onClick={() => setConfirming(false)}>Manter material</Button>
         </div>
-        : <Button secondary type="button" onClick={() => setConfirming(true)}><Icon name="close"/>Excluir material</Button>}
+        : <Button ghost type="button" onClick={() => setConfirming(true)}><Icon name="trash"/>Excluir material</Button>}
     </section>
   </div>;
 }

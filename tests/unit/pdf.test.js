@@ -6,13 +6,13 @@ import { sqliteAdapter, applyMigrations } from '../../api/adapters/sqlite.js';
 import { readLibrary } from '../../api/domain/library-store.js';
 import { applyLibraryActions } from '../../api/domain/library-actions.js';
 import { confirmPdfUpload, createPdfUploadUrl, discardPdf, identifyWithAI, isPdf, readPdf, removeOrphans, storageUsage, uploadPdf } from '../../api/domain/library-files.js';
-import { MAX_MARKDOWN_CACHE_CHARS, generatePdfInsights, readPdfInsights, savePdfMarkdown, streamPdfInsights } from '../../api/domain/pdf-ai.js';
+import { MAX_MARKDOWN_CACHE_CHARS, estimatePdfReading, generatePdfInsights, readPdfInsights, savePdfMarkdown, streamPdfInsights } from '../../api/domain/pdf-ai.js';
 import { getXpSnapshot, ensureXpSettings } from '../../api/domain/xp.js';
 import { libraryActions } from '../../public/library-actions.js';
 import { addCourse, completeMission, createInitialState, deleteCourse, restoreState, materialType } from '../../public/domain.js';
 import { materialSteps } from '../../public/material-model.js';
 import {
-  MAX_HIGHLIGHTS, PDF_PLANS, addHighlight, addPdfMaterial, highlightAt, identifyPage, linesFromItems, mergeRects, normalizePdfMeta,
+  MAX_HIGHLIGHTS, PDF_PLANS, addHighlight, clampAiMinutes, estimateReadingMinutes, pdfRemainingMinutes, setPdfEstimate, addPdfMaterial, highlightAt, identifyPage, linesFromItems, mergeRects, normalizePdfMeta,
   pageHeading, pageKeywords, readingLabel, recolorHighlight, removeHighlight, scoreSubjects, sectionAt, sectionsCovered, setReadingPage, suggestSubject,
 } from '../../public/pdf-domain.js';
 import { addSubject, deleteSubject, linkMaterialSubject, materialStanding, subjectOverview, updateSubject } from '../../public/subject-domain.js';
@@ -443,4 +443,70 @@ test('cache de Markdown, condensação acima do teto, geração e stream SSE de 
   assert.equal(condensed.condensed, true);
   assert.equal(condensed.markdownSource, 'pdfjs_condensed');
   assert.ok(condensed.markdownChars <= MAX_MARKDOWN_CACHE_CHARS);
+});
+
+test('estimativa de leitura do PDF: texto, IA limitada à faixa e tempo restante no lugar dos 25 min', () => {
+  assert.equal(estimateReadingMinutes({ words: 13000, pages: 40 }), 100);
+  assert.equal(estimateReadingMinutes({ pages: 40 }), 80);
+  assert.equal(clampAiMinutes(900, 100), 250);
+  assert.equal(clampAiMinutes(5, 100), 50);
+  assert.equal(clampAiMinutes('abc', 100), 0);
+
+  let state = addPdfMaterial(createInitialState(), { title: 'Apostila', file: FILE }, 'mat-est');
+  assert.equal(nextAction(state).minutes, 40, 'sem texto: 2 min por página, não 25');
+  state = setPdfEstimate(state, 'mat-est', { minutes: 100, source: 'text' });
+  assert.equal(nextAction(state).minutes, 100);
+  state = setPdfEstimate(state, 'mat-est', { minutes: 120, source: 'ai' });
+  assert.equal(setPdfEstimate(state, 'mat-est', { minutes: 60, source: 'text' }), state, 'texto não sobrescreve a IA');
+  state = setPdfEstimate(state, 'mat-est', { minutes: 120, source: 'ai' });
+  assert.equal(pdfRemainingMinutes(state.courses[0].pdf, { page: 11 }), 60);
+  assert.equal(normalizePdfMeta(state.courses[0].pdf).minutes, 120);
+  assert.equal(normalizePdfMeta({ ...FILE, minutes: -3 }).minutes, undefined);
+});
+
+test('estimatePdfReading pede à IA, limita à faixa da base e exige texto pronto', async (t) => {
+  const { db, bucket } = fixture(t);
+  await uploadPdf(db, bucket, 'u1', { fileId: FILE.fileId, name: FILE.name, bytes: PDF_BYTES });
+  const env = { LUME_AI_API_KEY: 'sk-test' };
+  await assert.rejects(estimatePdfReading(db, 'u1', FILE.fileId, { pages: 20 }, { env }), { code: 'markdown_not_ready' });
+  await savePdfMarkdown(db, 'u1', FILE.fileId, { markdown: Array(2600).fill('palavra').join(' '), source: 'pdfjs' }, { env });
+  const reply = (readingMinutes) => async () => new Response(JSON.stringify({ model: 'm', choices: [{ message: { content: JSON.stringify({ readingMinutes, reason: 'denso' }) } }] }), { status: 200 });
+  const ok = await estimatePdfReading(db, 'u1', FILE.fileId, { pages: 20 }, { env, fetchImpl: reply(30) });
+  assert.equal(ok.baseline, 20);
+  assert.equal(ok.minutes, 30);
+  const wild = await estimatePdfReading(db, 'u1', FILE.fileId, { pages: 20 }, { env, fetchImpl: reply(900) });
+  assert.equal(wild.minutes, 50);
+});
+
+test('com Gemini, a IA lê o PDF inteiro (mesmo sem texto extraído) e cai no texto se falhar', async (t) => {
+  const { db, bucket } = fixture(t);
+  await uploadPdf(db, bucket, 'u1', { fileId: FILE.fileId, name: FILE.name, bytes: PDF_BYTES });
+  const env = { LUME_AI_API_KEY: 'chave', LUME_AI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta/openai', LUME_AI_MODEL: 'gemini-teste' };
+  const calls = [];
+  const gemini = (readingMinutes) => async (url, init) => {
+    calls.push({ url, headers: init.headers, body: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ readingMinutes, reason: 'tabelas densas' }) }] } }] }), { status: 200 });
+  };
+  // Sem nenhum texto extraído (como um escaneado): o PDF vai inline ao modelo.
+  const doc = await estimatePdfReading(db, 'u1', FILE.fileId, { pages: 20 }, { env, bucket, fetchImpl: gemini(70) });
+  assert.equal(doc.via, 'document');
+  assert.equal(doc.baseline, 40);
+  assert.equal(doc.minutes, 70);
+  assert.match(calls[0].url, /generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-teste:generateContent$/);
+  assert.equal(calls[0].headers['x-goog-api-key'], 'chave');
+  assert.equal(calls[0].body.contents[0].parts[0].inlineData.mimeType, 'application/pdf');
+  assert.equal(Buffer.from(calls[0].body.contents[0].parts[0].inlineData.data, 'base64').length, PDF_BYTES.length);
+  // Número absurdo é limitado a 4× a base.
+  assert.equal((await estimatePdfReading(db, 'u1', FILE.fileId, { pages: 20 }, { env, bucket, fetchImpl: gemini(9000) })).minutes, 160);
+  // Falha do Gemini com texto disponível: usa o caminho por trechos.
+  await savePdfMarkdown(db, 'u1', FILE.fileId, { markdown: Array(2600).fill('palavra').join(' '), source: 'pdfjs' }, { env });
+  let step = 0;
+  const flaky = async (url, init) => {
+    step += 1;
+    if (step === 1) return new Response('{}', { status: 500 });
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ readingMinutes: 25, reason: 'x' }) } }] }), { status: 200 });
+  };
+  const fallback = await estimatePdfReading(db, 'u1', FILE.fileId, { pages: 20 }, { env, bucket, fetchImpl: flaky });
+  assert.equal(fallback.via, 'text');
+  assert.equal(fallback.minutes, 25);
 });

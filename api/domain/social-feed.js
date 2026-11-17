@@ -81,7 +81,8 @@ const POST_SELECT = `p.*, u.name, json_extract(d.data, '$.profile.avatar') AS av
   (SELECT COUNT(*) FROM social_comments c WHERE c.post_id = p.id) AS comments,
   a.material_title AS achievement_title, a.criterion AS achievement_criterion`;
 
-async function postView(db, row, userId) {
+// readOnly: quem não é amigo vê a publicação pelo perfil, mas não reage nem comenta.
+async function postView(db, row, userId, { readOnly = false, pinnedId = null } = {}) {
   const reactionSummary = summary(await db.all(
     'SELECT emoji, COUNT(*) AS n, SUM(user_id = ?) AS mine FROM social_reactions WHERE post_id=? GROUP BY emoji ORDER BY MIN(created_at), emoji',
     [userId, row.id]));
@@ -91,6 +92,9 @@ async function postView(db, row, userId) {
     comments: Number(row.comments), gif: row.gif_url || null,
     achievement: row.achievement_title ? { title: row.achievement_title, criterion: row.achievement_criterion } : null,
     attachment: row.attachment_key ? { name: row.attachment_name, type: row.attachment_type, size: row.attachment_size, url: `/api/social/posts/${row.id}/attachment` } : null,
+    readOnly,
+    pinned: pinnedId === row.id,
+    canPin: row.user_id === userId,
   };
 }
 
@@ -111,6 +115,76 @@ export async function listSocialPosts(db, userId, { cursor = '' } = {}) {
   for (const row of selected) posts.push(await postView(db, row, userId));
   const last = selected.at(-1);
   return { posts, nextCursor: rows.length > SOCIAL_PAGE_SIZE ? `${last.created_at}|${last.id}` : null };
+}
+
+// Publicações de uma pessoa, na aba Publicações do perfil. O alcance da seção
+// Publicações é conferido aqui (privacy-domain.js); bloqueio nega tudo. A fixada
+// vem à parte, na primeira página, e não se repete na lista.
+export async function listProfilePosts(db, viewerId, targetId, { cursor = '' } = {}) {
+  const { readProfileAccess, pinnedPostId } = await import('./friends.js');
+  const target = await db.first('SELECT id FROM users WHERE id = ?', [targetId]);
+  if (!target) throw new SocialError('Perfil não encontrado.', 'not_found', 404);
+  const { relation, sections } = await readProfileAccess(db, viewerId, targetId);
+  if (!sections.posts) return { hidden: true, posts: [], pinned: null, nextCursor: null };
+  const after = cursorOf(cursor);
+  const pinnedId = await pinnedPostId(db, targetId);
+  const options = { readOnly: relation === 'member', pinnedId };
+  const select = `SELECT ${POST_SELECT} FROM social_posts p ${AUTHOR_JOIN}
+    LEFT JOIN user_achievements a ON a.id=p.achievement_id AND a.user_id=p.user_id AND a.revoked_at IS NULL`;
+  const rows = await db.all(`${select}
+    WHERE p.ready = 1 AND p.user_id = ? ${pinnedId ? 'AND p.id != ?' : ''}
+    ${after ? 'AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))' : ''}
+    ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
+  [targetId, ...(pinnedId ? [pinnedId] : []), ...(after ? [after.at, after.at, after.id] : []), SOCIAL_PAGE_SIZE + 1]);
+  const selected = rows.slice(0, SOCIAL_PAGE_SIZE);
+  const pinnedRow = pinnedId && !after ? await db.first(`${select} WHERE p.id = ? AND p.ready = 1`, [pinnedId]) : null;
+  const all = [...selected, ...(pinnedRow ? [pinnedRow] : [])];
+  if (all.length && all.some((row) => !row.handle)) {
+    const { fillMissingHandles } = await import('./friend-requests.js');
+    const missing = [all.find((row) => !row.handle)];
+    await fillMissingHandles(db, missing, 'user_id');
+    for (const row of all) row.handle ||= missing[0].handle;
+  }
+  const posts = [];
+  for (const row of selected) posts.push(await postView(db, row, viewerId, options));
+  const last = selected.at(-1);
+  return {
+    hidden: false,
+    readOnly: options.readOnly,
+    pinned: pinnedRow ? await postView(db, pinnedRow, viewerId, options) : null,
+    posts,
+    nextCursor: rows.length > SOCIAL_PAGE_SIZE ? `${last.created_at}|${last.id}` : null,
+  };
+}
+
+// Fixar no perfil: uma publicação própria por pessoa; fixar outra troca a anterior.
+export async function pinSocialPost(db, userId, postId, pinned, now = Date.now()) {
+  const id = idOf(postId);
+  const post = await db.first('SELECT id FROM social_posts WHERE id=? AND user_id=? AND ready=1', [id, userId]);
+  if (!post) throw new SocialError('Você só pode fixar suas publicações.', 'post_not_found', 404);
+  if (pinned) {
+    await db.run(`INSERT INTO profile_pins (user_id, post_id, pinned_at) VALUES (?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET post_id = excluded.post_id, pinned_at = excluded.pinned_at`, [userId, id, new Date(now).toISOString()]);
+  } else {
+    await db.run('DELETE FROM profile_pins WHERE user_id=? AND post_id=?', [userId, id]);
+  }
+  return { pinned: pinned ? id : null };
+}
+
+// Quem pode ver uma publicação: o Feed (amizade mútua, sem bloqueio) ou o perfil
+// de quem publicou, quando a seção Publicações alcança quem pede. Vale para anexos.
+async function readablePost(db, userId, postId) {
+  const post = await db.first('SELECT * FROM social_posts WHERE id = ? AND ready = 1', [idOf(postId)]);
+  if (!post) throw new SocialError('Publicação não encontrada ou indisponível para você.', 'post_not_found', 404);
+  if (post.user_id === userId) return post;
+  const { readProfileAccess } = await import('./friends.js');
+  try {
+    const { relation, sections } = await readProfileAccess(db, userId, post.user_id);
+    if (relation === 'friend' || sections.posts) return post;
+  } catch (error) {
+    if (error?.code !== 'not_friends') throw error;
+  }
+  throw new SocialError('Publicação não encontrada ou indisponível para você.', 'post_not_found', 404);
 }
 
 export async function createSocialPost(db, bucket, userId, input = {}, file = null, now = Date.now(), config = null) {
@@ -243,12 +317,13 @@ export async function deleteSocialPost(db, bucket, userId, postId) {
     if (!bucket) throw new SocialError('Armazenamento indisponível. Tente novamente.', 'storage_unavailable', 503);
     await bucket.delete(post.attachment_key);
   }
+  await db.run('DELETE FROM profile_pins WHERE user_id=? AND post_id=?', [userId, post.id]);
   await db.run('DELETE FROM social_posts WHERE id=? AND user_id=?', [post.id, userId]);
   return { removed: true };
 }
 
 export async function readSocialAttachment(db, bucket, userId, postId) {
-  const post = await visiblePost(db, userId, postId);
+  const post = await readablePost(db, userId, postId);
   if (!post.attachment_key) throw new SocialError('Anexo não encontrado.', 'file_not_found', 404);
   const object = await bucket?.get(post.attachment_key);
   if (!object) throw new SocialError('Anexo indisponível.', 'file_not_found', 404);

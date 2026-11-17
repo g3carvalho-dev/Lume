@@ -11,7 +11,8 @@
 import { hashSessionToken } from './auth.js';
 import { AppError } from '../errors.js';
 import { createInitialState, restoreState, sanitizeProfileImage } from '../../public/domain.js';
-import { buildProfile, normalizeSharing } from '../../public/profile-domain.js';
+import { buildProfile } from '../../public/profile-domain.js';
+import { normalizePrivacy, profileAccess } from '../../public/privacy-domain.js';
 import { STALE_SESSION_MS } from '../../public/session-domain.js';
 import { PRESENCE_TTL_MS, cleanAppLabel } from '../../companion/domain.mjs';
 import { getXpSnapshot } from './xp.js';
@@ -149,15 +150,16 @@ async function resolveStudyingTopic(db, userId, activeSession, allowTopic) {
   return label && label !== 'Sessão de estudo' ? label : '';
 }
 
-async function buildFriendActivity(db, row, companion, now) {
+// O tema do estudo (disciplina ou material) só aparece para quem pode ver a Atividade.
+async function buildFriendActivity(db, row, companion, now, relation = 'friend') {
   const doc = parseJson(row.account_doc);
-  const sharing = normalizeSharing(doc?.preferences?.sharing);
+  const showTopic = profileAccess(doc?.preferences, relation).sections.activity;
   const session = doc?.activeSession;
   const sessionTick = session?.status === 'active' ? Date.parse(session.lastTickAt) : NaN;
   const sessionActive = Boolean(session?.status === 'active' && Number.isFinite(sessionTick) && now - sessionTick < STALE_SESSION_MS);
 
   if (sessionActive) {
-    const topic = await resolveStudyingTopic(db, row.id, session, sharing.library);
+    const topic = await resolveStudyingTopic(db, row.id, session, showTopic);
     return { active: true, status: 'studying', label: 'Estudando', topic };
   }
 
@@ -168,7 +170,7 @@ async function buildFriendActivity(db, row, companion, now) {
         active: true,
         status: 'studying',
         label: 'Estudando',
-        topic: sharing.library ? cleanAppLabel(companion.app) : '',
+        topic: showTopic ? cleanAppLabel(companion.app) : '',
       };
     }
     return { active: true, status: 'online', label: 'Online', topic: '' };
@@ -262,87 +264,114 @@ export function friendshipPolicy() {
   };
 }
 
-// Perfil visto por uma amizade (ou por qualquer pessoa com conta, se o perfil é
-// público e opt-in): nunca expõe o e-mail
-// e passa pelas escolhas de compartilhamento de quem é visto (buildProfile).
+// Relação de quem pede com a pessoa do perfil: 'self', 'friend', 'member' (conta
+// logada sem amizade) ou 'blocked' (bloqueio em qualquer sentido, que nega tudo).
+export async function profileRelation(db, viewerId, targetId) {
+  if (viewerId && viewerId === targetId) return 'self';
+  const [linked, blocked] = await Promise.all([
+    db.first('SELECT 1 AS ok FROM friendships WHERE user_id = ? AND friend_id = ?', [viewerId, targetId]),
+    db.first(
+      'SELECT 1 AS ok FROM contact_blocks WHERE (user_id = ? AND blocked_id = ?) OR (user_id = ? AND blocked_id = ?)',
+      [viewerId, targetId, targetId, viewerId],
+    ),
+  ]);
+  if (blocked) return 'blocked';
+  return linked ? 'friend' : 'member';
+}
+
+// Acesso de quem pede ao perfil de alguém, conferido no servidor em cada rota
+// (perfil, amigos, publicações, anexos e cartão). Perfil que não abre responde 403.
+export async function readProfileAccess(db, viewerId, targetId, preferences) {
+  const relation = await profileRelation(db, viewerId, targetId);
+  let prefs = preferences;
+  if (prefs === undefined) {
+    const doc = await db.first('SELECT data FROM account_documents WHERE user_id = ?', [targetId]);
+    prefs = parseJson(doc?.data)?.preferences;
+  }
+  const access = profileAccess(prefs, relation);
+  if (!access.open) throw new FriendsError('Este perfil é privado. Só amigos podem abri-lo.', 'not_friends', 403);
+  return { relation, ...access };
+}
+
+// Perfil visto por outra pessoa com conta: nunca expõe o e-mail e passa pelo
+// alcance de cada seção (privacy-domain.js). Seção oculta vem vazia, com o aviso
+// em `visibility`, e os contadores dela também somem.
 export async function readFriendProfile(db, viewerId, friendId) {
   if (!friendId) throw new FriendsError('Perfil não encontrado.', 'not_found', 404);
   const { readStoredLibrary } = await import('./library-store.js');
   // Cada consulta ao D1 é uma ida e volta à rede: as independentes rodam juntas.
-  const [linked, target, row, handle, validated, blockedRow, presenceRow, accountDoc, companion] = await Promise.all([
-    db.first('SELECT 1 AS linked FROM friendships WHERE user_id = ? AND friend_id = ?', [viewerId, friendId]),
+  const [target, row, handle, presenceRow, accountDoc, companion] = await Promise.all([
     db.first('SELECT id, name FROM users WHERE id = ?', [friendId]),
     readStoredLibrary(db, friendId),
     db.first('SELECT handle FROM user_handles WHERE user_id = ?', [friendId]),
-    validatedProfile(db, friendId),
-    db.first(
-      'SELECT 1 AS ok FROM contact_blocks WHERE (user_id = ? AND blocked_id = ?) OR (user_id = ? AND blocked_id = ?)',
-      [viewerId, friendId, friendId, viewerId],
-    ),
     db.first('SELECT last_seen_at FROM user_presence WHERE user_id = ?', [friendId]),
     db.first('SELECT data FROM account_documents WHERE user_id = ?', [friendId]),
     db.first('SELECT app, category, updated_at FROM companion_presence WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1', [friendId]),
   ]);
   if (!target) throw new FriendsError('Perfil não encontrado.', 'not_found', 404);
-  let state = createInitialState();
-  if (row?.state) {
-    state = row.state;
-  }
-  // Quem não é amigo só abre o perfil se a pessoa ligou "Perfil público" (opt-in);
-  // as escolhas de compartilhamento continuam valendo nos dois casos.
-  const isPublic = normalizeSharing(state.preferences?.sharing).public;
-  const blocked = !linked && blockedRow;
-  if (!linked && (!isPublic || blocked)) throw new FriendsError('Este perfil é privado. Só amigos podem abri-lo.', 'not_friends', 403);
+  const state = row?.state || createInitialState();
+  const { relation, sections } = await readProfileAccess(db, viewerId, friendId, state.preferences);
+  const validated = sections.achievements ? await validatedProfile(db, friendId) : null;
   return {
     user: { id: target.id, name: target.name, handle: handle?.handle || null },
-    viewer: linked ? 'friend' : 'public',
+    viewer: relation === 'friend' ? 'friend' : 'public',
+    relation,
     updatedAt: row?.updatedAt ?? null,
-    // Mesma regra de presença para todo perfil que abre: Estudando (com o tema, se a pessoa compartilha a biblioteca), Online ou Offline.
+    // Mesma regra de presença para todo perfil que abre: Estudando (com o tema, se quem vê pode ver a Atividade), Online ou Offline.
     presence: await buildFriendActivity(
       db,
       { id: friendId, last_seen_at: presenceRow?.last_seen_at ?? null, account_doc: accountDoc?.data ?? null },
       companion || null,
       Date.now(),
+      relation,
     ),
-    ...buildProfile(state, { validated }),
+    ...buildProfile(state, { validated, relation }),
   };
 }
 
-// Amigos de uma pessoa, vistos na aba "Amigos" do perfil. Só abre quem pode abrir o
-// perfil (a própria pessoa, amigos ou, se o perfil é público, qualquer conta) e só
-// aparecem amigos que também têm perfil público: quem fechou o perfil não é exposto.
+// Publicação fixada no perfil (uma por pessoa), se ainda existe.
+export async function pinnedPostId(db, userId) {
+  const pin = await db.first(
+    'SELECT p.post_id FROM profile_pins p JOIN social_posts s ON s.id = p.post_id AND s.user_id = p.user_id AND s.ready = 1 WHERE p.user_id = ?',
+    [userId],
+  );
+  return pin?.post_id || null;
+}
+
+// Amigos de uma pessoa, vistos no bloco Amigos do perfil. Só abre para quem pode
+// ver a seção Amigos. Cada amigo listado precisa ser alguém que quem pede poderia
+// abrir (a própria conta, amizade em comum ou perfil aberto) e sem bloqueio com
+// quem pede: quem fechou o perfil não é exposto por um amigo em comum.
 export async function listProfileFriends(db, viewerId, targetId) {
   if (!targetId) throw new FriendsError('Perfil não encontrado.', 'not_found', 404);
-  const [target, targetDoc] = await Promise.all([
-    db.first('SELECT id FROM users WHERE id = ?', [targetId]),
-    db.first('SELECT data FROM account_documents WHERE user_id = ?', [targetId]),
-  ]);
+  const target = await db.first('SELECT id FROM users WHERE id = ?', [targetId]);
   if (!target) throw new FriendsError('Perfil não encontrado.', 'not_found', 404);
-  if (targetId !== viewerId) {
-    const [linked, blocked] = await Promise.all([
-      db.first('SELECT 1 AS ok FROM friendships WHERE user_id = ? AND friend_id = ?', [viewerId, targetId]),
-      db.first(
-        'SELECT 1 AS ok FROM contact_blocks WHERE (user_id = ? AND blocked_id = ?) OR (user_id = ? AND blocked_id = ?)',
-        [viewerId, targetId, targetId, viewerId],
-      ),
-    ]);
-    const isPublic = normalizeSharing(parseJson(targetDoc?.data)?.preferences?.sharing).public;
-    if (!linked && (!isPublic || blocked)) throw new FriendsError('Este perfil é privado. Só amigos podem abri-lo.', 'not_friends', 403);
-  }
-  const rows = await db.all(
-    `SELECT u.id, u.name, uh.handle AS handle, ad.data AS account_doc
-       FROM friendships f
-       JOIN users u ON u.id = f.friend_id
-       LEFT JOIN user_handles uh ON uh.user_id = u.id
-       LEFT JOIN account_documents ad ON ad.user_id = u.id
-      WHERE f.user_id = ?
-      ORDER BY u.name COLLATE NOCASE`,
-    [targetId],
-  );
-  const visible = rows.filter((row) => normalizeSharing(parseJson(row.account_doc)?.preferences?.sharing).public);
+  const { sections } = await readProfileAccess(db, viewerId, targetId);
+  if (!sections.friends) return { hidden: true, friends: [], total: null };
+  const [rows, mine, blocks] = await Promise.all([
+    db.all(
+      `SELECT u.id, u.name, uh.handle AS handle, ad.data AS account_doc
+         FROM friendships f
+         JOIN users u ON u.id = f.friend_id
+         LEFT JOIN user_handles uh ON uh.user_id = u.id
+         LEFT JOIN account_documents ad ON ad.user_id = u.id
+        WHERE f.user_id = ?
+        ORDER BY u.name COLLATE NOCASE`,
+      [targetId],
+    ),
+    db.all('SELECT friend_id FROM friendships WHERE user_id = ?', [viewerId]),
+    db.all('SELECT user_id, blocked_id FROM contact_blocks WHERE user_id = ? OR blocked_id = ?', [viewerId, viewerId]),
+  ]);
+  const viewerFriends = new Set(mine.map((item) => item.friend_id));
+  const blocked = new Set(blocks.map((item) => (item.user_id === viewerId ? item.blocked_id : item.user_id)));
+  const visible = rows.filter((row) => !blocked.has(row.id) && (row.id === viewerId
+    || viewerFriends.has(row.id)
+    || normalizePrivacy(parseJson(row.account_doc)?.preferences).mode === 'open'));
   const { fillMissingHandles } = await import('./friend-requests.js');
   await fillMissingHandles(db, visible);
   return {
+    hidden: false,
+    total: visible.length,
     friends: visible.map((row) => ({
       id: row.id,
       name: row.name,
@@ -383,9 +412,10 @@ export async function readPersonCard(db, viewerId, targetId) {
   if (!target) throw new FriendsError('Pessoa não encontrada.', 'not_found', 404);
   const self = targetId === viewerId;
   const account = parseJson(doc?.data);
-  const sharing = normalizeSharing(account?.preferences?.sharing);
-  if (!self && !linked && (!sharing.public || blocked)) throw new FriendsError('Este perfil é privado. Só amigos podem abri-lo.', 'not_friends', 403);
-  const validated = self || sharing.xp ? await validatedProfile(db, targetId) : null;
+  const relation = self ? 'self' : blocked ? 'blocked' : linked ? 'friend' : 'member';
+  const access = profileAccess(account?.preferences, relation);
+  if (!access.open) throw new FriendsError('Este perfil é privado. Só amigos podem abri-lo.', 'not_friends', 403);
+  const validated = access.sections.achievements ? await validatedProfile(db, targetId) : null;
   let ranking = null;
   if (Number(optIn?.ranking_opt_in) === 1 && (self || linked)) {
     const { getRanking } = await import('./xp.js');

@@ -81,6 +81,12 @@ async function extractAndSaveMarkdown(file, fileId) {
   }
 }
 
+export async function estimatePdfReading(fileId, pages, signal) {
+  const result = await api(`/api/library/files/${fileId}/estimate`, { method: 'POST', body: { pages }, signal });
+  if (!result.ok) throw new Error(apiError(result));
+  return result.data;
+}
+
 export async function getPdfInsights(fileId, signal) {
   const result = await api(`/api/library/files/${fileId}/insights`, { signal });
   if (!result.ok) throw new Error(apiError(result));

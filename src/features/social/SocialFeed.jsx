@@ -40,7 +40,7 @@ function PostTime({ at }) {
   return <time dateTime={at} title={date.toLocaleString('pt-BR')}><Icon name="clock"/>{date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} · {date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</time>;
 }
 
-function Composer({ account, avatar, xp, onPosted }) {
+export function Composer({ account, avatar, xp, onPosted, note = '' }) {
   const [body, setBody] = useState('');
   const [kind, setKind] = useState('post');
   const [file, setFile] = useState(null);
@@ -299,6 +299,7 @@ function Composer({ account, avatar, xp, onPosted }) {
       </div>
       <input ref={fileInput} type="file" accept="application/pdf" className="sr-only" aria-label="Anexar PDF à publicação" onChange={choose} disabled={busyAny}/>
       <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" aria-label="Anexar foto à publicação" onChange={choose} disabled={busyAny}/>
+      {note && <p className="sf-composer-note quiet-note">{note}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
     </form>
   </section>;
@@ -451,8 +452,10 @@ function Comments({ post, me, mutatePost, refresh, go }) {
   </div>;
 }
 
-function PostCard({ post, me, mutatePost, removePost, restorePost, refresh, go, notify }) {
-  const [showComments, setShowComments] = useState(post.comments > 0);
+// No perfil, `onPin` liga a opção de fixar (só nas próprias publicações) e
+// `post.readOnly` deixa a publicação só para leitura (quem não é amigo).
+export function PostCard({ post, me, mutatePost, removePost, restorePost, refresh, go, notify, onPin = null }) {
+  const [showComments, setShowComments] = useState(post.comments > 0 && !post.readOnly);
   const [confirming, setConfirming] = useState(false);
   const [menu, setMenu] = useState(false);
   const [reporting, setReporting] = useState(false);
@@ -503,10 +506,12 @@ function PostCard({ post, me, mutatePost, removePost, restorePost, refresh, go, 
       <PersonButton person={{ ...post.author, isSelf: post.canDelete }} go={go} className="social-author" label={`Abrir cartão de ${post.author.name}`}>
         <SocialAvatar person={post.author}/><span><strong>{post.author.name}</strong><PostTime at={post.at}/></span>
       </PersonButton>
+      {post.pinned && <span className="social-post-kind is-pinned"><Icon name="pin"/>Fixada</span>}
       {post.kind !== 'post' && <span className={`social-post-kind ${post.kind === 'achievement' ? 'is-reward' : ''}`}><Icon name={icon}/>{label}</span>}
       <span className="sf-menu" ref={menuRoot}>
         <button type="button" className="icon-button" aria-label="Mais ações da publicação" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(value => !value)}><Icon name="more"/></button>
         {menu && <div className="sf-menu-list" role="menu">
+          {onPin && post.canPin && <button type="button" role="menuitem" className="sf-menu-item" onClick={() => { setMenu(false); onPin(post, !post.pinned); }}><Icon name="pin"/>{post.pinned ? 'Desafixar do perfil' : 'Fixar no perfil'}</button>}
           {post.canDelete
             ? <button type="button" role="menuitem" className="sf-menu-item is-danger" onClick={() => { setMenu(false); setConfirming(true); }}><Icon name="trash"/>Excluir publicação</button>
             : <button type="button" role="menuitem" className="sf-menu-item is-danger" onClick={() => { setMenu(false); setReporting(true); }}><Icon name="flag"/>Denunciar publicação</button>}
@@ -521,13 +526,19 @@ function PostCard({ post, me, mutatePost, removePost, restorePost, refresh, go, 
       : <div className="social-file"><span className="social-file-icon"><Icon name="file"/></span><span className="social-file-copy"><strong>{post.attachment.name}</strong><small>PDF · {formatBytes(post.attachment.size)}</small></span><div className="social-file-actions"><a className="button secondary" href={post.attachment.url} target="_blank" rel="noreferrer">Abrir</a><a className="button secondary" href={`${post.attachment.url}?download=1`} download><Icon name="download"/>Baixar</a></div></div>)}
     {post.achievement && <div className="social-achievement"><span className="social-achievement-icon"><Icon name="trophy"/></span><div><span className="metric-label">Conquista validada</span><strong>{post.achievement.title}</strong><p>{post.achievement.criterion}</p></div><Icon name="check"/></div>}
     {post.kind === 'achievement' && !post.achievement && <p className="quiet-note">Esta conquista foi corrigida e não está mais disponível.</p>}
-    <div className="sf-post-actions">
-      <Reactions summary={post.reactionSummary || []} label={`publicação de ${post.author.name}`} onToggle={react}/>
-      <button type="button" className="sf-link sf-comment-toggle" aria-expanded={showComments} onClick={() => setShowComments(value => !value)}><Icon name="message"/>Comentar<span> · {post.comments} {post.comments === 1 ? 'comentário' : 'comentários'}</span></button>
-    </div>
+    {post.readOnly
+      ? <div className="sf-post-actions is-read-only">
+        {(post.reactionSummary || []).map((item) => <span key={item.emoji} className="sf-reaction is-static" aria-label={`${item.emoji} ${item.count}`}><span aria-hidden="true">{item.emoji}</span>{item.count}</span>)}
+        <span className="sf-link"><Icon name="message"/>{post.comments} {post.comments === 1 ? 'comentário' : 'comentários'}</span>
+        <span className="quiet-note sf-read-only-note">Só amigos reagem e comentam.</span>
+      </div>
+      : <div className="sf-post-actions">
+        <Reactions summary={post.reactionSummary || []} label={`publicação de ${post.author.name}`} onToggle={react}/>
+        <button type="button" className="sf-link sf-comment-toggle" aria-expanded={showComments} onClick={() => setShowComments(value => !value)}><Icon name="message"/>Comentar<span> · {post.comments} {post.comments === 1 ? 'comentário' : 'comentários'}</span></button>
+      </div>}
     {confirming && <div className="social-delete-confirm"><p>Excluir esta publicação e seus comentários?</p><div className="action-row"><Button className="danger-button" onClick={remove}>Sim, excluir publicação</Button><Button secondary onClick={() => setConfirming(false)}>Manter publicação</Button></div></div>}
     {error && <p className="form-error" role="alert">{error}</p>}
-    {showComments && <Comments post={post} me={me} mutatePost={mutatePost} refresh={refresh} go={go}/>}
+    {showComments && !post.readOnly && <Comments post={post} me={me} mutatePost={mutatePost} refresh={refresh} go={go}/>}
   </article>;
 }
 
@@ -545,7 +556,7 @@ function FeedPage({ cursor, last, me, onMore, go, notify }) {
     {resource.loading && !resource.data && <Skeleton rows={3} label="Carregando publicações…"/>}
     {resource.error && <div className="form-error form-error-block" role="alert">{resource.error}<Button secondary onClick={resource.refresh}>Tentar novamente</Button></div>}
     {resource.data?.posts.map(post => <PostCard key={post.id} post={post} me={me} mutatePost={mutatePost} removePost={removePost} restorePost={restorePost} refresh={refresh} go={go} notify={notify}/>)}
-    {!cursor && resource.data?.posts.length === 0 && !resource.error && <section className="card-surface social-feed-empty"><span className="social-empty-icon"><Icon name="message"/></span><h2 className="title">As próximas conversas começam aqui.</h2><p>Compartilhe uma dúvida, um resumo ou uma conquista. As publicações aparecem só para você e seus amigos.</p></section>}
+    {!cursor && resource.data?.posts.length === 0 && !resource.error && <section className="card-surface social-feed-empty"><span className="social-empty-icon"><Icon name="message"/></span><h2 className="title">As próximas conversas começam aqui.</h2><p>Compartilhe uma dúvida, um resumo ou uma conquista. No Feed, as publicações aparecem só para você e seus amigos.</p></section>}
     {last && resource.data?.nextCursor && <Button secondary className="social-load-more" onClick={() => onMore(resource.data.nextCursor)}>Ver mais publicações<Icon name="chevron-down"/></Button>}
   </div>;
 }

@@ -149,6 +149,64 @@ export async function chatCompletion(options, { env = {}, fetchImpl = fetch, log
   }
 }
 
+// ---------------- Gemini nativo: o modelo lê o PDF ----------------
+// O endpoint compatível com OpenAI não é garantido para PDF; a chamada nativa
+// `generateContent` recebe o arquivo inteiro. Só vale com o provedor Gemini e
+// arquivos que cabem no pedido inline (20 MB com a base64).
+export const GEMINI_INLINE_PDF_BYTES = 14 * 1024 * 1024;
+
+export function isGeminiProvider(env = {}) {
+  const config = aiConfig(env);
+  return config.configured && /(^|\/\/)generativelanguage\.googleapis\.com/i.test(config.baseUrl);
+}
+
+function toBase64(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+export async function geminiDocumentJson({ feature, system, prompt, bytes, validate, timeoutMs = 90_000 }, { env = {}, fetchImpl = fetch, log } = {}) {
+  const config = aiConfig(env);
+  if (!isGeminiProvider(env)) throw new AIError('Leitura direta de PDF exige o provedor Gemini.', 'ai_unavailable', 503);
+  const startedAt = Date.now();
+  const { signal, didTimeout, cleanup } = linkAbortSignals(timeoutMs);
+  try {
+    const response = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}:generateContent`, {
+      method: 'POST',
+      signal,
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': config.key },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'application/pdf', data: toBase64(bytes) } }, { text: prompt }] }],
+        generationConfig: { temperature: 0, responseMimeType: 'application/json' },
+      }),
+    });
+    if (!response.ok) {
+      const err = classifyHttpError(response.status);
+      safeLog(log, { feature, model: config.model, status: err.code, httpStatus: response.status, durationMs: Date.now() - startedAt });
+      throw err;
+    }
+    const data = await response.json();
+    const text = (data?.candidates?.[0]?.content?.parts || []).map((part) => part?.text || '').join('');
+    let parsed = null;
+    try { parsed = JSON.parse(stripMarkdownJsonFence(text)); } catch { /* resposta inválida tratada abaixo */ }
+    const validated = parsed && typeof parsed === 'object' ? validate(parsed) : null;
+    if (!validated) throw new AIError('A IA devolveu uma resposta fora do formato esperado.', 'ai_invalid_response', 502);
+    safeLog(log, {
+      feature, model: config.model, status: 'ok', durationMs: Date.now() - startedAt,
+      promptTokens: data?.usageMetadata?.promptTokenCount ?? null, completionTokens: data?.usageMetadata?.candidatesTokenCount ?? null,
+    });
+    return { data: validated, model: config.model };
+  } catch (error) {
+    if (error instanceof AIError) throw error;
+    if (error?.name === 'AbortError' || didTimeout()) throw new AIError('A IA demorou mais do que o esperado para responder.', 'ai_timeout', 504);
+    throw new AIError('A IA não respondeu agora. Tente novamente em instantes.', 'ai_upstream_error', 502);
+  } finally {
+    cleanup();
+  }
+}
+
 export async function jsonCompletion(options, deps = {}) {
   const result = await chatCompletion({
     ...options,

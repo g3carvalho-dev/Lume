@@ -16,6 +16,7 @@ import { courseLessons } from './import-domain.js';
 import { materialSteps } from './material-model.js';
 import { DEFAULT_SESSION_MINUTES, studyPlan } from './study-plan.js';
 import { completedUnitIds } from './progress-domain.js';
+import { pdfRemainingMinutes } from './pdf-domain.js';
 
 export const WEEKDAYS = Object.freeze([
   { id: 1, short: 'seg', label: 'Segunda' },
@@ -159,7 +160,7 @@ function queues(state, plan, today) {
             lessonId: step.id,
             title: step.title,
             discipline: step.discipline || '',
-            minutes: known ? Math.max(1, Math.ceil(seconds / 60)) : estimate,
+            minutes: course.pdf ? pdfRemainingMinutes(course.pdf, course.reading) : known ? Math.max(1, Math.ceil(seconds / 60)) : estimate,
             durationKnown: known,
             notBefore: plan.postponed[step.id] && plan.postponed[step.id] > today ? plan.postponed[step.id] : '',
           };

@@ -41,6 +41,7 @@ test('editar material muda título, tipo, retomada e etapas sem perder o curso',
   await page.getByRole('button', { name: 'Editar material' }).click();
   await page.getByLabel('Título', { exact: true }).fill('Constitucional — revisão');
   await page.getByLabel('Tipo de material').selectOption('book');
+  await page.getByText('Link e ponto de retomada', { exact: true }).click();
   await page.getByLabel('Página, seção ou capítulo').fill('capítulo 2');
   await page.getByRole('button', { name: 'Adicionar etapa' }).click();
   await page.getByRole('textbox', { name: 'Etapa 3' }).fill('Fazer um resumo do capítulo');

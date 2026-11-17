@@ -1,6 +1,44 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-043e0d8b",
+    "at": "2026-11-16T23:32:21.000Z",
+    "title": "Disciplinas numa aba da Biblioteca",
+    "body": "Veja o que está em andamento e o que já terminou em cada disciplina, crie novas num painel simples e vincule PDFs pela aba Materiais.",
+    "href": "#disciplinas",
+    "area": "site",
+    "details": [
+      "Aba Disciplinas separada em Em andamento e Concluídas",
+      "Painel da disciplina com continuar, materiais, editar e excluir",
+      "Editor de material com etapas mais claras e campos opcionais recolhidos"
+    ]
+  },
+  {
+    "id": "news-a2a50cff",
+    "at": "2026-11-16T23:14:08.000Z",
+    "title": "Perfil em duas colunas",
+    "body": "Atividade por material, suas publicações com uma fixada no topo e privacidade por seção: escolha quem vê publicações, atividade, conquistas e amigos.",
+    "href": "#perfil",
+    "area": "site",
+    "details": [
+      "Atividade única por material, com tempo das últimas duas semanas, progresso e último passo",
+      "Novo bloco de nível com a estrela, cargo e barra de XP",
+      "Perfil aberto ou privado, e cada seção em Todos, Só amigos ou Só eu"
+    ]
+  },
+  {
+    "id": "news-40fd23c7",
+    "at": "2026-11-16T05:05:00.000Z",
+    "title": "Tempo de leitura dos PDFs",
+    "body": "O Lume estima quanto falta para terminar cada PDF, em vez de mostrar sempre 25 minutos.",
+    "href": "#biblioteca",
+    "area": "site",
+    "details": [
+      "A estimativa usa o texto do documento e, com IA, a densidade do conteúdo.",
+      "Mostra o tempo que falta, conforme a página em que você está."
+    ]
+  },
+  {
     "id": "news-02761e87",
     "at": "2026-11-16T04:41:28.000Z",
     "title": "Lume aberto em dois lugares sem travar",
@@ -195,39 +233,5 @@ export const GENERATED_NEWS = [
     "body": "Foco, Tarefas e Plano de Estudos perdem textos explicativos, e o \"Estudando\" do perfil ganha respiro ao lado do nome.",
     "href": "#foco",
     "area": "site"
-  },
-  {
-    "id": "news-a472af07",
-    "at": "2026-11-15T00:13:58.000Z",
-    "title": "Novo visual do perfil",
-    "body": "O perfil agora tem cabeçalho panorâmico com constelação, avatar sobreposto e abas diretas para estudos, atividade, conquistas e amigos.",
-    "href": "#perfil",
-    "area": "site",
-    "details": [
-      "Troca o layout antigo por uma coluna central inspirada no X dentro da identidade Norte do Lume.",
-      "Restaura os estilos do menu suspenso da conta em shell.css."
-    ]
-  },
-  {
-    "id": "news-32bd4f58",
-    "at": "2026-11-15T00:05:46.000Z",
-    "title": "Início mais limpo e aba Foco no topo",
-    "body": "A tela inicial ficou mais direta, sem botões repetidos, e a Sessão de foco agora tem aba própria na barra superior.",
-    "href": "#hoje",
-    "area": "site",
-    "details": [
-      "O cartão principal mantém apenas a próxima ação e um link discreto para trocar de material; abaixo dele ficam Para hoje e o Radar da semana com o próximo marco e seus dias de estudo."
-    ]
-  },
-  {
-    "id": "news-36e576a0",
-    "at": "2026-11-14T23:41:25.000Z",
-    "title": "Painel Ativos agora recolhível",
-    "body": "A coluna de amigos ativos no Início agora pode ser ocultada ou reaberta sem deslocar o cabeçalho nem outras telas.",
-    "href": "#hoje",
-    "area": "site",
-    "details": [
-      "Em telas largas, o painel fica fixo na borda direita em altura total fora da transição de página."
-    ]
   }
 ];
