@@ -1,7 +1,9 @@
 import { normalizeProfileCard, normalizeSoundscape } from './domain.js';
 import { normalizePrivacy } from './privacy-domain.js';
+import { endSession } from './session-domain.js';
 
 export function setPreference(state, key, value) {
+  if (key === 'watchLessons' && value === false && state.activeSession?.origin === 'watching') state = endSession(state).state;
   const normalized = key === 'soundscape'
     ? normalizeSoundscape(value, state.preferences?.soundscape || 'off')
     : key === 'textSize'

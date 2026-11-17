@@ -31,6 +31,7 @@ export function readConfig(env = {}) {
     attemptLimit: Number.isFinite(attempts) && attempts > 0 ? Math.min(Math.floor(attempts), 1000) : 10,
     bcryptRounds: bcryptRounds(pick(env, 'BCRYPT_ROUNDS')),
     creatorEmails,
+    extensionOrigins: String(env.EXTENSION_ORIGINS ?? 'chrome-extension://lcjchobdkejffabkoclbdpalbbkelcic').split(',').map(value => value.trim()),
     // Sem e-mail configurado, o link de redefinição volta na resposta, salvo
     // quando SHOW_RESET_LINK=false (produção).
     showResetLink: pick(env, 'SHOW_RESET_LINK', 'LUME_SHOW_RESET_LINK') !== 'false',

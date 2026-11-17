@@ -9,12 +9,14 @@ import { useEffect, useState } from 'react';
 const delivered = new Set();
 
 export function useExtension() {
+  const [enabled, setEnabled] = useState([]);
   const [probe, setProbe] = useState(0);
   const [result, setResult] = useState({ installed: null, version: '' });
   useEffect(() => {
     const timeout = setTimeout(() => setResult({ installed: false, version: '' }), 1000);
     function receive(event) {
       const data = event.data;
+      if (event.source === window && event.origin === location.origin && data?.source === 'lume-extension' && data.type === 'platforms' && Array.isArray(data.enabled)) setEnabled(data.enabled);
       if (event.source !== window || event.origin !== location.origin || data?.source !== 'lume-extension' || data.type !== 'hello' || typeof data.version !== 'string') return;
       clearTimeout(timeout);
       setResult({ installed: true, version: data.version });
@@ -23,7 +25,7 @@ export function useExtension() {
     window.postMessage({ source: 'lume', type: 'ping' }, location.origin);
     return () => { clearTimeout(timeout); window.removeEventListener('message', receive); };
   }, [probe]);
-  return { ...result, check() { setResult({ installed: null, version: '' }); setProbe(n => n + 1); } };
+  return { ...result, enabled, check() { setResult({ installed: null, version: '' }); setProbe(n => n + 1); } };
 }
 
 // Cada tratador devolve true (aceito), false ou um texto com o motivo da recusa.

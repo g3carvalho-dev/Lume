@@ -13,7 +13,7 @@ export const MAX_SESSION_MS = 12 * 60 * 60 * 1000;
 export const STALE_SESSION_MS = 5 * 60 * 1000;
 export const READING_IDLE_MS = 5 * 60 * 1000;
 export const MAX_STORED_SESSIONS = 200;
-const SESSION_ORIGINS = new Set(['declared', 'focus', 'reading', 'companion']);
+const SESSION_ORIGINS = new Set(['declared', 'focus', 'reading', 'watching', 'companion']);
 
 function iso(value) {
   return new Date(value).toISOString();

@@ -74,6 +74,11 @@ export function isLocalHost(url) {
   return url.hostname === 'localhost' || url.hostname === '127.0.0.1';
 }
 
+export function extensionOrigin(request, url, config) {
+  const origin = request.headers.get('Origin') || '';
+  return /^chrome-extension:\/\/[a-p]{32}$/.test(origin) && (isLocalHost(url) || config.extensionOrigins.includes(origin));
+}
+
 export function bearerToken(request) {
   const header = request.headers.get('Authorization') || '';
   return header.startsWith('Bearer ') ? header.slice(7).trim() : '';

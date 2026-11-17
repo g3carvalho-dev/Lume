@@ -68,11 +68,13 @@ export default function HeaderTimer({ state, actions, settingsActions, notify, a
 
   useEffect(() => () => audio.current?.close(), []);
 
+  const watching = active?.origin === 'watching';
   const reading = active?.origin === 'reading';
+  const countsUp = reading || watching;
   const elapsed = active ? sessionElapsed(active, now) : 0;
   const cycleMs = cycle * 60000;
   const remaining = Math.max(0, cycleMs - Math.max(0, elapsed - offset));
-  const finished = Boolean(active) && !reading && remaining === 0;
+  const finished = Boolean(active) && !countsUp && remaining === 0;
 
   useEffect(() => {
     if (!finished || chimed.current) return;
@@ -153,8 +155,8 @@ export default function HeaderTimer({ state, actions, settingsActions, notify, a
   }
 
   const status = !active ? 'idle' : active.status === 'active' ? 'running' : 'paused';
-  const digits = formatSessionDuration(reading ? elapsed : remaining);
-  const statusLabel = status === 'idle' ? 'Timer de estudo' : `${status === 'running' ? 'Timer em andamento' : 'Timer pausado'}: ${reading ? `${digits} de leitura` : `faltam ${digits} no ciclo`}`;
+  const digits = formatSessionDuration(countsUp ? elapsed : remaining);
+  const statusLabel = watching ? `${status === 'paused' ? 'Vídeo pausado' : 'Assistindo'} — ${active.label} · ${digits}` : status === 'idle' ? 'Timer de estudo' : `${status === 'running' ? 'Timer em andamento' : 'Timer pausado'}: ${reading ? `${digits} de leitura` : `faltam ${digits} no ciclo`}`;
   const onToggle = (event) => {
     setOpened(event.newState === 'open');
     if (event.newState === 'open') requestAnimationFrame(() => positionFallback?.(popoverRef.current, triggerRef.current));
@@ -185,7 +187,7 @@ export default function HeaderTimer({ state, actions, settingsActions, notify, a
       {opened && <>
       <div className="timer-popover-head">
         <span className="timer-title"><Icon name="timer"/>Timer de estudo</span>
-        <span className="timer-state">{status === 'idle' ? 'parado' : reading ? 'leitura' : status === 'paused' ? 'pausado' : finished ? 'ciclo concluído' : 'em andamento'}</span>
+        <span className="timer-state">{status === 'idle' ? 'parado' : watching ? (status === 'paused' ? 'vídeo pausado' : 'assistindo') : reading ? 'leitura' : status === 'paused' ? 'pausado' : finished ? 'ciclo concluído' : 'em andamento'}</span>
       </div>
       <strong className={`timer-digits is-${status}`} role="timer" aria-label={status === 'idle' ? `Ciclo de ${cycle} minutos` : statusLabel}>{status === 'idle' ? formatSessionDuration(cycleMs) : digits}</strong>
 
@@ -201,9 +203,9 @@ export default function HeaderTimer({ state, actions, settingsActions, notify, a
             <Icon name="chevron-down"/>
           </label>
         </div>
-        : <p className="timer-current"><Icon name={active.courseId && state.courses.find((item) => item.id === active.courseId)?.pdf ? 'file' : 'book'}/><span>{active.label || 'Sessão de estudo'}</span></p>}
+        : <p className="timer-current"><Icon name={active.courseId && state.courses.find((item) => item.id === active.courseId)?.pdf ? 'file' : 'book'}/><span>{watching ? 'Assistindo — ' : ''}{active.label || 'Sessão de estudo'}</span></p>}
 
-      {!reading && <div className="timer-field">
+      {!countsUp && <div className="timer-field">
         <span className="timer-label" id="timer-cycle-label">ciclo</span>
         <div className="timer-segment" role="group" aria-labelledby="timer-cycle-label">
           {CYCLES.map((minutes) => <button key={minutes} type="button" aria-label={`${minutes} min`} aria-pressed={!manual && cycle === minutes} onClick={() => { setManual(false); chooseCycle(minutes); }}>{minutes < 60 ? minutes : '60'}<small>min</small></button>)}
@@ -237,7 +239,7 @@ export default function HeaderTimer({ state, actions, settingsActions, notify, a
         {status === 'idle'
           ? <button type="button" className="button primary" onClick={begin}><Icon name="play"/>Iniciar</button>
           : <>
-            <button type="button" className="button secondary" onClick={togglePause}><Icon name={status === 'running' ? 'pause' : 'play'}/>{status === 'running' ? 'Pausar' : 'Retomar'}</button>
+            {!watching && <button type="button" className="button secondary" onClick={togglePause}><Icon name={status === 'running' ? 'pause' : 'play'}/>{status === 'running' ? 'Pausar' : 'Retomar'}</button>}
             <button type="button" className="button ghost" onClick={finish}><Icon name="check"/>Encerrar</button>
           </>}
       </div>

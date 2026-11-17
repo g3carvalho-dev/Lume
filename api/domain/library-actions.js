@@ -69,14 +69,14 @@ function pdfFiles(state) {
   return ids;
 }
 
-export async function applyLibraryActions(db, userId, input, { now = Date.now(), media = null } = {}) {
+export async function applyLibraryActions(db, userId, input, { now = Date.now(), media = null, extra = [] } = {}) {
   if (typeof input?.id !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(input.id)) fail('Operação sem identificador válido.');
   const duplicate = await db.first('SELECT revision FROM library_operations WHERE user_id=? AND id=?', [userId, input.id]);
   if (duplicate) {
     const current = await readLibrary(db, userId);
     return { ...current, duplicate: true };
   }
-  if (!Array.isArray(input.actions) || !input.actions.length || input.actions.length > 2000) fail('Envie de 1 a 2000 operações por vez.');
+  if (!Array.isArray(input.actions) || (!input.actions.length && !extra.length) || input.actions.length > 2000) fail('Envie de 1 a 2000 operações por vez.');
   const current = await readLibrary(db, userId);
   if (input.revision !== current.revision) throw new AppError('A biblioteca mudou. Recarregue os dados antes de repetir a ação.', 'library_conflict', 409);
   let state = structuredClone(current.state);
@@ -196,7 +196,7 @@ export async function applyLibraryActions(db, userId, input, { now = Date.now(),
   const settings = await ensureXpSettings(db, userId, { now });
   const committed = await commitLibrary(db, userId, current.state, normalized, {
     revision: current.revision, operationId: input.id, now,
-    extra: [...rewardStatements(userId, normalized, changed, settings, now), ...await timeStatements(db, userId, normalized, settings, now), ...await subtaskStatements(db, userId, current.state, normalized, settings, now), ...fileStatements],
+    extra: [...rewardStatements(userId, normalized, changed, settings, now), ...await timeStatements(db, userId, normalized, settings, now), ...await subtaskStatements(db, userId, current.state, normalized, settings, now), ...fileStatements, ...extra],
   });
   if (removed.length && !committed.duplicate) await deleteObjects(media, userId, removed);
   return readLibrary(db, userId);

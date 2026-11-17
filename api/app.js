@@ -7,6 +7,8 @@ import { AppError, errorBody } from './errors.js';
 import { json, methodNotAllowed, readBytes, readJson, readText, sameOrigin } from './http.js';
 import { createRouter } from './router.js';
 import { currentUser, tooManyAttempts } from './session.js';
+import { extensionRoutes } from './routes/extension.js';
+import { extensionOrigin } from './http.js';
 import { accountRoutes } from './routes/account.js';
 import { libraryRoutes } from './routes/library.js';
 import { mcpRoutes } from './routes/mcp.js';
@@ -20,6 +22,7 @@ import { storageRoutes } from './routes/storage.js';
 export function buildRouter() {
   const router = createRouter();
   accountRoutes(router);
+  extensionRoutes(router);
   libraryRoutes(router);
   mcpRoutes(router);
   storageRoutes(router);
@@ -57,9 +60,9 @@ export function createApp({ db, media = null, env = {}, log = defaultLog, lookup
 
     if (options.auth) {
       ctx.user = await currentUser(db, request);
-      if (!ctx.user && options.auth !== 'optional') return json({ error: options.auth }, 401);
+      if (!ctx.user && options.auth !== 'optional') return json({ error: options.auth, ...(options.authCode ? {code: options.authCode} : {}) }, 401);
     }
-    if (options.origin && !sameOrigin(request, url)) return json({ error: 'Origem não autorizada.' }, 403);
+    if (options.origin && !sameOrigin(request, url) && !(options.origin === 'extension' && extensionOrigin(request, url, config))) return json({ error: 'Origem não autorizada.' }, 403);
     if (options.rateLimit) {
       const { key, limit = config.attemptLimit, message, code } = options.rateLimit;
       if (await tooManyAttempts(db, key(ctx), limit)) return json({ error: message, ...(code ? { code } : {}) }, 429);
