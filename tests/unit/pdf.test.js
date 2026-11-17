@@ -15,7 +15,7 @@ import {
   MAX_HIGHLIGHTS, PDF_PLANS, addHighlight, clampAiMinutes, estimateReadingMinutes, pdfRemainingMinutes, setPdfEstimate, addPdfMaterial, highlightAt, identifyPage, linesFromItems, mergeRects, normalizePdfMeta,
   pageHeading, pageKeywords, readingLabel, recolorHighlight, removeHighlight, scoreSubjects, sectionAt, sectionsCovered, setReadingPage, suggestSubject,
 } from '../../public/pdf-domain.js';
-import { addSubject, deleteSubject, linkMaterialSubject, materialStanding, subjectOverview, updateSubject } from '../../public/subject-domain.js';
+import { addSubject, deleteSubject, lastReadPdfSubjectId, linkMaterialSubject, materialStanding, subjectOverview, updateSubject } from '../../public/subject-domain.js';
 import { nextAction } from '../../public/study-plan.js';
 import { completionKindForCourse } from '../../public/xp-policy.js';
 
@@ -177,6 +177,18 @@ test('disciplinas: nome único, exclusão só desfaz vínculos e visão mostra r
   assert.equal(state.courses.length, 3, 'materiais continuam na biblioteca');
   assert.ok(state.courses.every((course) => course.subjectId === ''));
   assert.equal(state.progress.length, 2, 'progresso preservado');
+});
+
+test('a disciplina do PDF lido mais recentemente inicia o carrossel', () => {
+  const state = createInitialState();
+  state.courses = [
+    { id: 'a', subjectId: 'penal', pdf: { fileId: 'a' }, reading: { page: 2, maxPage: 2, updatedAt: '2026-11-10T10:00:00Z' } },
+    { id: 'b', subjectId: 'civil', pdf: { fileId: 'b' }, reading: { page: 3, maxPage: 3, updatedAt: '2026-11-12T10:00:00Z' } },
+    { id: 'c', subjectId: 'penal', pdf: { fileId: 'c' }, reading: { page: 2, maxPage: 2, updatedAt: '2026-11-11T10:00:00Z' } },
+    { id: 'd', subjectId: 'civil', reading: null },
+  ];
+  assert.equal(lastReadPdfSubjectId(state), 'civil');
+  assert.equal(lastReadPdfSubjectId({ ...state, courses: [] }), '');
 });
 
 test('leitor inteligente: seção pelo sumário, título da página, termos e disciplina pelo texto', () => {

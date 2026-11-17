@@ -176,3 +176,18 @@ export function subjectOverview(state, subjectId) {
 export function subjectsOverview(state) {
   return (state.subjects || []).map((subject) => subjectOverview(state, subject.id));
 }
+
+// Disciplina do PDF lido mais recentemente. Usada para abrir o carrossel no
+// contexto em que a pessoa parou; PDF aberto sem avançar página não conta.
+export function lastReadPdfSubjectId(state) {
+  let latest = -Infinity;
+  let subjectId = '';
+  for (const course of state?.courses || []) {
+    if (!course?.pdf || !course.subjectId) continue;
+    const at = Date.parse(course.reading?.updatedAt || '');
+    if (!Number.isFinite(at) || at < latest) continue;
+    latest = at;
+    subjectId = course.subjectId;
+  }
+  return subjectId;
+}

@@ -25,7 +25,6 @@ const Ranking = lazy(() => import('../features/social/Ranking.jsx'));
 const AddFriends = lazy(() => import('../features/social/AddFriends.jsx'));
 const Reports = lazy(() => import('../features/social/Reports.jsx'));
 const Messages = lazy(() => import('../features/social/Messages.jsx'));
-const Subjects = lazy(() => import('../features/library/Subjects.jsx'));
 const ScheduleSession = lazy(() => import('../features/agenda/ScheduleSession.jsx'));
 const News = lazy(() => import('../features/news/News.jsx'));
 const Landing = lazy(() => import('../features/account/Landing.jsx'));
@@ -50,7 +49,7 @@ export const PUBLIC_ROUTES = new Set(['recuperar', 'redefinir', 'conheca']);
 // (Tarefas), assim como Missões e Roteiro; Meu caminho virou Conquistas. A tela
 // de Foco e a aba Agenda deixaram de existir: o timer fica no cabeçalho e as
 // aulas previstas, no Calendário.
-const ALIASES = { plano: 'tarefas', missoes: 'tarefas', roteiro: 'tarefas', historico: 'conquistas', foco: 'hoje' };
+const ALIASES = { plano: 'tarefas', missoes: 'tarefas', roteiro: 'tarefas', historico: 'conquistas', foco: 'hoje', disciplinas: 'biblioteca' };
 
 // Enquanto a sessão é verificada, o formulário não aparece: evita a impressão de estar deslogada.
 export function SessionCheck() {
@@ -69,8 +68,7 @@ const ROUTES = [
 
   { id: 'hoje', title: 'Início', loading: 'panel', section: 'hoje', render: (ctx) => <Home state={ctx.state} open={ctx.open} go={ctx.go} planActions={ctx.model.planActions} progressActions={ctx.model.progressActions} notify={ctx.notify} account={ctx.model.account} xp={ctx.model.xp}/> },
 
-  { id: 'biblioteca', title: 'Biblioteca', loading: 'cards', section: 'biblioteca', tab: 'Materiais', hideTabs: () => true, render: (ctx) => <Library state={ctx.state} open={ctx.open} go={ctx.go} actions={ctx.model.libraryActions}/> },
-  { id: 'disciplinas', title: 'Disciplinas', loading: 'cards', section: 'biblioteca', tab: 'Disciplinas', render: (ctx) => <Subjects key={ctx.params.get('id') || 'todas'} state={ctx.state} actions={ctx.model.libraryActions} open={ctx.open} go={ctx.go} notify={ctx.notify} id={ctx.params.get('id') || ''}/> },
+  { id: 'biblioteca', title: 'Biblioteca', loading: 'cards', section: 'biblioteca', tab: 'Materiais', hideTabs: () => true, render: (ctx) => <Library state={ctx.state} open={ctx.open} actions={ctx.model.libraryActions}/> },
 
   { id: 'agendar', title: 'Agendar sessão', loading: 'panel', section: 'plano', hideTabs: () => true, render: (ctx) => <ScheduleSession state={ctx.state} actions={ctx.model.agendaActions} open={ctx.open} confirmSave={ctx.model.confirmSave} notify={ctx.notify} go={ctx.go}/> },
   { id: 'tarefas', title: 'Tarefas', loading: 'panel', section: 'plano', tab: 'Tarefas', tabIcon: 'check', hideTabs: () => true, render: (ctx) => <Tasks state={ctx.state} actions={ctx.model.planActions} notify={ctx.notify} onSchedule={(task) => ctx.go(`agenda?tarefa=${encodeURIComponent(task.id)}`)}/> },

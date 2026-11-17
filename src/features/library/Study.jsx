@@ -8,7 +8,8 @@ import { slidePositionLabel, slidesSummary } from '../../../public/slides-domain
 import Icon from '../../ui/Icon.jsx';
 import { Button, Empty, Heading, Progress, ease, enter } from '../../ui/ui.jsx';
 import { isCompleted } from '../../../public/progress-domain.js';
-import { materialStanding, subjectOf, subjectsOverview } from '../../../public/subject-domain.js';
+import { lastReadPdfSubjectId, materialStanding, subjectOf, subjectsOverview } from '../../../public/subject-domain.js';
+import { SubjectCarousel } from './Subjects.jsx';
 
 const statuses = { all: 'Todos', active: 'Em andamento', new: 'Para começar', paused: 'Em pausa', completed: 'Concluídos' };
 
@@ -38,6 +39,7 @@ function AddMenu({ open }) {
     <Button aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><Icon name="plus"/>Adicionar material<Icon name="chevron" className="add-menu-caret"/></Button>
     {menuOpen && <div className="add-menu-list" role="menu">
       <button type="button" role="menuitem" className="add-menu-item" onClick={() => choose({ type: 'new' })}><Icon name="layers"/>Adicionar curso</button>
+      <button type="button" role="menuitem" className="add-menu-item" onClick={() => choose({ type: 'subject-new' })}><Icon name="school"/>Adicionar disciplina</button>
       <button type="button" role="menuitem" className="add-menu-item" onClick={() => choose({ type: 'pdf-attach' })}><Icon name="book"/>Anexar PDF</button>
       <button type="button" role="menuitem" className="add-menu-item" onClick={() => choose({ type: 'manual' })}><Icon name="edit"/>Criar manualmente</button>
     </div>}
@@ -174,7 +176,10 @@ export function Library({ state, open, actions }) {
   const trails = courses.filter((course) => !course.pdf && !done(course));
   const readings = courses.filter((course) => course.pdf && !done(course));
   const finished = courses.filter(done);
-  const subjects = subjectsOverview(state).filter((item) => item.subject && (!query || item.subject.title.toLocaleLowerCase('pt-BR').includes(query)));
+  const allSubjects = subjectsOverview(state).filter((item) => item.subject);
+  const subjects = allSubjects.filter((item) => !query || item.subject.title.toLocaleLowerCase('pt-BR').includes(query));
+  const initialSubject = Math.max(0, subjects.findIndex((item) => item.subject.id === lastReadPdfSubjectId(state)));
+  const hasContent = state.courses.length > 0 || allSubjects.length > 0;
   const filtering = Boolean(query) || filter !== 'all' || kind !== 'all' || Boolean(subjectFilter);
   // "Continuar de onde parei" segue a disciplina escolhida (regra em study-plan.js).
   const resume = resumeMaterial(state);
@@ -197,7 +202,7 @@ export function Library({ state, open, actions }) {
 
     {state.courses.length > 0 && <LibraryFilters state={state} search={search} setSearch={setSearch} kind={kind} setKind={setKind} filter={filter} setFilter={setFilter} subjectFilter={subjectFilter} setSubjectFilter={setSubjectFilter}/>}
 
-    {state.courses.length === 0
+    {!hasContent
       ? <FirstStudyArea actions={actions} open={open}/>
       : <>
       {resume?.subjectDone && <section className="library-resume" aria-labelledby="library-resume-title">
@@ -209,7 +214,7 @@ export function Library({ state, open, actions }) {
             <p className="muted-text">Todos os materiais de {resume.subjectDone.title} estão concluídos. Escolha um material de outra disciplina para continuar por ela.</p>
           </div>
           <div className="resume-actions">
-            <a className="button secondary" href={`#disciplinas?id=${encodeURIComponent(resume.subjectDone.id)}`}><Icon name="school"/>Abrir disciplina</a>
+            <Button secondary onClick={() => open({ type: 'subject', id: resume.subjectDone.id })}><Icon name="school"/>Abrir disciplina</Button>
           </div>
         </div>
       </section>}
@@ -241,17 +246,11 @@ export function Library({ state, open, actions }) {
       {filtering && <div role="status" className="search-result-count">{courses.length} {courses.length === 1 ? 'material encontrado' : 'materiais encontrados'}</div>}
 
       {subjects.length > 0 && kind === 'all' && <section className="library-section" aria-labelledby="library-subjects-title">
-        <div className="library-section-head">
+        <div className="library-section-head is-subsection">
           <span className="card-icon tone-mint"><Icon name="school"/></span>
           <div><h2 id="library-subjects-title" className="title">Disciplinas</h2><p className="card-subtitle">Materiais agrupados e por onde retomar.</p></div>
-          <a className="text-link" href="#disciplinas">Organizar</a>
         </div>
-        <div className="subject-card-grid">{subjects.map((item) => <a key={item.subject.id} className={`card-surface subject-tile color-${item.subject.color || 'lume'}`} href={`#disciplinas?id=${encodeURIComponent(item.subject.id)}`}>
-          <span className="subject-tile-meta"><span className="subject-tile-count">{item.total} {item.total === 1 ? 'material' : 'materiais'}{item.materials.some((material) => material.course.pdf) ? ` · ${item.materials.filter((material) => material.course.pdf).length} PDFs` : ''}</span><strong className="subject-tile-percent">{item.percent}%</strong></span>
-          <strong className="subject-tile-title">{item.subject.title}</strong>
-          <Progress value={item.percent} tone="mint" label={`Progresso em ${item.subject.title}`}/>
-          <span className="subject-tile-open"><Icon name="arrow"/></span>
-        </a>)}</div>
+        <SubjectCarousel overviews={subjects} open={open} initialActive={initialSubject}/>
       </section>}
 
       {trails.length > 0 && <section className="library-section" aria-labelledby="library-courses-title">
@@ -263,7 +262,7 @@ export function Library({ state, open, actions }) {
       </section>}
 
       {readings.length > 0 && <section className="library-section" aria-labelledby="library-readings-title">
-        <div className="library-section-head">
+        <div className="library-section-head is-subsection">
           <span className="card-icon"><Icon name="file"/></span>
           <div><h2 id="library-readings-title" className="title">Materiais e leituras</h2><p className="card-subtitle">PDFs anexados, com a página onde você parou.</p></div>
         </div>

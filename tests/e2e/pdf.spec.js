@@ -49,7 +49,7 @@ test('anexar PDF, vincular à disciplina, ler no leitor e retomar na página dep
   await expect(page.getByRole('dialog').getByLabel('Página atual')).toHaveValue('4');
   await page.getByRole('dialog').getByRole('button', { name: 'Voltar para a biblioteca' }).click();
 
-  await page.goto('/#disciplinas');
+  await page.goto('/#biblioteca');
   const card = page.locator('.subject-card').filter({ hasText: 'Processo Penal' });
   await expect(card.getByText(/1 material · 0 concluídos · até p\. 4 de 6/)).toBeVisible();
   await expect(card.getByRole('button', { name: /Continuar: Apostila de Processo Penal · p\. 4/ })).toBeVisible();

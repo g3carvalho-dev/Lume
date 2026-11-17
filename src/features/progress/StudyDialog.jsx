@@ -16,6 +16,7 @@ import CourseEditor, { ManualCourseForm } from '../library/CourseEditor.jsx';
 import { SlidesEditor, SlidesViewer } from '../library/Slides.jsx';
 import AttachPdf from '../library/AttachPdf.jsx';
 import PdfReader, { PdfDetails } from '../library/PdfReader.jsx';
+import { SubjectDetail, SubjectForm } from '../library/Subjects.jsx';
 import { isCompleted } from '../../../public/progress-domain.js';
 
 const ORIGIN_LABEL = { manual: 'registro manual', integration: 'integração', import: 'progresso importado da fonte' };
@@ -53,6 +54,20 @@ export default function StudyDialog({ modal, state, libraryActions, progressActi
   }
   if (modal.type === 'manual') {
     return <ManualCourseForm actions={libraryActions} close={close} notify={notify} open={open}/>;
+  }
+  if (modal.type === 'subject-new') {
+    return <div className="dialog-content subject-dialog">
+      <div className="eyebrow">Disciplinas</div>
+      <h2 id="dialog-title" className="title">Nova disciplina</h2>
+      <p className="muted-text">Agrupe PDFs e outros materiais por matéria.</p>
+      <SubjectForm actions={libraryActions} notify={notify} onDone={close} onCancel={close}/>
+    </div>;
+  }
+  if (modal.type === 'subject') {
+    return <div className="dialog-content subject-dialog subject-detail-dialog">
+      <h2 id="dialog-title" className="sr-only">Detalhes da disciplina</h2>
+      <SubjectDetail state={state} id={modal.id} actions={libraryActions} open={open} notify={notify} close={close}/>
+    </div>;
   }
 
   if (modal.type === 'success') return <div className="success-content">
