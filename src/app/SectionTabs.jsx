@@ -7,7 +7,7 @@ import Icon from '../ui/Icon.jsx';
 
 export { SECTIONS, sectionOf };
 
-export default function SectionTabs({ route, unread = 0 }) {
+export default function SectionTabs({ route }) {
   const key = sectionOf(route);
   const section = SECTIONS[key];
   const tabs = key ? tabsOf(key) : [];
@@ -23,7 +23,7 @@ export default function SectionTabs({ route, unread = 0 }) {
   if (!section || tabs.length < 2) return null;
   return <nav ref={ref} className="section-tabs" aria-label={`Seções de ${section.label}`}>
     {tabs.map(([path, label, icon]) => <a key={path} href={`#${path}`} className={`section-tab ${route === path ? 'active' : ''}`} aria-current={route === path ? 'page' : undefined}>
-      {icon && <Icon name={icon}/>}{label}{path === 'mensagens' && unread > 0 && <span className="nav-badge" aria-label={`${unread} não lidas`}>{unread > 99 ? '99+' : unread}</span>}
+      {icon && <Icon name={icon}/>}{label}
     </a>)}
   </nav>;
 }

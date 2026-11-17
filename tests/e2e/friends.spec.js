@@ -60,8 +60,10 @@ test('convite cria amizade entre duas contas sem compartilhar progresso', async 
   expect((await guestFriends.json()).friends).toHaveLength(1);
 
   // Quem convidou vê a amizade depois de recarregar.
-  await page.goto('/#mensagens');
+  await page.reload();
+  await page.getByRole('button', { name: /Abrir mensagens/ }).click();
   await expect(page.getByRole('button', { name: /Bia do teste/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Minimizar mensagens' }).first().click();
 
   // O convite conta quantas pessoas entraram (a tela não lista mais o histórico de convites).
   const own = await (await page.request.get('/api/friends', { headers: { origin: baseURL } })).json();
@@ -72,7 +74,8 @@ test('convite cria amizade entre duas contas sem compartilhar progresso', async 
   await page.goto(`/#perfil?id=${encodeURIComponent(own.friends[0].id)}`);
   await page.getByRole('button', { name: 'Desfazer amizade' }).click();
   await expect(page.getByRole('heading', { name: 'Social', exact: true })).toBeVisible();
-  await page.goto('/#mensagens');
+  await page.reload();
+  await page.getByRole('button', { name: /Abrir mensagens/ }).click();
   await expect(page.getByRole('button', { name: /Bia do teste/ })).toHaveCount(0);
   const guestAfter = await guest.get('/api/friends');
   expect((await guestAfter.json()).friends).toHaveLength(0);
@@ -114,9 +117,19 @@ test('link de convite preenche o código e a amizade não concede XP', async ({ 
   await guest.dispose();
 });
 
-test('aba Amigos: lista primeiro e Encontrar pessoas com busca e convite por link', async ({ page, context }, testInfo) => {
+test('Conexões na dock flutuante: busca por @usuário e convite por link', async ({ page, context }, testInfo) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
   await register(page, testInfo, 'friend-add', 'Pessoa simples');
+  await page.getByRole('button', { name: 'Adicionar amigo ou ver pedidos' }).first().click();
+  await expect(page.getByPlaceholder('Buscar por @usuário exato…')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Link convite' }).click();
+  await expect(page.getByText(/Link do convite copiado|Link: /)).toBeVisible();
+});
+
+test('aba Amigos: lista primeiro e Encontrar pessoas com busca e convite por link', async ({ page, context }, testInfo) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
+  await register(page, testInfo, 'friend-add-tab', 'Pessoa simples');
   await page.goto('/#adicionar');
   await expect(page.getByRole('heading', { name: 'Social', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Seus amigos' })).toBeVisible();

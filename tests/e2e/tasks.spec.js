@@ -102,3 +102,37 @@ test('subtarefas são renomeadas e reordenadas pelo teclado e arrastando, sem XP
   await page.reload();
   await expect(page.locator('.subtask-list li').first()).toContainText('Ler aula 8');
 });
+
+test('subtarefa permite criar e marcar sub-subtarefa com persistência', async ({ page }) => {
+  await seedAccount(page, { ...createInitialState(), onboarded: true, tasks: [
+    {
+      id: 'trib',
+      title: 'A2 - Tributário',
+      courseId: '',
+      dueDate: '',
+      priority: 1,
+      done: false,
+      createdAt: '2026-11-01T10:00:00.000Z',
+      completedAt: null,
+      subtasks: [{ id: 'imun', title: 'Imunidade tributária', done: false }],
+    },
+  ] });
+  await page.goto('/#tarefas');
+
+  await page.getByRole('button', { name: 'Adicionar sub-subtarefa em Imunidade tributária' }).click();
+  const childInput = page.getByLabel('Nova sub-subtarefa de Imunidade tributária');
+  await childInput.fill('Ler artigos 150 a 152');
+  await childInput.press('Enter');
+
+  await expect(page.getByText('0 de 2 subtarefas concluídas')).toBeVisible();
+  const childCheckbox = page.getByRole('checkbox', { name: 'Ler artigos 150 a 152' });
+  await expect(childCheckbox).toBeVisible();
+  await childCheckbox.check();
+  await expect(page.getByText('1 de 2 subtarefas concluídas')).toBeVisible();
+
+  await expect.poll(async () => (await readAccount(page)).tasks[0].subtasks[0].subtasks?.[0]?.done).toBe(true);
+  await page.reload();
+  await expect(page.getByText('1 de 2 subtarefas concluídas')).toBeVisible();
+  await page.getByRole('button', { name: 'Ver 1 concluída' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Ler artigos 150 a 152' })).toBeChecked();
+});

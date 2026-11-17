@@ -45,7 +45,7 @@ test('Social publica, comenta, reage e persiste; desfazer amizade revoga o feed'
     await expect(mine).toBeVisible();
     await expect(theirs.getByRole('button', { name: /^❤️ 1/ })).toHaveAttribute('aria-pressed', 'true');
     await expect(theirs.getByText('Quero revisar! Vou começar pelos exemplos do capítulo.')).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Seções de Social' }).getByRole('link', { name: 'Mensagens', exact: true })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Seções de Social' }).getByRole('link', { name: 'Amigos', exact: true })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Seções de Social' }).getByRole('link', { name: 'Ranking', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath('social.png'), fullPage: true });
@@ -56,8 +56,9 @@ test('Social publica, comenta, reage e persiste; desfazer amizade revoga o feed'
     const card = page.getByRole('dialog', { name: 'Cartão de Bia Almeida' });
     await expect(card.getByRole('button', { name: 'Ver perfil' })).toBeVisible();
     await card.getByRole('button', { name: 'Enviar mensagem' }).click();
-    await expect(page).toHaveURL((url) => url.hash === `#mensagens?com=${bia.id}`);
+    await expect(page.locator('.messages-dock-panel')).toBeVisible();
     await expect(page.getByRole('region', { name: 'Conversa selecionada' })).toBeVisible();
+    await page.getByRole('button', { name: 'Minimizar mensagens' }).first().click();
     await page.goto(`/#perfil?id=${encodeURIComponent(bia.id)}`);
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Desfazer amizade' }).click();

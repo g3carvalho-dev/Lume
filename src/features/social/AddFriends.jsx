@@ -7,6 +7,7 @@ import { invalidateResources, useResource } from '../../lib/resources.js';
 import { SocialAvatar } from './SocialFeed.jsx';
 import { PersonButton } from './PersonCard.jsx';
 import SocialFrame from './SocialFrame.jsx';
+import { openMessagesDock } from './dock-bus.js';
 
 // Aba Amigos: a lista de amigos primeiro, pedidos pendentes em destaque quando
 // existem, o convite recebido por link (#amigos?convite= ou #adicionar?convite=) e
@@ -187,7 +188,7 @@ export default function AddFriends({ account, inviteCode = '', notify, go }) {
     : friends.length === 0 ? <p className="social-sidebar-empty">Sua lista ainda está vazia. Busque alguém pelo @usuário ou envie um convite por link.</p>
       : <ul className="addfriend-list addfriend-friends">{friends.map(friend => <PersonRow key={friend.id} person={friend} go={go}
         status={<small className={`addfriend-presence is-${friend.activity?.status || 'offline'}`}>{presenceLabel(friend)}</small>}>
-        <a className="icon-button" href={`#mensagens?com=${encodeURIComponent(friend.id)}`} aria-label={`Mensagem para ${friend.name}`} title={`Mensagem para ${friend.name}`}><Icon name="message"/></a>
+        <button type="button" className="icon-button" onClick={() => openMessagesDock({ contactId: friend.id })} aria-label={`Mensagem para ${friend.name}`} title={`Mensagem para ${friend.name}`}><Icon name="message"/></button>
       </PersonRow>)}</ul>;
 
   const loadError = requests.error || friendsResource.error;

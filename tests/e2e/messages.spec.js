@@ -49,18 +49,20 @@ test('mensagem direta entre amizades, não lida, bloqueio e desbloqueio', { tag:
   });
   expect(accepted.status()).toBe(200);
 
-  // Ana abre a conversa pela lista de amigos.
-  await page.goto('/#mensagens');
+  // Ana abre a conversa pela dock flutuante.
+  await page.getByRole('button', { name: /Abrir mensagens/ }).click();
   await page.getByRole('button', { name: /Bia Mensagens/ }).click();
+  await expect(page.locator('.messages-dock-panel')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Conversa selecionada' })).toBeVisible();
   await page.getByLabel('Mensagem', { exact: true }).fill('Oi, vamos revisar constitucional?');
   await page.getByRole('button', { name: 'Enviar' }).click();
   await expect(page.getByRole('region', { name: 'Conversa selecionada' }).getByText('Oi, vamos revisar constitucional?')).toBeVisible();
 
   // Bia vê a conversa e a mensagem não lida.
-  await guestPage.goto('/#mensagens');
-  await expect(guestPage.getByText('Oi, vamos revisar constitucional?')).toBeVisible();
-  await guestPage.getByRole('button', { name: /Ana Mensagens/ }).first().click();
+  await guestPage.goto('/#hoje');
+  await guestPage.getByRole('button', { name: /Abrir mensagens/ }).click();
+  await expect(guestPage.locator('.messages-dock-panel').getByText('Oi, vamos revisar constitucional?')).toBeVisible();
+  await guestPage.locator('.messages-dock-panel').getByRole('button', { name: /Ana Mensagens/ }).first().click();
   await expect(guestPage.getByLabel('Mensagem', { exact: true })).toBeVisible();
   await expect(guestPage.getByRole('region', { name: 'Conversa selecionada' }).getByText('Oi, vamos revisar constitucional?')).toBeVisible();
   await guestPage.getByLabel('Mensagem', { exact: true }).fill('Vamos! Começo pelas questões.');
@@ -69,6 +71,8 @@ test('mensagem direta entre amizades, não lida, bloqueio e desbloqueio', { tag:
 
   // Ana recarrega e vê a resposta.
   await page.reload();
+  await page.getByRole('button', { name: /Abrir mensagens/ }).click();
+  await page.locator('.messages-dock-panel').getByRole('button', { name: /Bia Mensagens/ }).first().click();
   const thread = page.getByRole('region', { name: 'Conversa selecionada' });
   await expect(thread.getByText('Vamos! Começo pelas questões.')).toBeVisible();
 
@@ -95,13 +99,16 @@ test('mensagem direta entre amizades, não lida, bloqueio e desbloqueio', { tag:
   await expect(page.getByText('Desbloqueie para voltar a enviar mensagens.')).toBeVisible();
   await expect(page.getByLabel('Mensagem', { exact: true })).toHaveCount(0);
   await guestPage.reload();
+  await guestPage.getByRole('button', { name: /Abrir mensagens/ }).click();
+  await guestPage.locator('.messages-dock-panel').getByRole('button', { name: /Ana Mensagens/ }).first().click();
   await expect(guestPage.getByText('Esta pessoa bloqueou novas mensagens.')).toBeVisible();
   await expect(guestPage.getByLabel('Mensagem', { exact: true })).toHaveCount(0);
 
   await page.getByRole('button', { name: /^Desbloquear/ }).click();
   await expect(page.getByLabel('Mensagem', { exact: true })).toBeVisible();
   await guestPage.reload();
-  await guestPage.getByRole('button', { name: /Ana Mensagens/ }).first().click();
+  await guestPage.getByRole('button', { name: /Abrir mensagens/ }).click();
+  await guestPage.locator('.messages-dock-panel').getByRole('button', { name: /Ana Mensagens/ }).first().click();
   await expect(guestPage.getByLabel('Mensagem', { exact: true })).toBeVisible();
 
   await guestContext.close();
@@ -140,10 +147,11 @@ test('fotos de perfil na área Social e aviso flutuante de mensagem nova', async
     expect((await request.patch('/api/xp/settings', { data: { rankingOptIn: true }, headers: { origin: baseURL } })).ok()).toBe(true);
   }
 
-  // A foto da amizade aparece em Amigos, Mensagens e Ranking; sem foto, a inicial.
-  await page.goto('/#mensagens');
+  // A foto da amizade aparece na dock flutuante e no Ranking; sem foto, a inicial.
+  await page.getByRole('button', { name: /Abrir mensagens/ }).click();
   const conversation = page.getByRole('button', { name: /Bia Aviso/ });
   await expect(conversation.locator(`.conversation-avatar img[src="${avatar}"]`)).toBeVisible();
+  await page.getByRole('button', { name: 'Minimizar mensagens' }).first().click();
   await page.goto('/#ranking');
   await expect(page.locator(`.ranking-avatar img[src="${avatar}"]`)).toBeVisible();
   await expect(page.locator('.rk-row.is-self .ranking-avatar')).toHaveText('AA');
@@ -164,8 +172,7 @@ test('fotos de perfil na área Social e aviso flutuante de mensagem nova', async
   await expect(alert).toContainText('Bia Aviso');
   await expect(alert).toContainText('Bora revisar processo civil hoje à noite?');
   await expect(alert.locator(`img[src="${avatar}"]`)).toBeVisible();
-  await alert.getByRole('link', { name: /Abrir conversa com Bia Aviso/ }).click();
-  await expect(page).toHaveURL((url) => url.hash === `#mensagens?com=${bia.id}`);
+  await alert.getByRole('button', { name: /Abrir conversa com Bia Aviso/ }).click();
   await expect(alert).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Conversa selecionada' }).getByText('Bora revisar processo civil hoje à noite?')).toBeVisible();
   // Garante que a leitura da conversa zerou o contador antes da próxima chegada.
@@ -179,7 +186,8 @@ test('fotos de perfil na área Social e aviso flutuante de mensagem nova', async
   await page.waitForTimeout(300);
   await expect(alert).toHaveCount(0);
 
-  // Em outra tela o aviso volta, fecha pelo botão e some sozinho depois de alguns segundos.
+  // Com a dock minimizada em outra tela o aviso volta, fecha pelo botão e some sozinho depois de alguns segundos.
+  await page.getByRole('button', { name: 'Minimizar mensagens' }).first().click();
   await page.goto('/#biblioteca');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await send('Mandei o resumo.');
@@ -217,8 +225,9 @@ test('mensagem enviada chega à conversa aberta da outra pessoa sem recarregar',
   const accepted = await guestPage.request.post('/api/friends/accept', { data: { code }, headers: { origin: baseURL } });
   expect(accepted.status()).toBe(200);
 
-  await guestPage.goto('/#mensagens');
-  await guestPage.getByRole('button', { name: /Ana Tempo/ }).first().click();
+  await guestPage.goto('/#hoje');
+  await guestPage.getByRole('button', { name: /Abrir mensagens/ }).click();
+  await guestPage.locator('.messages-dock-panel').getByRole('button', { name: /Ana Tempo/ }).first().click();
   await expect(guestPage.getByLabel('Mensagem', { exact: true })).toBeVisible();
 
   const sent = await page.request.get('/api/friends', { headers: { origin: baseURL } });
@@ -242,17 +251,24 @@ test('conversa longa mantém a altura da tela e rola por dentro até a última m
     expect(posted.status()).toBe(201);
   }
 
-  await page.goto('/#mensagens');
-  await page.getByRole('button', { name: /Bia Rolagem/ }).first().click();
+  await page.getByRole('button', { name: /Abrir mensagens/ }).click();
+  await page.locator('.messages-dock-panel').getByRole('button', { name: /Bia Rolagem/ }).first().click();
   const list = page.getByRole('log');
   await expect(list.getByText('Mensagem número 40')).toBeVisible();
   const metrics = await page.evaluate(() => {
     const node = document.querySelector('.message-list');
-    return { overflow: node.scrollHeight > node.clientHeight + 40, atEnd: node.scrollHeight - node.scrollTop - node.clientHeight < 4, layout: document.querySelector('.mg-shell').getBoundingClientRect().height, viewport: innerHeight, page: document.scrollingElement.scrollHeight };
+    const dock = document.querySelector('.messages-dock-panel');
+    return {
+      overflow: node.scrollHeight > node.clientHeight + 40,
+      atEnd: node.scrollHeight - node.scrollTop - node.clientHeight < 4,
+      layout: document.querySelector('.mg-shell').getBoundingClientRect().height,
+      dock: dock.getBoundingClientRect().height,
+      viewport: innerHeight,
+    };
   });
   expect(metrics.overflow).toBe(true);
   expect(metrics.atEnd).toBe(true);
-  expect(metrics.layout).toBeLessThanOrEqual(Math.max(740, metrics.viewport));
-  // O corpo ocupa a altura restante da janela: a página não rola.
-  expect(metrics.page).toBeLessThanOrEqual(metrics.viewport + 1);
+  expect(metrics.layout).toBeLessThanOrEqual(metrics.dock + 1);
+  // A dock cabe na altura da janela e rola por dentro.
+  expect(metrics.dock).toBeLessThanOrEqual(metrics.viewport + 1);
 });

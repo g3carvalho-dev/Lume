@@ -2,6 +2,7 @@ import Icon from '../../ui/Icon.jsx';
 import { PersonAvatar, Skeleton } from '../../ui/ui.jsx';
 import { useResource } from '../../lib/resources.js';
 import { PersonButton } from './PersonCard.jsx';
+import { openMessagesDock } from './dock-bus.js';
 
 // Amigos ativos agora: a mesma fonte (GET /api/friends, presença calculada no
 // servidor) e a mesma peça no Início ("Ativos agora") e na lateral do Feed
@@ -35,9 +36,9 @@ export function ActiveFriendList({ account, go, friends, active, loaded, empty }
             <span className="active-status">{activity.label}</span>
           </span>
         </PersonButton>
-        <a className="active-msg" href={`#mensagens?com=${encodeURIComponent(friend.id)}`} aria-label={`Mensagem para ${friend.name}`} title={`Mensagem para ${friend.name}`}>
+        <button type="button" className="active-msg" onClick={() => openMessagesDock({ contactId: friend.id })} aria-label={`Mensagem para ${friend.name}`} title={`Mensagem para ${friend.name}`}>
           <Icon name="message"/>
-        </a>
+        </button>
       </div>
       {studying && <div className="active-card-body">
         <span className="active-tile" aria-hidden="true"><Icon name="book"/></span>

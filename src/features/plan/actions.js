@@ -19,7 +19,7 @@ export function createPlanActions(act) {
     clearTaskFocus: () => change(clearTaskFocus),
     removeTask: (id) => change(removeTask, id),
     setTaskPriority: (id, priority) => change(setTaskPriority, id, priority),
-    addSubtask: (id, title) => change(addSubtask, id, title),
+    addSubtask: (id, title, parentSubtaskId) => change(addSubtask, id, title, parentSubtaskId),
     toggleSubtask: (id, subtaskId) => change(toggleSubtask, id, subtaskId),
     renameSubtask: (id, subtaskId, title) => change(renameSubtask, id, subtaskId, title),
     moveSubtask: (id, subtaskId, index) => change(moveSubtask, id, subtaskId, index),

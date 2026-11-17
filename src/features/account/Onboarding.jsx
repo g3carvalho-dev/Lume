@@ -8,6 +8,7 @@ import Icon from '../../ui/Icon.jsx';
 import { Button, Logo, ease, stagger } from '../../ui/ui.jsx';
 import { api, apiError } from '../../lib/api.js';
 import { copyText, selectText } from '../../lib/clipboard.js';
+import { openMessagesDock } from '../social/dock-bus.js';
 
 const PHASES = [
   ['user', 'Identidade'],
@@ -604,7 +605,7 @@ export default function Onboarding({ state, actions, libraryActions, go, notify,
               <div className="card-head"><span className="pace-icon"><Icon name="mail"/></span><span className="soon-badge">Amigos</span></div>
               <strong className="title">Mensagens diretas</strong>
               <p className="muted-text">Conversas individuais entre amizades aceitas. O Lume não tem grupos, comunidades ou canais.</p>
-              <a className="text-link" href="#mensagens">Abrir mensagens<Icon name="arrow"/></a>
+              <button type="button" className="text-link" onClick={() => openMessagesDock()}>Abrir mensagens<Icon name="arrow"/></button>
             </div>
             <div className="card-surface">
               <div className="card-head"><span className="pace-icon"><Icon name="podium"/></span><span className="soon-badge">Opcional</span></div>

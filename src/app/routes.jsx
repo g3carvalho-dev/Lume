@@ -25,7 +25,6 @@ const Agenda = lazy(() => import('../features/agenda/Agenda.jsx'));
 const Ranking = lazy(() => import('../features/social/Ranking.jsx'));
 const AddFriends = lazy(() => import('../features/social/AddFriends.jsx'));
 const Reports = lazy(() => import('../features/social/Reports.jsx'));
-const Messages = lazy(() => import('../features/social/Messages.jsx'));
 const ScheduleSession = lazy(() => import('../features/agenda/ScheduleSession.jsx'));
 const News = lazy(() => import('../features/news/News.jsx'));
 const Landing = lazy(() => import('../features/account/Landing.jsx'));
@@ -78,7 +77,6 @@ const ROUTES = [
   { id: 'agenda', title: 'Calendário', section: 'plano', tab: 'Calendário', tabIcon: 'layers', hideTabs: () => true, render: (ctx) => <Agenda key={ctx.hash} state={ctx.state} actions={ctx.model.agendaActions} taskActions={ctx.model.planActions} confirmSave={ctx.model.confirmSave} retrySave={ctx.model.retrySave} saveError={ctx.model.saveError} syncStatus={ctx.model.syncStatus} params={ctx.params} notify={ctx.notify} open={ctx.open}/> },
 
   { id: 'amigos', title: 'Social', section: 'amigos', tab: 'Feed', hideTabs: () => true, render: (ctx) => <Friends account={ctx.model.account} state={ctx.state} xp={ctx.model.xp} inviteCode={ctx.params.get('convite') || ''} notify={ctx.notify} go={ctx.go}/> },
-  { id: 'mensagens', title: 'Mensagens', section: 'amigos', tab: 'Mensagens', hideTabs: () => true, render: (ctx) => <Messages account={ctx.model.account} state={ctx.state} notify={ctx.notify} go={ctx.go} contactId={ctx.params.get('com') || ''} groupId={ctx.params.get('grupo') || ''}/> },
   { id: 'ranking', title: 'Ranking', section: 'amigos', tab: 'Ranking', hideTabs: () => true, render: (ctx) => <Ranking account={ctx.model.account} xp={ctx.model.xp} refreshXP={ctx.model.refreshXP} notify={ctx.notify} go={ctx.go}/> },
   { id: 'adicionar', title: 'Amigos', section: 'amigos', tab: 'Amigos', tabIcon: 'users', hideTabs: () => true, render: (ctx) => <AddFriends account={ctx.model.account} inviteCode={ctx.params.get('convite') || ''} notify={ctx.notify} go={ctx.go}/> },
 
