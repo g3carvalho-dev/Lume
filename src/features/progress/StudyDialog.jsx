@@ -1,3 +1,7 @@
+import { courseEstimateText, courseStats } from '../../../public/course-stats-domain.js';
+import { useExtension } from '../../lib/extension.js';
+import ExtensionInvite from '../library/ExtensionInvite.jsx';
+import { providerById } from '../../../public/providers/registry.js';
 import { useState } from 'react';
 import { achievements, courseProgress, hasPreparation, materialType } from '../../../public/domain.js';
 import { materialSteps, materialLesson } from '../../../public/material-model.js';
@@ -202,6 +206,8 @@ function DeleteCourse({ course, actions, close, notify }) {
 }
 
 function ImportedSession({ course, state, actions, open, close, notify, stepId, account }) {
+  const extension = useExtension();
+  const tracking = account && state.preferences.watchLessons !== false && extension.installed && extension.enabled.includes(course.source?.provider);
   const summary = courseSummary(state, course);
   const step = materialSteps(course).find((item) => item.id === stepId) || summary.next || summary.resume;
   if (!step) return <div className="dialog-content"><h2 id="dialog-title" className="title">Todas as aulas selecionadas foram concluídas.</h2><p className="muted-text">Isso vale para as áreas que você escolheu, não necessariamente para o curso inteiro.</p><Button onClick={close}>Voltar</Button></div>;
@@ -210,6 +216,7 @@ function ImportedSession({ course, state, actions, open, close, notify, stepId, 
   const origin = lessonOrigin(state, step.id);
   const link = lesson?.url || course.url;
   const upcoming = done ? null : nextLessonAfter(state, course, step.id);
+  const watching = state.activeSession?.origin === 'watching' && state.activeSession.courseId === course.id && state.activeSession.stepId === step.id;
   const xpNote = account ? 'O XP é confirmado pelo servidor.' : 'Na prévia, o XP não é validado.';
   function finish() {
     const now = new Date().toISOString();
@@ -240,9 +247,11 @@ function ImportedSession({ course, state, actions, open, close, notify, stepId, 
     <h2 id="dialog-title" className="headline">{step.title}</h2>
     <p className="session-course">{course.title}</p>
     {lesson?.duration ? <p className="quiet-note"><Icon name="clock"/>Duração informada pela fonte: {formatDuration(lesson.duration)}</p> : null}
-    <p className="dialog-text">Abra a aula na plataforma. Ao terminar, registre a conclusão aqui — o Lume não observa o vídeo em outra aba.</p>
+    {watching ? <p className="inline-note"><Icon name="clock"/>{state.activeSession.status === 'active' ? 'Assistindo' : 'Vídeo pausado'} · Aula {materialSteps(course).findIndex(item => item.id === step.id) + 1} de {summary.total}</p>
+      : <p className="dialog-text">{tracking ? 'No selo da aula, escolha “Assistir sobre o Lume” para trazer o vídeo em uma janela flutuante. O timer acompanha a reprodução.' : 'Abra a aula na plataforma. Ao terminar, registre a conclusão aqui.'}</p>}
+    {!extension.installed && <ExtensionInvite provider={providerById(course.source?.provider)}/>}
     {link ? <a href={link} className="button secondary full-width" target="_blank" rel="noopener noreferrer">Abrir aula na plataforma<Icon name="external"/></a> : <p className="inline-note"><Icon name="book"/><span>A fonte não publicou um link direto para esta aula. Use o link do curso.</span></p>}
-    <p className="inline-note"><Icon name="shield"/><span>Origem do registro: {origin ? ORIGIN_LABEL[origin] : 'ainda não concluída'} · nenhuma integração de progresso ativa.</span></p>
+    <p className="inline-note"><Icon name="shield"/><span>Origem do registro: {origin ? ORIGIN_LABEL[origin] : 'ainda não concluída'} · {tracking ? 'acompanhamento pela extensão autorizado' : 'nenhuma integração de progresso ativa'}.</span></p>
     <div className="session-actions">
       {done
         ? <p className="completed-message"><Icon name="check"/>Já registrada como concluída.</p>
@@ -290,6 +299,7 @@ function BatchCompletion({ course, state, actions, notify }) {
 
 function ImportedCourse({ course, state, actions, progressActions, open, close, notify }) {
   const summary = courseSummary(state, course);
+  const stats = courseStats(state, course.id);
   const [edition, setEdition] = useState(course.edital?.edition || '');
   const [phase, setPhase] = useState(course.edital?.phase || '');
   const [coverage, setCoverage] = useState(null);
@@ -344,6 +354,9 @@ function ImportedCourse({ course, state, actions, progressActions, open, close, 
     <section className="import-progress">
       <div className="course-progress-label"><span>{summary.done} de {summary.total} aulas selecionadas</span><strong>{summary.percent}%</strong></div>
       <Progress value={summary.percent} tone="lume" label={`Progresso nas áreas escolhidas de ${course.title}`}/>
+      <p>{courseEstimateText(stats)}</p>
+      <p className="quiet-note">{stats.modules.completed}/{stats.modules.total} módulos · {stats.disciplines.completed}/{stats.disciplines.total} disciplinas concluídas</p>
+      {state.activeSession?.origin === 'watching' && state.activeSession.courseId === course.id && <p className="inline-note">{state.activeSession.status === 'active' ? 'Assistindo' : 'Vídeo pausado'} · {state.activeSession.label}</p>}
       <p className="quiet-note">{summary.partial ? 'Progresso calculado só sobre as áreas e aulas conhecidas. Isso não representa a conclusão do curso inteiro.' : 'Progresso calculado sobre as aulas selecionadas. Conclusão do curso inteiro exige todas as unidades obrigatórias da fonte.'}</p>
       {summary.removedFromSource && <p className="inline-note"><Icon name="help"/><span>Algumas aulas não aparecem mais na fonte. Elas continuam aqui para preservar seu histórico.</span></p>}
       {summary.importedDone > 0 && <p className="inline-note"><Icon name="check"/><span>{summary.importedDone} {summary.importedDone === 1 ? 'aula veio marcada como concluída' : 'aulas vieram marcadas como concluídas'} na página importada. Esse histórico não concede XP; as próximas conclusões manuais são elegíveis.</span></p>}
