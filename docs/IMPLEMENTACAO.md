@@ -80,7 +80,7 @@ A suíte de domínio e contratos passou em Node e workerd locais. Os testes da e
 1. **Gestão completa da conta e privacidade (LGPD):**
    - Alteração de senha e de e-mail com a sessão aberta (encerrando outras sessões ativas).
    - Listagem e revogação remota de sessões ativas.
-   - Página de Termos de Uso, Política de Privacidade geral e botão de exclusão definitiva da conta (apagando ou anonimizando dados, mensagens, amizades e arquivos R2).
+   - Página de Termos de Uso e botão de exclusão definitiva da conta (apagando ou anonimizando dados, mensagens, amizades e arquivos R2). A política geral está em `public/privacidade.html` e orienta pedidos de exclusão por e-mail.
 2. **Extensão do navegador em plataformas adicionais e cursos grandes:**
    - Testar a extensão MV3 carregada no Chrome real com contas reais além do Gran (Estratégia, Alura, Coursera, Rocketseat, DIO, Hotmart) e criar leitores dedicados conforme necessário.
    - Ampliar ou paginar o limite atual de 600 unidades por operação na importação para suportar cursos preparatórios extensos.
