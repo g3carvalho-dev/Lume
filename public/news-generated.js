@@ -1,6 +1,30 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-e14b8360",
+    "at": "2026-11-17T02:25:00.000Z",
+    "title": "Conversas com histórico completo",
+    "body": "As mensagens antigas voltam a aparecer: use \"Carregar mensagens anteriores\" no topo da conversa. Mensagens, reações e leituras também chegam mais rápido.",
+    "href": "#amigos",
+    "area": "site",
+    "details": [
+      "Reenviar uma mensagem após falha de rede não a duplica mais.",
+      "Reações em grupos aparecem para todos na hora."
+    ]
+  },
+  {
+    "id": "news-df4c2ea6",
+    "at": "2026-11-17T02:24:57.000Z",
+    "title": "Amigos dentro de Mensagens",
+    "body": "Buscar pessoas, aceitar pedidos e enviar convites agora ficam nas conexões de Mensagens. A aba Amigos saiu do Social.",
+    "href": "#amigos",
+    "area": "site",
+    "details": [
+      "O link de convite abre as conexões com o código já preenchido.",
+      "O nível aparece no cartão da conta, sob o seu nome."
+    ]
+  },
+  {
     "id": "news-05d8d7b7",
     "at": "2026-11-17T01:58:18.000Z",
     "title": "Texto do PDF pronto ao anexar",
@@ -223,19 +247,6 @@ export const GENERATED_NEWS = [
     "area": "site",
     "details": [
       "Imagens só são trocadas quando a redução é de pelo menos 10% e 8 KB; GIFs são preservados."
-    ]
-  },
-  {
-    "id": "news-e7df12fe",
-    "at": "2026-11-15T04:03:35.000Z",
-    "title": "Lume no celular",
-    "body": "O leitor de PDF, os diálogos e as telas foram ajustados para caber e ficar confortáveis no celular.",
-    "href": "#biblioteca",
-    "area": "site",
-    "details": [
-      "O leitor de PDF ocupa a tela inteira, com a barra em duas linhas e a página na largura do celular; sumário e painel abrem por cima da leitura.",
-      "Janelas como Anexar PDF e Adicionar curso sobem do rodapé da tela, ao alcance do polegar.",
-      "Abas e filtros rolam de lado, e nenhuma tela passa mais da largura do celular."
     ]
   }
 ];
