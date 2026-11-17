@@ -78,12 +78,12 @@ export default function StudyDialog({ modal, state, libraryActions, progressActi
   if (modal.type === 'delete') return <DeleteCourse course={course} actions={libraryActions} close={close} notify={notify}/>;
   if (modal.type === 'edit') return <CourseEditor course={course} actions={libraryActions} close={close} notify={notify}/>;
   if (course.pdf && ['pdf', 'session'].includes(modal.type)) return <PdfReader course={course} state={state} actions={libraryActions} progressActions={progressActions} notify={notify} open={open} close={close} account={account}/>;
-  if (course.pdf && modal.type === 'course') return <PdfDetails course={course} state={state} actions={libraryActions} open={open} close={close}/>;
+  if (course.pdf && modal.type === 'course') return <PdfDetails course={course} state={state} actions={libraryActions} open={open}/>;
   if (modal.type === 'slides') return <SlidesViewer course={course} state={state} actions={libraryActions} progressActions={progressActions} close={close} notify={notify} account={account}/>;
 
   if (isImportedCourse(course)) {
     if (modal.type === 'session') return <ImportedSession course={course} state={state} actions={progressActions} open={open} close={close} notify={notify} stepId={modal.stepId} account={account}/>;
-    return <ImportedCourse course={course} state={state} actions={libraryActions} progressActions={progressActions} open={open} close={close} notify={notify}/>;
+    return <ImportedCourse course={course} state={state} actions={libraryActions} progressActions={progressActions} open={open} notify={notify}/>;
   }
 
   const action = nextAction({ ...state, courses: [course] });
@@ -297,7 +297,7 @@ function BatchCompletion({ course, state, actions, notify }) {
   </details>;
 }
 
-function ImportedCourse({ course, state, actions, progressActions, open, close, notify }) {
+function ImportedCourse({ course, state, actions, progressActions, open, notify }) {
   const summary = courseSummary(state, course);
   const [edition, setEdition] = useState(course.edital?.edition || '');
   const [phase, setPhase] = useState(course.edital?.phase || '');
@@ -336,15 +336,9 @@ function ImportedCourse({ course, state, actions, progressActions, open, close, 
   const nextLesson = summary.next ? materialLesson(course, summary.next.id) : null;
   const deck = slidesSummary(course);
 
-  return <div className="dialog-content imported-course">
+  return <div className="dialog-content imported-course course-sheet">
     <span className="eyebrow">{sourceLabel(course.source)}{course.source?.demo ? ' · demonstração' : ''}</span>
     <h2 id="dialog-title" className="headline">{course.title}</h2>
-    <div className="dialog-actions inline-actions">
-      <Button secondary onClick={() => open({ type: 'edit', id: course.id })}><Icon name="edit"/>Editar material</Button>
-      {deck.total > 0
-        ? <Button secondary onClick={() => open({ type: 'slides', id: course.id })}><Icon name="book"/>Abrir apresentação ({deck.total})</Button>
-        : <Button secondary onClick={() => open({ type: 'edit', id: course.id })}><Icon name="plus"/>Adicionar slides</Button>}
-    </div>
     <div className="import-badges">
       <span className={`import-badge ${summary.partial ? 'tone-warn' : 'tone-mint'}`}><Icon name={summary.partial ? 'help' : 'check'}/>{summary.partial ? 'Grade parcial' : 'Grade publicada pela fonte'}</span>
       <span className="import-badge neutral"><Icon name="book"/>{summary.disciplines.length} {summary.disciplines.length === 1 ? 'área' : 'áreas'} · {summary.total} aulas</span>
@@ -412,10 +406,13 @@ function ImportedCourse({ course, state, actions, progressActions, open, close, 
         : <p className="inline-note"><Icon name="help"/><span>{coverage.message}</span></p>)}
     </section>}
 
-    <div className="dialog-actions">
-      <Button secondary onClick={() => open({ type: 'import', id: course.id })}><Icon name="return"/>Atualizar grade</Button>
+    <footer className="course-sheet-foot">
+      <div className="course-sheet-tools">
+        <button type="button" className="text-button" onClick={() => open({ type: 'edit', id: course.id })}><Icon name="edit"/>Editar material</button>
+        <button type="button" className="text-button" onClick={() => open({ type: 'import', id: course.id })}><Icon name="return"/>Atualizar grade</button>
+        {deck.total > 0 && <button type="button" className="text-button" onClick={() => open({ type: 'slides', id: course.id })}><Icon name="book"/>Abrir apresentação ({deck.total})</button>}
+      </div>
       {nextStep && <Button onClick={() => open({ type: 'session', id: course.id, stepId: nextStep.id })}>Continuar<Icon name="arrow"/></Button>}
-      <button className="text-button centered" onClick={close}>Fechar</button>
-    </div>
+    </footer>
   </div>;
 }

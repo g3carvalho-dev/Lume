@@ -149,23 +149,30 @@ function SubjectSelect({ state, course, actions, label = 'Disciplina' }) {
 }
 
 // Detalhe do PDF na biblioteca: dados do arquivo, disciplina e retomada.
-export function PdfDetails({ course, state, actions, open, close }) {
+export function PdfDetails({ course, state, actions, open }) {
   const standing = materialStanding(state, course);
   const subject = subjectOf(state, course);
-  return <div className="dialog-content">
-    <div className="eyebrow">PDF{subject ? ` · ${subject.title}` : ''}</div>
-    <h2 id="dialog-title" className="headline">{course.title}</h2>
-    <p className="muted-text">{course.pdf.name} · {course.pdf.pages} páginas · {formatBytes(course.pdf.size)}</p>
-    {course.reading && <p className="resume-pill"><Icon name="return"/>Parou em: {readingLabel(course.reading, course.pdf.pages)}</p>}
-    <Progress value={standing.percent} tone={standing.done ? 'mint' : 'lume'} label={`Avanço em ${course.title}`}/>
-    <p className="quiet-note">{standing.done ? 'Leitura concluída.' : `Página mais adiante aberta: ${standing.reached || 0} de ${course.pdf.pages}. Abrir páginas não é prova de leitura nem gera XP.`}</p>
+  // Mesmo desenho do diálogo de curso: ferramentas discretas à esquerda do rodapé
+  // e uma só ação principal à direita.
+  return <div className="dialog-content course-sheet">
+    <header className="course-sheet-head">
+      <div className="eyebrow">PDF{subject ? ` · ${subject.title}` : ''}{course.paused && !standing.done ? ' · pausado' : ''}</div>
+      <h2 id="dialog-title" className="headline">{course.title}</h2>
+      <p className="muted-text">{course.pdf.name} · {course.pdf.pages} páginas · {formatBytes(course.pdf.size)}</p>
+      <div className="course-sheet-progress">
+        <Progress value={standing.percent} tone={standing.done ? 'mint' : 'lume'} label={`Avanço em ${course.title}`}/>
+        <span className="mono">{standing.done ? 'Leitura concluída' : `Página mais adiante aberta: ${standing.reached || 0} de ${course.pdf.pages}`}</span>
+      </div>
+      {course.reading && <p className="resume-pill"><Icon name="return"/>Parou em: {readingLabel(course.reading, course.pdf.pages)}</p>}
+    </header>
     <SubjectSelect state={state} course={course} actions={actions}/>
-    <div className="dialog-actions">
+    <footer className="course-sheet-foot">
+      <div className="course-sheet-tools">
+        {!standing.done && <button type="button" className="text-button" onClick={() => actions.togglePause(course.id)}><Icon name={course.paused ? 'play' : 'pause'}/>{course.paused ? 'Retomar' : 'Pausar'}</button>}
+        <button type="button" className="text-button danger" onClick={() => open({ type: 'delete', id: course.id })}><Icon name="trash"/>Excluir PDF</button>
+      </div>
       <Button onClick={() => open({ type: 'pdf', id: course.id })}><Icon name="book"/>{course.reading ? `Continuar na p. ${course.reading.page}` : 'Abrir no leitor'}</Button>
-      {!standing.done && <Button secondary onClick={() => actions.togglePause(course.id)}><Icon name={course.paused ? 'play' : 'pause'}/>{course.paused ? 'Retomar' : 'Pausar'}</Button>}
-      <Button ghost onClick={() => open({ type: 'delete', id: course.id })}><Icon name="trash"/>Excluir PDF</Button>
-      <Button ghost onClick={close}>Fechar</Button>
-    </div>
+    </footer>
   </div>;
 }
 

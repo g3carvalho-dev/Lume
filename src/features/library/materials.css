@@ -264,13 +264,14 @@
 .editor-more[open] > summary { color: var(--text); }
 .editor-more-body { display: grid; gap: 1rem; padding: 0.2rem 0.9rem 1rem; }
 
-/* Diálogo do material (curso manual): cabeçalho com progresso, etapas e um
-   rodapé fixo com as ferramentas à esquerda e a única ação principal à direita. */
+/* Diálogo do material (curso manual, importado e PDF): cabeçalho com progresso,
+   conteúdo e um rodapé fixo com as ferramentas à esquerda e a única ação principal à direita. */
 .course-sheet-head {
   display: grid;
   gap: 0.55rem;
 }
-.course-sheet-head .headline {
+.course-sheet-head .headline,
+.course-sheet-head .muted-text {
   margin: 0;
 }
 .course-sheet-progress {
