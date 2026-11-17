@@ -14,9 +14,9 @@ Esses documentos descrevem o estado atual e as regras vigentes do Lume. Prevalê
 Windows com ExecutionPolicy restrita: `npm.ps1`/`npx.ps1` falham; use `npm.cmd`/`npx.cmd` ou `node` direto.
 
 ```sh
-npm run dev          # Astro em 4321 + API Node em 4173; LUME_API_PORT troca a API e o proxy acompanha
-npm start            # build + serve dist/ em 4173 (PORT ajusta)
-npm run preview      # só serve o dist/ existente
+npm run dev          # HMR: abra o site em 4321; API Node em 4173; LUME_API_PORT troca a API e o proxy acompanha
+npm start            # build + serve dist/ em 4173 (PORT ajusta); sem HMR
+npm run preview      # só serve o dist/ existente; sem HMR
 npm run build        # astro build + scripts/headers.mjs (gera dist/_headers com CSP)
 npm test             # node --test nos arquivos listados em package.json
 node --test tests/unit/auth.test.js
@@ -26,6 +26,8 @@ npx playwright test tests/e2e/session.spec.js --project=desktop
 ```
 
 Não há lint, typecheck, formatter nem TypeScript configurados — não invente `npm run lint`/`tsc`. O projeto é JavaScript puro (`.js`/`.jsx`), `"type": "module"`, Node >= 22.23.4 (usa `node:sqlite`).
+
+Em desenvolvimento, abra **`http://localhost:4321`** (Astro/HMR), não a porta 4173, que nesse modo atende só a API. CSS, React e páginas Astro atualizam em tempo real; mudanças em `api/` ou `server.js` exigem reiniciar `npm run dev`. `npm start` e `npm run preview` servem `dist/` sem HMR; como `server.js` lê `dist/` e o CSP no boot, reinicie-o depois de um novo build.
 
 No CI, `PLAYWRIGHT_CHANNEL=bundled` força o Chromium baixado; localmente o padrão é o Chrome instalado.
 

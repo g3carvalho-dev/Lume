@@ -51,24 +51,38 @@ npm install
 npm run dev
 ```
 
-O Astro abre em [http://localhost:4321](http://localhost:4321), encaminhando `/api` para o servidor local na porta 4173. As contas ficam em `data/lume.db`.
+Esse é o modo de desenvolvimento com atualização em tempo real. Abra **[http://localhost:4321](http://localhost:4321)**: o Astro observa CSS, componentes React e páginas Astro, e as mudanças aparecem sem novo build. A API Node roda em **4173** e o Astro encaminha `/api` para ela. As contas ficam em `data/lume.db`.
+
+A saída do comando mostra as duas URLs:
+
+```text
+Lume em desenvolvimento
+  Site com HMR: http://localhost:4321
+  API local:    http://127.0.0.1:4173
+```
 
 Se a porta 4173 estiver ocupada, escolha outra para a API com `LUME_API_PORT`. No PowerShell:
 
 ```powershell
 $env:LUME_API_PORT = '4192'
-npm run dev
+npm.cmd run dev
 ```
 
-O proxy do Astro acompanha essa configuração: continue acessando [http://localhost:4321](http://localhost:4321). Na execução em segundo plano iniciada nesta etapa, a API usa **4192**, pois **4173** já estava ocupada. Página e `/api/me` responderam com HTTP 200. A porta alternativa é uma configuração dessa execução, não uma mudança do padrão do projeto.
-
-Para gerar e servir o build de produção:
+O proxy do Astro acompanha essa configuração: continue acessando [http://localhost:4321](http://localhost:4321). Para trocar a porta do site, passe `--port` para o Astro:
 
 ```sh
-npm start
+npm.cmd run dev -- --port 4322
 ```
 
-Esse comando gera `dist/` e serve a aplicação em **http://localhost:4173**. Se o build já existe, `npm run preview` inicia apenas o servidor. Para encerrar, use `Ctrl+C`. O Live Server não compila componentes React ou páginas Astro e não atende as APIs.
+Alterações em `api/` e em `server.js` não entram no HMR do Astro: reinicie o processo para aplicá-las.
+
+Para testar o build de produção:
+
+```sh
+npm.cmd start
+```
+
+Esse comando gera `dist/` e serve a aplicação em **http://localhost:4173**. O `server.js` lê o `dist/` e o CSP uma única vez ao iniciar; depois de um novo build, reinicie o servidor. `npm run preview` apenas serve o `dist/` existente, sem build nem atualização em tempo real. Para encerrar qualquer modo, use `Ctrl+C`. O Live Server não compila componentes React ou páginas Astro e não atende as APIs.
 
 ## Verificação
 
