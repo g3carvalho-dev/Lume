@@ -5,7 +5,7 @@ import { useRealtimeStatus } from '../../lib/realtime.js';
 import { materialType } from '../../../public/domain.js';
 import { GROUP_MAX_MEMBERS, GROUP_MIN_OTHERS, GROUP_NAME_LIMIT } from '../../../public/report-domain.js';
 import Icon from '../../ui/Icon.jsx';
-import { Button, Empty, PersonAvatar, Skeleton } from '../../ui/ui.jsx';
+import { Button, PersonAvatar, Skeleton, Star } from '../../ui/ui.jsx';
 import ReportDialog from './ReportDialog.jsx';
 import ConnectionsPanel from './ConnectionsPanel.jsx';
 import EmojiButton from './EmojiPicker.jsx';
@@ -269,8 +269,8 @@ function Details({ thread, isGroup, selected, friends, account, busy, go, notify
   }
 
   return <>
-    {sheet && <div className="mg-details-backdrop" aria-hidden="true" onClick={onClose}/>}
-    <aside ref={ref} tabIndex={-1} className={`mg-details ${sheet ? 'is-sheet' : ''}`} aria-label={isGroup ? 'Detalhes do grupo' : 'Detalhes da conversa'}>
+    <div className="mg-details-backdrop" aria-hidden="true" onClick={onClose}/>
+    <aside ref={ref} tabIndex={-1} className="mg-details is-drawer" aria-label={isGroup ? 'Detalhes do grupo' : 'Detalhes da conversa'}>
       <div className="mg-details-head">
         <strong className="metric-label">{isGroup ? 'Grupo' : 'Conversa privada'}</strong>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Fechar detalhes"><Icon name="close"/></button>
@@ -360,6 +360,7 @@ export default function Messages({
 
   const live = useRealtimeStatus();
   const conversationsResource = useResource('/api/messages', { interval: live ? 60000 : 10000, enabled: Boolean(account) });
+  const friendsActivityResource = useResource('/api/friends', { interval: 45000, enabled: Boolean(account) });
   const isGroup = selection?.kind === 'group';
   const isDirect = selection?.kind === 'direct';
   const selected = selection && selection.kind !== 'new' ? selection.id : '';
@@ -368,6 +369,7 @@ export default function Messages({
   const settingsResource = useResource('/api/messages/settings', { enabled: Boolean(account) });
   const friends = conversationsResource.data?.conversations || [];
   const groups = conversationsResource.data?.groups || [];
+  const activityById = new Map((friendsActivityResource.data?.friends || []).map((friend) => [friend.id, friend.activity]));
   const thread = threadPath && threadResource.data ? threadResource.data : null;
   const loading = Boolean(threadPath) && threadResource.loading && !threadResource.data;
   const notifications = notificationsOverride ?? settingsResource.data?.notifications !== false;
@@ -679,6 +681,8 @@ export default function Messages({
   const messages = thread?.messages || [];
   const showDetails = Boolean(detailsOpen && thread);
   const view = !inThread ? 'list' : showDetails && narrow ? 'details' : 'thread';
+  const threadActivity = !isGroup && thread?.friend ? activityById.get(thread.friend.id) : null;
+  const threadStudying = threadActivity?.status === 'studying';
 
   const list = <aside className="mg-list" aria-label="Conversas e conexões">
     <div className="mg-list-head">
@@ -714,7 +718,7 @@ export default function Messages({
           <input
             type="search"
             value={search}
-            placeholder="Buscar conversa ou @…"
+            placeholder="Buscar ou @usuário…"
             onChange={(event) => {
               const next = event.target.value;
               setSearch(next);
@@ -725,7 +729,7 @@ export default function Messages({
         <div className="mg-filters" role="group" aria-label="Filtrar conversas">
           {FILTERS.map(([id, label]) => {
             const count = unreadBy(id);
-            return <button key={id} type="button" className="filter-btn" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}{count > 0 && <span className="mg-filter-dot" aria-label={`${count} com mensagens novas`}/>}</button>;
+            return <button key={id} type="button" className="mg-filter-tab" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}{count > 0 && <span className="mg-filter-dot" aria-label={`${count} com mensagens novas`}/>}</button>;
           })}
         </div>
         <div className="mg-list-scroll">
@@ -734,12 +738,16 @@ export default function Messages({
           <ul className="conversation-list">
             {items.map((conversation) => {
               const active = selection?.kind === conversation.kind && selection.id === conversation.id;
+              const activity = conversation.kind === 'direct' ? activityById.get(conversation.id) : null;
               const preview = conversation.kind === 'group'
                 ? (conversation.lastMessage ? conversation.lastMessage.preview : `${conversation.members} pessoas`)
                 : conversation.blockedByMe ? 'Você bloqueou esta pessoa' : conversation.blockedMe ? 'Mensagens bloqueadas por ela' : conversation.lastMessage ? `${conversation.lastMessage.fromMe ? 'Você: ' : ''}${conversation.lastMessage.preview}` : 'Comece uma conversa';
               return <li key={`${conversation.kind}-${conversation.id}`}>
                 <button type="button" className={`conversation-item ${active ? 'active' : ''} ${conversation.unread > 0 ? 'is-unread' : ''} ${conversation.muted ? 'is-muted' : ''}`} onClick={() => select({ kind: conversation.kind, id: conversation.id })} aria-current={active ? 'true' : undefined}>
-                  {conversation.kind === 'group' ? <GroupAvatar/> : <PersonAvatar person={conversation} className="conversation-avatar"/>}
+                  <span className="mg-avatar-wrap">
+                    {conversation.kind === 'group' ? <GroupAvatar/> : <PersonAvatar person={conversation} className="conversation-avatar"/>}
+                    {activity?.active && <span className={`mg-presence-dot ${activity.status === 'studying' ? 'is-studying' : ''}`} title={activity.status === 'studying' ? (activity.topic ? `Estudando · ${activity.topic}` : 'Estudando agora') : 'Online'} aria-hidden="true"/>}
+                  </span>
                   <span className="conversation-copy">
                     <span className="conversation-line"><strong>{conversation.name}</strong>
                       {conversation.lastMessage && <time dateTime={conversation.lastMessage.at}>{timeLabel(conversation.lastMessage.at)}</time>}
@@ -764,10 +772,21 @@ export default function Messages({
   const center = <section className="mg-thread" aria-label="Conversa selecionada">
     {!selection && <>
       {onMinimize && <div className="message-thread-topbar">
-        <span className="quiet-note">Selecione uma conversa</span>
+        <span className="quiet-note">Conversas e estudos</span>
         <button type="button" className="icon-button" aria-label="Minimizar mensagens" title="Minimizar" onClick={onMinimize}><Icon name="minus"/></button>
       </div>}
-      <div className="messages-placeholder"><span className="mg-bubbles" aria-hidden="true"><Icon name="message"/></span><h2 className="title">Escolha uma conversa</h2><p className="muted-text">Selecione um amigo ou grupo ao lado, ou use +@ para conectar.</p></div>
+      <div className="messages-placeholder">
+        <div className="mg-empty-emblem" aria-hidden="true">
+          <Icon name="message"/>
+          <Star size={14} className="mg-empty-star"/>
+        </div>
+        <h2 className="title">Escolha uma conversa</h2>
+        <p className="muted-text">Compartilhe materiais, tire dúvidas ou combine sessões de foco com seus amigos.</p>
+        <div className="mg-empty-actions">
+          <Button secondary onClick={() => { setLeftView?.('chats'); select({ kind: 'new' }); }}><Icon name="edit"/>Nova conversa</Button>
+          <Button ghost onClick={() => setLeftView?.('connections')}><Icon name="users"/>Conectar por @</Button>
+        </div>
+      </div>
     </>}
     {selection?.kind === 'new' && <>
       {onMinimize && <div className="message-thread-topbar">
@@ -777,26 +796,56 @@ export default function Messages({
       </div>}
       <NewChat friends={friends} notify={notify} onOpenConnections={() => setLeftView?.('connections')} onBack={() => select(null)} onDirect={(id) => select({ kind: 'direct', id })} onCreated={(id) => select({ kind: 'group', id })}/>
     </>}
-    {selected && loading && <div className="mg-thread-loading"><Skeleton label="Carregando a conversa…" rows={3} variant="text"/></div>}
-    {selected && !thread && !loading && threadResource.error && <div className="messages-placeholder"><p className="form-error" role="alert">{threadResource.error}</p><Button secondary onClick={() => select(null)}>Voltar às conversas</Button></div>}
+    {selected && loading && <>
+      {onMinimize && <div className="message-thread-topbar">
+        <button type="button" className="icon-button mg-back" onClick={() => select(null)} aria-label="Voltar para as conversas"><Icon name="back"/></button>
+        <span className="quiet-note">Abrindo conversa…</span>
+        <button type="button" className="icon-button" aria-label="Minimizar mensagens" title="Minimizar" onClick={onMinimize}><Icon name="minus"/></button>
+      </div>}
+      <div className="mg-thread-loading"><Skeleton label="Carregando a conversa…" rows={3} variant="text"/></div>
+    </>}
+    {selected && !thread && !loading && threadResource.error && <>
+      {onMinimize && <div className="message-thread-topbar">
+        <button type="button" className="icon-button mg-back" onClick={() => select(null)} aria-label="Voltar para as conversas"><Icon name="back"/></button>
+        <span className="quiet-note">Não foi possível carregar</span>
+        <button type="button" className="icon-button" aria-label="Minimizar mensagens" title="Minimizar" onClick={onMinimize}><Icon name="minus"/></button>
+      </div>}
+      <div className="messages-placeholder"><p className="form-error" role="alert">{threadResource.error}</p><Button secondary onClick={() => select(null)}>Voltar às conversas</Button></div>
+    </>}
     {selected && thread && <>
       <header className="message-thread-head">
         <button type="button" className="icon-button mg-back" onClick={() => select(null)} aria-label="Voltar para as conversas"><Icon name="back"/></button>
         {isGroup
           ? <button type="button" className="person-button mg-thread-who" onClick={() => setDetailsOpen(true)} aria-label={`Detalhes do grupo ${title}`}>
-            <GroupAvatar size="is-large"/>
+            <span className="mg-avatar-wrap"><GroupAvatar size="is-large"/></span>
             <span className="message-thread-copy"><strong className="title">{title}</strong><small>{thread.members.map((member) => member.isMe ? 'você' : member.name.split(' ')[0]).join(', ')}</small></span>
           </button>
           : <PersonButton person={thread.friend} go={go} className="mg-thread-who">
-            <PersonAvatar person={thread.friend} className="conversation-avatar is-large"/>
-            <span className="message-thread-copy"><strong className="title">{title}</strong><small>{thread.blockedByMe ? 'Você bloqueou esta pessoa.' : thread.blockedMe ? 'Esta pessoa bloqueou novas mensagens.' : thread.friend.handle ? `@${thread.friend.handle}` : 'Amizade aceita'}</small></span>
+            <span className="mg-avatar-wrap">
+              <PersonAvatar person={thread.friend} className="conversation-avatar is-large"/>
+              {threadActivity?.active && <span className={`mg-presence-dot ${threadStudying ? 'is-studying' : ''}`} aria-hidden="true"/>}
+            </span>
+            <span className="message-thread-copy">
+              <strong className="title">{title}</strong>
+              <small className={threadStudying ? 'is-studying-text' : ''}>
+                {thread.blockedByMe
+                  ? 'Você bloqueou esta pessoa.'
+                  : thread.blockedMe
+                    ? 'Esta pessoa bloqueou novas mensagens.'
+                    : threadStudying
+                      ? (threadActivity.topic ? `Estudando · ${threadActivity.topic}` : 'Estudando agora')
+                      : threadActivity?.active
+                        ? 'Online agora'
+                        : thread.friend.handle ? `@${thread.friend.handle}` : 'Amizade aceita'}
+              </small>
+            </span>
           </PersonButton>}
         {thread.muted && <span className="mg-muted-tag" title="Conversa silenciada"><Icon name="mute"/><span className="sr-only">Conversa silenciada</span></span>}
-        <button type="button" className="icon-button" aria-label={isGroup ? 'Detalhes do grupo' : 'Detalhes da conversa'} aria-expanded={showDetails} onClick={() => setDetailsOpen((value) => !value)}><Icon name="info"/></button>
+        <button type="button" className={`icon-button ${showDetails ? 'active' : ''}`} aria-label={isGroup ? 'Detalhes do grupo' : 'Detalhes da conversa'} aria-expanded={showDetails} onClick={() => setDetailsOpen((value) => !value)}><Icon name="info"/></button>
         {onMinimize && <button type="button" className="icon-button" aria-label="Minimizar mensagens" title="Minimizar" onClick={onMinimize}><Icon name="minus"/></button>}
       </header>
       <div className="message-list" ref={listRef} onScroll={(event) => { const node = event.currentTarget; stuck.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80; }} tabIndex={0} role="log" aria-live="polite" aria-label={`Mensagens de ${title}`}>
-        {messages.length === 0 && <p className="messages-placeholder-copy">Nenhuma mensagem ainda. Diga olá ou compartilhe um material.</p>}
+        {messages.length === 0 && <p className="messages-placeholder-copy">Nenhuma mensagem ainda. Diga olá ou compartilhe um material da sua biblioteca.</p>}
         {messages.map((message, index) => {
           const day = new Date(message.at).toDateString();
           const divider = day !== lastDay;
@@ -831,8 +880,9 @@ export default function Messages({
             <div className="message-attach">
               <button type="button" className="mg-tool" aria-label="Compartilhar material" title="Compartilhar material" aria-expanded={pickerOpen} onClick={() => setPickerOpen((open) => !open)}><Icon name="plus"/></button>
               {pickerOpen && <ul className="message-picker" aria-label="Materiais para compartilhar">
+                <li className="mg-picker-head">Compartilhar material</li>
                 {state.courses.length === 0 && <li className="muted-text">Nenhum material na biblioteca.</li>}
-                {state.courses.map((course) => <li key={course.id}><button type="button" onClick={() => { setReferenceId(course.id); setPickerOpen(false); }}>{materialType(course.type).title} · {course.title}</button></li>)}
+                {state.courses.map((course) => <li key={course.id}><button type="button" onClick={() => { setReferenceId(course.id); setPickerOpen(false); }}><Icon name="book"/><span>{materialType(course.type).title} · {course.title}</span></button></li>)}
               </ul>}
             </div>
             <EmojiButton className="mg-tool" label="Emoji" disabled={busy} onEmoji={(emoji) => { setText((value) => `${value}${emoji}`.slice(0, 4000)); inputRef.current?.focus(); }}><Icon name="smile"/></EmojiButton>
@@ -850,7 +900,7 @@ export default function Messages({
 
   return <div className={`messages-dock-body ${inThread ? 'is-in-thread' : ''}`}>
     {(error || loadError) && <p className="form-error mg-dock-error" role="alert">{error || loadError}</p>}
-    <div ref={shellRef} className={`mg-shell ${showDetails ? 'has-details' : ''}`} data-view={view}>
+    <div ref={shellRef} className="mg-shell" data-view={view}>
       {list}
       {center}
       {showDetails && <Details thread={thread} isGroup={isGroup} selected={selected} friends={friends} account={account} busy={busy} go={go} notify={notify} sheet={sheet}

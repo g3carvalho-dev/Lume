@@ -57,7 +57,7 @@ export default function MessagesDock({ account, state, notify, go, visible = fal
   const statusParts = [];
   if (unread > 0) statusParts.push(`${unread} ${unread === 1 ? 'não lida' : 'não lidas'}`);
   if (incomingCount > 0) statusParts.push(`${incomingCount} ${incomingCount === 1 ? 'pedido' : 'pedidos'}`);
-  const statusText = statusParts.join(' · ') || 'Conversas e @conexões';
+  const statusText = statusParts.join(' · ') || 'Conversas e estudos';
   const hasThread = Boolean(selection);
 
   return <aside className="messages-dock-root" aria-label="Mensagens e conexões">
@@ -65,7 +65,7 @@ export default function MessagesDock({ account, state, notify, go, visible = fal
       {expanded
         ? <motion.div
           key="expanded"
-          className={`card-surface messages-dock-panel ${hasThread ? 'has-thread' : ''}`}
+          className={`messages-dock-panel ${hasThread ? 'has-thread' : ''}`}
           initial={{ opacity: 0, y: 14, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -88,10 +88,10 @@ export default function MessagesDock({ account, state, notify, go, visible = fal
         </motion.div>
         : <motion.div
           key="minimized"
-          className="messages-dock-bar"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 8 }}
+          className={`messages-dock-bar ${unread > 0 ? 'has-unread' : ''}`}
+          initial={{ opacity: 0, y: 10, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 8, scale: 0.98 }}
           transition={{ duration: 0.18, ease }}
         >
           <button
@@ -101,12 +101,18 @@ export default function MessagesDock({ account, state, notify, go, visible = fal
             aria-expanded={false}
             aria-label={`Abrir mensagens (${statusText})`}
           >
-            <span className="messages-dock-icon" aria-hidden="true"><Icon name="message"/></span>
+            <span className="messages-dock-icon" aria-hidden="true">
+              <Icon name="message"/>
+              {unread > 0 && <span className="messages-dock-pulse"/>}
+            </span>
             <span className="messages-dock-copy">
               <strong>Mensagens</strong>
               <small className="mono">{statusText}</small>
             </span>
+            {unread > 0 && <span className="unread-badge" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
+            <span className="messages-dock-chevron" aria-hidden="true"><Icon name="chevron-up"/></span>
           </button>
+          <span className="messages-dock-divider" aria-hidden="true"/>
           <button
             type="button"
             className="icon-button mg-at-btn"
@@ -117,14 +123,6 @@ export default function MessagesDock({ account, state, notify, go, visible = fal
             <span className="mg-at-glyph mono">+@</span>
             {incomingCount > 0 && <span className="mg-at-badge" aria-hidden="true">{incomingCount > 9 ? '9+' : incomingCount}</span>}
           </button>
-          {unread > 0 && <span className="unread-badge" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="Expandir mensagens"
-            title="Expandir"
-            onClick={() => setExpanded(true)}
-          ><Icon name="chevron-up"/></button>
         </motion.div>}
     </AnimatePresence>
   </aside>;
