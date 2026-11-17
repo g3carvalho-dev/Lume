@@ -1,6 +1,73 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-1397cfb9",
+    "at": "2026-11-17T00:34:11.000Z",
+    "title": "Miniplayer na página da aula",
+    "body": "No selo do Lume, escolha Miniplayer nesta página para consultar a grade enquanto o vídeo continua no canto. Esc restaura o tamanho original.",
+    "href": "#biblioteca",
+    "area": "extensao",
+    "details": [
+      "O mesmo player da plataforma mantém a posição de reprodução. A opção Assistir sobre o Lume abre a janela flutuante do navegador quando disponível."
+    ]
+  },
+  {
+    "id": "news-7379dd76",
+    "at": "2026-11-17T00:29:26.000Z",
+    "title": "Quanto falta no curso",
+    "body": "Veja as aulas e seções concluídas, as horas restantes e uma estimativa pelo seu ritmo recente ou pela disponibilidade do Plano.",
+    "href": "#biblioteca",
+    "area": "site",
+    "details": [
+      "A estimativa usa o ritmo após três dias de estudo e 60 minutos no curso nos últimos 14 dias."
+    ]
+  },
+  {
+    "id": "news-10a5ab67",
+    "at": "2026-11-17T00:29:09.000Z",
+    "title": "O timer acompanha a aula",
+    "body": "Ao tocar ou pausar um vídeo autorizado, a sessão acompanha o player. A conclusão e o XP passam pela validação da conta.",
+    "href": "#configuracoes",
+    "area": "site",
+    "details": [
+      "O acompanhamento funciona com a aba do Lume fechada e respeita o timer de foco ou leitura que já está em uso."
+    ]
+  },
+  {
+    "id": "news-a804516f",
+    "at": "2026-11-17T00:28:46.000Z",
+    "title": "Assista sobre o Lume",
+    "body": "Nas aulas reconhecidas, o selo mostra a reprodução e permite abrir o vídeo em uma janela flutuante sobre o Lume quando o player oferece esse recurso.",
+    "href": "#biblioteca",
+    "area": "extensao",
+    "details": [
+      "As permissões são opcionais por plataforma. O curso da Udemy e os vídeos de cada aula do Gran são identificados pelos leitores da extensão."
+    ]
+  },
+  {
+    "id": "news-48f8697d",
+    "at": "2026-11-16T23:48:44.000Z",
+    "title": "Instale a extensão ao adicionar um curso",
+    "body": "Abra a ficha da extensão e confira os passos para importar as aulas no Chrome ou no Edge do computador.",
+    "href": "#biblioteca",
+    "area": "extensao",
+    "details": [
+      "O painel reconhece a plataforma da aba e o Lume verifica a versão instalada."
+    ]
+  },
+  {
+    "id": "news-364aee3b",
+    "at": "2026-11-16T23:34:49.000Z",
+    "title": "Mensagens em painel flutuante",
+    "body": "Abra conversas e conexões pelo painel flutuante enquanto usa o Lume.",
+    "href": "#amigos",
+    "area": "site",
+    "details": [
+      "Integra o painel de mensagens preservando o perfil em duas colunas e a privacidade por seção.",
+      "Tarefas passam a aceitar subtarefas dentro de subtarefas."
+    ]
+  },
+  {
     "id": "news-043e0d8b",
     "at": "2026-11-16T23:32:21.000Z",
     "title": "Disciplinas numa aba da Biblioteca",
@@ -212,26 +279,5 @@ export const GENERATED_NEWS = [
     "details": [
       "Imagens só são trocadas quando a redução é de pelo menos 10% e 8 KB; GIFs são preservados."
     ]
-  },
-  {
-    "id": "news-e7df12fe",
-    "at": "2026-11-15T04:03:35.000Z",
-    "title": "Lume no celular",
-    "body": "O leitor de PDF, os diálogos e as telas foram ajustados para caber e ficar confortáveis no celular.",
-    "href": "#biblioteca",
-    "area": "site",
-    "details": [
-      "O leitor de PDF ocupa a tela inteira, com a barra em duas linhas e a página na largura do celular; sumário e painel abrem por cima da leitura.",
-      "Janelas como Anexar PDF e Adicionar curso sobem do rodapé da tela, ao alcance do polegar.",
-      "Abas e filtros rolam de lado, e nenhuma tela passa mais da largura do celular."
-    ]
-  },
-  {
-    "id": "news-9e18b41f",
-    "at": "2026-11-15T01:23:51.000Z",
-    "title": "Telas mais limpas",
-    "body": "Foco, Tarefas e Plano de Estudos perdem textos explicativos, e o \"Estudando\" do perfil ganha respiro ao lado do nome.",
-    "href": "#foco",
-    "area": "site"
   }
 ];
