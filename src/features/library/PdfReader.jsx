@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { HIGHLIGHT_COLORS, estimateReadingMinutes, formatBytes, highlightAt, identifyPage, readingLabel, wordsFromChars } from '../../../public/pdf-domain.js';
+import { HIGHLIGHT_COLORS, MAX_MARKDOWN_CHARS, estimateReadingMinutes, formatBytes, highlightAt, identifyPage, readingLabel, wordsFromChars } from '../../../public/pdf-domain.js';
 import { materialStanding, subjectOf } from '../../../public/subject-domain.js';
 import { materialSteps } from '../../../public/material-model.js';
 import { isCompleted } from '../../../public/progress-domain.js';
 import { formatSessionDuration } from '../../../public/session-domain.js';
 import { useReadingSession } from './useReadingSession.js';
 import {
-  downloadDocument, estimatePdfReading, extractDocumentMarkdown, generatePdfInsights, getPdfInsights, readPageText, savePdfMarkdown, storageInfo,
+  downloadDocument, ensurePdfMarkdown, estimatePdfReading, generatePdfInsights, getPdfInsights, readPageText, storageInfo,
 } from './pdf-client.js';
 import Icon from '../../ui/Icon.jsx';
 import { Button, Progress, Skeleton } from '../../ui/ui.jsx';
@@ -171,8 +171,6 @@ export function PdfDetails({ course, state, actions, open, close }) {
 
 // Leitor embutido alinhado ao layout Stitch (2 zonas limpas por padrão,
 // barra flutuante de marca-texto, sumário recolhível e painel editorial em 3 abas).
-// Teto do Markdown guardado no servidor (api/domain/pdf-ai.js); acima dele o texto está cortado.
-const MAX_MARKDOWN_CHARS = 250_000;
 
 export default function PdfReader({ course, state, actions, progressActions, notify, open, close, account }) {
   const [doc, setDoc] = useState(null);
@@ -274,6 +272,20 @@ export default function PdfReader({ course, state, actions, progressActions, not
       summaryAbort.current?.abort();
     };
   }, [account, course.pdf.fileId]);
+
+  // Texto do PDF (resumo, estimativa e MCP): o envio costuma deixar pronto; se
+  // não deixou (aba fechada, falha de rede, PDF antigo), extrai ao abrir, sem IA.
+  useEffect(() => {
+    if (!account || !doc) return undefined;
+    const controller = new AbortController();
+    getPdfInsights(course.pdf.fileId, controller.signal)
+      .then((res) => (res.markdownStatus === 'pending' ? ensurePdfMarkdown(course.pdf.fileId, doc, { signal: controller.signal }) : null))
+      .then((saved) => {
+        if (saved && !controller.signal.aborted) setSummary((prev) => ({ ...prev, markdownStatus: saved.markdownStatus }));
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [account, doc, course.pdf.fileId]);
 
   useEffect(() => {
     const node = stage.current;
@@ -380,9 +392,8 @@ export default function PdfReader({ course, state, actions, progressActions, not
     setSummary((prev) => ({ ...prev, status: 'loading', error: '', freshReveal: false }));
     try {
       if (summary.markdownStatus !== 'ready' && doc) {
-        const markdown = await extractDocumentMarkdown(doc);
-        if (controller.signal.aborted) return;
-        const saved = await savePdfMarkdown(course.pdf.fileId, markdown, 'pdfjs');
+        const saved = await ensurePdfMarkdown(course.pdf.fileId, doc, { signal: controller.signal });
+        if (!saved) return;
         if (saved.markdownStatus !== 'ready') {
           throw new Error('Este PDF não possui texto extraível para resumir.');
         }
@@ -604,7 +615,9 @@ export default function PdfReader({ course, state, actions, progressActions, not
               <p className="pdf-summary-footnote">
                 {summary.insights.coverage === 'condensed'
                   ? 'Gerado a partir do conteúdo condensado do PDF.'
-                  : 'Gerado a partir do conteúdo do PDF.'}
+                  : summary.insights.coverage === 'partial'
+                    ? 'Gerado a partir da parte inicial do PDF.'
+                    : 'Gerado a partir do conteúdo do PDF.'}
               </p>
             </div>}
           </section>}

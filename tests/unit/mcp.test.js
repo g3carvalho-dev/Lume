@@ -291,4 +291,30 @@ test('lume_get_material_content retorna markdown paginado, insights, outline, re
   assert.equal(data1.insights.summary, 'Resumo de redes TCP/IP');
   assert.equal(data1.content.hasMore, true);
   assert.equal(data1.content.nextOffset, 500);
+  assert.equal(data1.content.status, 'ready');
+  assert.equal(data1.content.note, undefined);
+
+  // Sem texto guardado, a resposta diz o motivo e o que fazer, em vez de só vir vazia.
+  const read = async () => JSON.parse((await handleMcpRpc(db, 'u1', {
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'lume_get_material_content', arguments: { materialId: 'mat-pdf-1' } },
+  }, { now })).body.result.content[0].text).content;
+
+  await db.run("UPDATE library_file_ai SET markdown_source='pdfjs_truncated' WHERE user_id=? AND file_id=?", ['u1', fileId]);
+  const truncated = await read();
+  assert.equal(truncated.truncated, true);
+  assert.match(truncated.note, /ponto de corte/);
+
+  await db.run("UPDATE library_file_ai SET markdown=NULL, markdown_status='unavailable', markdown_chars=0 WHERE user_id=? AND file_id=?", ['u1', fileId]);
+  const scanned = await read();
+  assert.equal(scanned.status, 'unavailable');
+  assert.match(scanned.note, /digitalização/);
+
+  await db.run('DELETE FROM library_file_ai WHERE user_id=? AND file_id=?', ['u1', fileId]);
+  const pending = await read();
+  assert.equal(pending.status, 'pending');
+  assert.equal(pending.markdown, '');
+  assert.match(pending.note, /abrir o PDF no Lume/);
 });
