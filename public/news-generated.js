@@ -1,6 +1,17 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-84c118df",
+    "at": "2026-11-17T02:37:17.000Z",
+    "title": "Diálogos de material mais organizados",
+    "body": "Curso importado e PDF agora têm as ações reunidas no rodapé, com um só botão principal.",
+    "href": "#biblioteca",
+    "area": "site",
+    "details": [
+      "A lista de aulas do curso importado ganhou mais espaço entre os itens."
+    ]
+  },
+  {
     "id": "news-e14b8360",
     "at": "2026-11-17T02:25:00.000Z",
     "title": "Conversas com histórico completo",
