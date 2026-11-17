@@ -1,6 +1,32 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-defd588b",
+    "at": "2026-11-17T04:51:53.000Z",
+    "title": "Biblioteca e publicações mais simples",
+    "body": "A Biblioteca mostra as informações essenciais, a revisão de cursos ficou mais clara e agora você pode arrastar anexos para uma publicação.",
+    "href": "#biblioteca",
+    "area": "site",
+    "details": [
+      "Revise os cursos da extensão em módulos expansíveis, com seleção e contadores das aulas lidas.",
+      "A Biblioteca destaca a próxima aula, o progresso e os PDFs, com concluídos recolhidos e detalhes dentro do material.",
+      "No Feed e no perfil, Adicionar anexo escolhe PDF ou imagem; você também pode arrastar o arquivo para a publicação.",
+      "Anexos mantêm a compressão e a prévia, e só são enviados ao clicar em Publicar."
+    ]
+  },
+  {
+    "id": "news-c6c1127a",
+    "at": "2026-11-17T04:29:36.000Z",
+    "title": "Importe cursos pela extensão",
+    "body": "Adicionar curso agora mostra como instalar e usar a extensão do Lume. Leia o curso na plataforma e revise as aulas antes de adicionar à biblioteca.",
+    "href": "#biblioteca",
+    "area": "site",
+    "details": [
+      "O formulário de link e a opção Colar a grade deram lugar às instruções da extensão.",
+      "Atualizar grade orienta uma nova leitura pela extensão, preservando o progresso."
+    ]
+  },
+  {
     "id": "news-3fc13691",
     "at": "2026-11-17T03:48:08.000Z",
     "title": "Aulas dentro do Lume",
@@ -270,20 +296,6 @@ export const GENERATED_NEWS = [
     "details": [
       "Procura atualização ao abrir e a cada 6 horas",
       "Botão Reiniciar e atualizar instala em silêncio e reabre o Lume"
-    ]
-  },
-  {
-    "id": "news-12bcb68d",
-    "at": "2026-11-15T23:54:13.000Z",
-    "title": "Menu mais curto e timer discreto",
-    "body": "O Foco virou um timer pequeno no cabeçalho, que você pode desligar, e as aulas previstas aparecem no Calendário.",
-    "href": "#hoje",
-    "area": "site",
-    "details": [
-      "O menu tem quatro destinos: Início, Biblioteca, Plano de Estudos e Social.",
-      "\"Continuar\" no Início abre o conteúdo direto; aula de curso importado abre na plataforma.",
-      "O Plano tem as abas Tarefas e Calendário; adiar aula e o alerta de prazo ficam no detalhe do dia.",
-      "O próximo marco conta só provas e entregas."
     ]
   }
 ];
