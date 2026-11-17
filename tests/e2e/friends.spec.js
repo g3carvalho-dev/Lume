@@ -63,6 +63,7 @@ test('convite cria amizade entre duas contas sem compartilhar progresso', async 
   await page.reload();
   await page.getByRole('button', { name: /Abrir mensagens/ }).click();
   await expect(page.getByRole('button', { name: /Bia do teste/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Minimizar mensagens' }).first().click();
 
   // O convite conta quantas pessoas entraram (a tela não lista mais o histórico de convites).
   const own = await (await page.request.get('/api/friends', { headers: { origin: baseURL } })).json();
