@@ -1,12 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { materialSteps } from '../../public/material-model.js';
-import { seedAccount, readAccount, addMaterial } from './library-helpers.js';
-import { createInitialState, STORAGE_KEY } from '../../public/domain.js';
+import { seedAccount, readAccount, addMaterial, captureCourse } from './library-helpers.js';
+import { createInitialState } from '../../public/domain.js';
+import { EXTENSION_STORE_URL } from '../../public/extension-domain.js';
 
-// Cenários de importação. O fluxo por texto usa a API real do servidor local
-// (organizador determinístico, sem IA). A análise por link é simulada por
-// interceptação de rota para cobrir fonte protegida e falha de rede sem
-// depender de acesso real às plataformas nesta execução.
+// Capturas simulam a ponte da extensão; revisão e gravação usam a API real.
 
 async function openLibrary(page) {
   await seedAccount(page, { ...createInitialState(), onboarded: true });
@@ -14,65 +12,36 @@ async function openLibrary(page) {
   await expect(page.getByRole('heading', { name: 'Biblioteca', exact: true })).toBeVisible();
 }
 
-test('erro de link, fonte protegida e falha de rede preservam a escolha', async ({ page }) => {
+test('Adicionar curso recebe a captura da extensão sem analisar links', async ({ page }) => {
   await openLibrary(page);
+  const legacyRequests = [];
+  page.on('request', request => {
+    if (/\/api\/import\/(analyze|organize)$/.test(new URL(request.url()).pathname)) legacyRequests.push(request.url());
+  });
   await addMaterial(page, 'Adicionar curso');
-
-  // Link inválido: erro recuperável, sem perder o que foi digitado.
-  await page.getByLabel('Link do curso').fill('nao-e-um-link');
-  await page.getByRole('button', { name: 'Analisar link' }).click();
-  await expect(page.getByRole('heading', { name: 'Confira o link' })).toBeVisible();
-  await page.getByRole('button', { name: /Colar a página aberta na conta/ }).click();
-  await page.getByRole('tab', { name: 'Link do curso' }).click();
-  await expect(page.getByLabel('Link do curso')).toHaveValue('nao-e-um-link');
-
-  // Fonte protegida: a mensagem explica o que foi possível e não pede senha.
-  await page.route('**/api/import/analyze', route => route.fulfill({
-    status: 422,
-    contentType: 'application/json',
-    body: JSON.stringify({ error: 'A fonte exige acesso à conta para mostrar a grade. O Lume não pede sua senha: cole a grade ou envie um arquivo.', code: 'protected' }),
-  }));
-  await page.getByLabel('Link do curso').fill('https://www.grancursosonline.com.br/curso/oab');
-  await page.getByRole('button', { name: 'Analisar link' }).click();
-  await expect(page.getByRole('heading', { name: 'Essa fonte pede acesso à conta' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Extensão do Lume' })).toBeVisible();
-  await expect(page.getByRole('dialog')).not.toContainText('extension/');
-
-  // Falha de rede: mensagem recuperável e link preservado.
-  await page.unroute('**/api/import/analyze');
-  await page.route('**/api/import/analyze', route => route.abort('failed'));
-  await page.getByRole('button', { name: 'Tentar de novo' }).click();
-  await expect(page.getByRole('heading', { name: 'Não consegui falar com a fonte' })).toBeVisible();
-  await page.getByRole('button', { name: /Colar a página aberta na conta/ }).click();
-  await page.getByRole('tab', { name: 'Link do curso' }).click();
-  await expect(page.getByLabel('Link do curso')).toHaveValue('https://www.grancursosonline.com.br/curso/oab');
-  await page.unroute('**/api/import/analyze');
-
-  // Recuperação pelo caminho assistido, sem digitar aula por aula.
-  await page.getByRole('tab', { name: 'Colar a grade' }).click();
-  await page.getByLabel('Nome do curso (opcional)').fill('OAB — recuperado');
-  await page.getByLabel('Grade do curso', { exact: true }).fill('Disciplina: Direito Constitucional\nMódulo: Princípios\nAula 1 — Conceito');
-  await page.getByRole('button', { name: 'Organizar grade' }).click();
-  await expect(page.getByRole('heading', { name: 'OAB — recuperado' })).toBeVisible();
+  await expect(page.getByRole('dialog').getByRole('heading', { name: 'Adicionar curso', exact: true })).toBeVisible();
+  await captureCourse(page, {
+    title: 'Curso pela extensão',
+    disciplines: [{ title: 'Direito Constitucional', modules: [{ title: 'Princípios', lessons: [{ title: 'Aula 1 — Conceito' }] }] }],
+  });
   await page.getByRole('button', { name: /Adicionar 1 aula à biblioteca/ }).click();
   await expect(page.getByText('XP concedido agora: 0')).toBeVisible();
+  const saved = await readAccount(page);
+  expect(saved.courses).toHaveLength(1);
+  expect(saved.courses[0].title).toBe('Curso pela extensão');
+  expect(legacyRequests).toEqual([]);
 });
 
 test('seleção parcial, reimportação sem duplicata e progresso preservado', async ({ page }) => {
   await openLibrary(page);
   await addMaterial(page, 'Adicionar curso');
-  await page.getByRole('tab', { name: 'Colar a grade' }).click();
-  await page.getByLabel('Nome do curso (opcional)').fill('Preparatório OAB');
-  await page.getByLabel('Grade do curso', { exact: true }).fill([
-    'Disciplina: Direito Constitucional',
-    'Módulo: Princípios',
-    'Aula 1 — Conceito e fontes',
-    'Aula 2 — Direitos fundamentais',
-    'Disciplina: Direito Penal',
-    'Módulo: Parte geral',
-    'Aula 1 — Aplicação da lei',
-  ].join('\n'));
-  await page.getByRole('button', { name: 'Organizar grade' }).click();
+  await captureCourse(page, {
+    title: 'Preparatório OAB',
+    disciplines: [
+      { title: 'Direito Constitucional', modules: [{ title: 'Princípios', lessons: [{ title: 'Aula 1 — Conceito e fontes' }, { title: 'Aula 2 — Direitos fundamentais' }] }] },
+      { title: 'Direito Penal', modules: [{ title: 'Parte geral', lessons: [{ title: 'Aula 1 — Aplicação da lei' }] }] },
+    ],
+  });
   await expect(page.getByRole('status').filter({ hasText: 'aulas selecionadas' })).toHaveText('3 de 3 aulas selecionadas');
 
   // Selecionar apenas uma área não conclui o curso inteiro.
@@ -91,19 +60,15 @@ test('seleção parcial, reimportação sem duplicata e progresso preservado', a
 
   // Reimportação: a mesma identidade atualiza o curso, sem duplicar.
   await page.getByRole('dialog').getByRole('button', { name: 'Atualizar grade' }).click();
-  await page.getByRole('tab', { name: 'Colar a grade' }).click();
-  await page.getByLabel('Nome do curso (opcional)').fill('Preparatório OAB');
-  await page.getByLabel('Grade do curso', { exact: true }).fill([
-    'Disciplina: Direito Constitucional',
-    'Módulo: Princípios',
-    'Aula 2 — Direitos fundamentais',
-    'Aula 3 — Remédios constitucionais',
-    'Disciplina: Direito Tributário',
-    'Módulo: Obrigação',
-    'Aula 1 — Fato gerador',
-  ].join('\n'));
-  await page.getByRole('button', { name: 'Organizar grade' }).click();
-  await page.getByRole('button', { name: 'Atualizar curso' }).click();
+  await expect(page.getByRole('dialog').getByText(/Leia o curso novamente pela extensão/)).toBeVisible();
+  await captureCourse(page, {
+    title: 'Preparatório OAB',
+    disciplines: [
+      { title: 'Direito Constitucional', modules: [{ title: 'Princípios', lessons: [{ title: 'Aula 2 — Direitos fundamentais' }, { title: 'Aula 3 — Remédios constitucionais' }] }] },
+      { title: 'Direito Tributário', modules: [{ title: 'Obrigação', lessons: [{ title: 'Aula 1 — Fato gerador' }] }] },
+    ],
+  });
+  await page.getByRole('button', { name: /Adicionar 3 aulas à biblioteca/ }).click();
   await expect(page.getByText('Importação concluída')).toBeVisible();
   await page.getByRole('button', { name: 'Ver o curso' }).click();
   await expect(page.getByText(/Algumas aulas não aparecem mais na fonte/)).toBeVisible();
@@ -134,53 +99,28 @@ test('biblioteca vazia pergunta a área e cria a primeira trilha sem XP', async 
   expect(state.progress.filter((event) => event.origin === 'manual' || event.legacyXp)).toEqual([]);
 });
 
-test('página copiada da conta vira revisão sem enviar sessão', async ({ page }) => {
+test('Adicionar curso explica instalação e uso da extensão no computador e celular', { tag: '@celular' }, async ({ page, isMobile }, testInfo) => {
   await openLibrary(page);
   await addMaterial(page, 'Adicionar curso');
-  await page.getByRole('tab', { name: 'Colar a grade' }).click();
-
-  let sent = null;
-  await page.route('**/api/import/analyze', route => {
-    sent = route.request().postDataJSON();
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        payload: {
-          title: 'OAB — 1ª fase',
-          provider: { id: 'grancursos' },
-          sourceUrl: 'https://www.grancursosonline.com.br/curso/oab',
-          completeness: 'partial',
-          extraction: { kind: 'page-snapshot', confidence: 'low', notes: [] },
-          disciplines: [{
-            title: 'Conteúdo do curso',
-            modules: [{ title: 'Direito Constitucional', lessons: [{ title: 'Aula 1 — Conceito e fontes' }] }],
-          }],
-        },
-        ai: { used: false },
-      }),
-    });
-  });
-
-  await page.getByLabel('Link do curso (opcional)').fill('https://www.grancursosonline.com.br/curso/oab');
-  const filler = '<p>Conteúdo do painel do curso com a conta da pessoa.</p>'.repeat(40);
-  const snapshot = `<html><body><div class="sidebar"><h1>OAB — 1ª fase</h1><h3>Direito Constitucional</h3><ul>
-    <li><a href="/curso/123/aula/456">Aula 1 — Conceito e fontes</a></li>
-    <li><a href="/curso/123/aula/457">Aula 2 — Direitos fundamentais</a></li>
-    <li><a href="/curso/123/aula/458">Aula 3 — Remédios constitucionais</a></li>
-    </ul>${filler}</div></body></html>`;
-  await page.evaluate((html) => {
-    const data = new DataTransfer();
-    data.setData('text/html', html);
-    data.setData('text/plain', 'OAB — 1ª fase\nAula 1 — Conceito e fontes');
-    document.querySelector('textarea[name="import-text"]')
-      .dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
-  }, snapshot);
-
-  await expect(page.getByRole('heading', { name: 'OAB — 1ª fase' })).toBeVisible();
-  expect(sent?.url).toBe('https://www.grancursosonline.com.br/curso/oab');
-  expect(sent?.html).toContain('/aula/456');
-  expect(sent?.html).not.toMatch(/cookie|session/i);
-  await expect(page.getByText('Página copiada da sua conta')).toBeVisible();
-  await page.unroute('**/api/import/analyze');
+  const dialog = page.getByRole('dialog');
+  const guide = dialog.getByRole('region', { name: 'Extensão do Lume' });
+  await expect(dialog.getByRole('heading', { name: 'Adicionar curso', exact: true })).toBeVisible();
+  await expect(guide).toContainText('A extensão lê as aulas do curso aberto em uma plataforma compatível');
+  await expect(guide.getByRole('listitem')).toHaveText([
+    'Abra o curso na plataforma com a sua conta.',
+    'Clique no ícone do Lume e em “Ler este curso”.',
+    'Revise aqui as aulas e confirme para adicionar à biblioteca.',
+  ]);
+  const store = guide.getByRole('link', { name: isMobile ? 'Ver extensão na loja' : 'Instalar a extensão' });
+  await expect(store).toHaveAttribute('href', EXTENSION_STORE_URL);
+  await expect(store).toHaveAttribute('target', '_blank');
+  await expect(guide).toContainText(isMobile ? 'usando a mesma conta do Lume' : 'confirme a instalação no navegador');
+  await expect(dialog.locator('input, textarea, form')).toHaveCount(0);
+  await expect(dialog).not.toContainText(/colar a grade|colar a página|analisar link|detectar e adicionar/i);
+  expect(await dialog.evaluate(node => {
+    const rect = node.getBoundingClientRect();
+    return rect.left >= 0 && rect.right <= innerWidth && node.scrollWidth <= node.clientWidth;
+  })).toBe(true);
+  await expect(guide.getByRole('status')).toHaveCount(0);
+  await page.screenshot({ path: `data/import-extension-guide-${testInfo.project.name}.png`, fullPage: true });
 });

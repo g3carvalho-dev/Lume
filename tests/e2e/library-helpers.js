@@ -34,3 +34,24 @@ export async function addMaterial(page, option) {
   await page.getByRole('button', { name: 'Adicionar material', exact: true }).click();
   await page.getByRole('menuitem', { name: option, exact: true }).click();
 }
+
+// Simula a ponte da extensão com uma grade estruturada; a revisão e a gravação
+// usam a interface e a API reais do Lume.
+export async function captureCourse(page, { title, disciplines, sourceUrl = 'https://example.test/course/test', ...extra }) {
+  const payload = {
+    title, disciplines, sourceUrl, provider: { id: 'generic' }, completeness: 'partial',
+    extraction: { kind: 'extension-capture', confidence: 'medium', notes: [] }, ...extra,
+  };
+  const ack = await page.evaluate((body) => new Promise((resolve) => {
+    const id = crypto.randomUUID();
+    function receive(event) {
+      if (event.data?.source !== 'lume' || event.data.id !== id) return;
+      window.removeEventListener('message', receive);
+      resolve(event.data);
+    }
+    window.addEventListener('message', receive);
+    window.postMessage({ source: 'lume-extension', type: 'capture', id, payload: body }, location.origin);
+  }), payload);
+  expect(ack).toMatchObject({ type: 'capture-ack', accepted: true });
+  await expect(page.getByRole('dialog').getByRole('heading', { name: title, exact: true })).toBeVisible();
+}

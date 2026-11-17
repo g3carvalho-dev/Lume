@@ -1,5 +1,7 @@
 # Plano de implementação — extensão que acompanha a aula
 
+> Histórico: em 17/11/2026, os formulários de link público e “Colar a grade” foram aposentados. Adicionar curso e Atualizar grade passaram a oferecer o link da extensão e instruções de instalação e uso. As referências abaixo aos caminhos antigos foram substituídas pela importação pela extensão no Chrome ou no Edge do computador com a mesma conta do Lume. Regras vigentes em `REGRAS_DE_NEGOCIO.md`, §11.
+
 Escrito em 16/11/2026 para ser executado por outro agente. Descreve **o que construir, onde e como verificar**. Não é regra de produto vigente: as regras entram em `docs/REGRAS_DE_NEGOCIO.md` à medida que cada fase for entregue, e este arquivo deve ser apagado ao fim da última fase.
 
 Antes de começar, leia `AGENTS.md`, `docs/REGRAS_DE_NEGOCIO.md` (§4, §5 e §11), `extension/LEIAME.md` e os arquivos citados em cada fase.

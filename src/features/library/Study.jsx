@@ -265,7 +265,7 @@ export function Library({ state, open, actions }) {
         {showFinished && <div className="reading-list">{finished.map(course => <CourseCard key={course.id} course={course} state={state} open={open} compact icon="check"/>)}</div>}
       </section>}
 
-      {!courses.length && <Empty title="Nenhum material neste filtro." onAdd={() => open({ type: 'new' })}>Troque o filtro ou importe um curso por link.</Empty>}
+      {!courses.length && <Empty title="Nenhum material neste filtro." onAdd={() => open({ type: 'new' })}>Troque o filtro ou importe um curso pela extensão.</Empty>}
     </>}
   </div>;
 }
@@ -304,7 +304,7 @@ function FirstStudyArea({ actions, open }) {
       {error && <p className="form-error" role="alert">{error}</p>}
       <Button type="submit"><Icon name="plus"/>Criar minha trilha</Button>
     </form>
-    <p className="quiet-note">Já tem um link? <button className="text-button accent" type="button" onClick={() => open({ type: 'new' })}>Detectar o curso pelo link<Icon name="arrow"/></button></p>
+    <p className="quiet-note">Já estuda em uma plataforma? <button className="text-button accent" type="button" onClick={() => open({ type: 'new' })}>Adicionar curso pela extensão<Icon name="arrow"/></button></p>
     <p className="quiet-note">Estuda por PDF? <button className="text-button accent" type="button" onClick={() => open({ type: 'pdf-attach' })}>Anexar um PDF, sem curso<Icon name="arrow"/></button></p>
   </section>;
 }

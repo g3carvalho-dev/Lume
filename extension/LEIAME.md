@@ -13,7 +13,9 @@ No Gran e na Udemy, a extensão consulta as marcas da própria plataforma e agua
 
 ## Instalação e desenvolvimento
 
-Em **Biblioteca › Adicionar curso**, o cartão leva à ficha na Chrome Web Store. O acompanhamento exige a versão 0.3.0 ou posterior. A disponibilização dessa versão depende da revisão da loja. Celular e aplicativo de desktop podem usar a grade colada.
+Em **Biblioteca › Adicionar curso**, há um link para a ficha na Chrome Web Store e instruções curtas: confirme a instalação no navegador, abra o curso e escolha **Ler este curso** no ícone do Lume. A leitura abre diretamente a revisão das aulas no Lume. **Atualizar grade** orienta a repetir essa leitura, preservando o progresso. Os formulários de link e de grade colada foram retirados.
+
+O acompanhamento exige a versão 0.3.0 ou posterior. A disponibilização dessa versão depende da revisão da loja. Para usar o curso no celular ou no aplicativo de desktop, importe pela extensão no Chrome ou no Edge do computador com a mesma conta do Lume.
 
 Para testar a versão local, abra `chrome://extensions` ou `edge://extensions`, ative **Modo do desenvolvedor**, escolha **Carregar sem compactação** e selecione a pasta `extension/`. Se ela já estiver carregada, clique em **Recarregar** e recarregue as abas de estudo. Na versão de desenvolvimento, o seletor de destino no popup oferece **Lume local**.
 

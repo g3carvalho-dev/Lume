@@ -1,53 +1,13 @@
 /* Análise, revisão e leitura dos cursos importados. */
 
 /* ============================================================
-   Importação de cursos por link (domínio: public/import-domain.js)
+   Importação de cursos pela extensão (domínio: public/import-domain.js)
    Mantém a mesma paleta, tipografia e raios das demais telas.
    ============================================================ */
 
 .import-dialog {
   gap: 0.8rem;
 }
-.import-mode {
-  display: flex;
-  gap: 0.4rem;
-  padding: 0.28rem;
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-}
-.import-mode .filter-btn {
-  flex: 1;
-  border-radius: var(--radius-pill);
-}
-.import-mode .filter-btn[aria-selected='true'] {
-  background: var(--lume-soft);
-  color: var(--text);
-}
-.import-file-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-.import-capability-note {
-  display: flex;
-  gap: 0.55rem;
-  align-items: flex-start;
-  margin: 0;
-  padding: 0.7rem 0.85rem;
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-.import-capability-note .icon {
-  color: var(--lume);
-  flex-shrink: 0;
-  margin-top: 0.15rem;
-}
-
 .import-badges {
   display: flex;
   flex-wrap: wrap;
@@ -370,36 +330,6 @@
   font-size: 0.75rem;
 }
 
-.import-analyzing {
-  display: grid;
-  gap: 0.5rem;
-}
-.import-progress-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.45rem;
-}
-.import-progress-list li {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-size: 0.86rem;
-  color: var(--text-muted);
-}
-.import-pulse {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--lume);
-  animation: import-pulse 1.4s ease-in-out infinite;
-}
-@keyframes import-pulse {
-  0%, 100% { opacity: 0.35; transform: scale(0.9); }
-  50% { opacity: 1; transform: scale(1.15); }
-}
-
 .import-error,
 .import-done {
   display: grid;
@@ -499,13 +429,9 @@
   .import-tree {
     max-height: none;
   }
-  .import-file-row,
   .import-toolbar {
     flex-direction: column;
     align-items: stretch;
-  }
-  .import-file-row .button {
-    width: 100%;
   }
 }
 .extension-invite {

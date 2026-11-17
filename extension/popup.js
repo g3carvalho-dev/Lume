@@ -45,7 +45,7 @@ async function read() {
     if (answer?.ok) say('Enviado. Revise o curso na janela do Lume.');
     else say(REASONS[answer?.reason] || 'Não consegui entregar ao Lume. Tente de novo.');
   } catch {
-    say('Não consegui ler esta página. Ela pode bloquear extensões; use a opção de colar a grade no Lume.');
+    say('Não consegui ler esta página. Abra a grade do curso na plataforma e tente novamente. Algumas páginas bloqueiam a leitura por extensões.');
   } finally {
     button.disabled = false;
   }

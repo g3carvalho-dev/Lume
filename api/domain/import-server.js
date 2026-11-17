@@ -236,7 +236,7 @@ function listItems(html) {
 
 // Uma página de vendas não é uma grade. Só aceitamos itens com cara de aula,
 // ou listas dentro de um bloco explicitamente de conteúdo/currículo. Quando não
-// há evidência suficiente, devolvemos vazio e a interface oferece colar o texto.
+// há evidência suficiente, devolvemos vazio e a interface oferece a extensão.
 function looksLikeLesson(text, { lenient = false } = {}) {
   const value = cleanTitle(text);
   if (value.length < 6 || value.length > 150) return false;
@@ -588,9 +588,9 @@ export async function fetchDocument(value, { fetchImpl = fetch, lookup = null } 
         continue;
       }
       if (response.status === 401 || response.status === 403 || response.status === 402) {
-        throw new ImportError('A fonte exige acesso à conta para mostrar a grade. O Lume não pede sua senha: cole a grade ou envie um arquivo.', 'protected', 422);
+        throw new ImportError('A fonte exige acesso à conta para mostrar a grade. Abra o curso na plataforma e use “Ler este curso” na extensão do Lume.', 'protected', 422);
       }
-      if (!response.ok) throw new ImportError(`A fonte respondeu com erro ${response.status}. Tente de novo ou use o texto colado.`, 'source_error', 422);
+      if (!response.ok) throw new ImportError(`A fonte respondeu com erro ${response.status}. Tente de novo ou leia o curso pela extensão do Lume.`, 'source_error', 422);
       const type = (response.headers.get('content-type') || '').toLowerCase();
       if (type && !/text\/html|application\/xhtml|application\/json|text\/plain/.test(type)) {
         throw new ImportError('O link não aponta para uma página de curso legível.', 'unsupported_type', 422);
@@ -601,7 +601,7 @@ export async function fetchDocument(value, { fetchImpl = fetch, lookup = null } 
     throw new ImportError('A página redirecionou vezes demais.', 'too_many_redirects');
   } catch (error) {
     if (error instanceof ImportError) throw error;
-    if (error?.name === 'AbortError') throw new ImportError('A fonte demorou para responder. Tente de novo ou use o texto colado.', 'timeout', 504);
+    if (error?.name === 'AbortError') throw new ImportError('A fonte demorou para responder. Tente de novo ou leia o curso pela extensão do Lume.', 'timeout', 504);
     throw new ImportError('Não foi possível acessar a fonte agora.', 'network_error', 502);
   } finally {
     clearTimeout(timer);
@@ -618,7 +618,7 @@ function buildAnalysis(extracted, finalUrl, { snapshot = false, html = '' } = {}
     throw new ImportError(
       snapshot
         ? 'Não encontrei aulas na página copiada. Selecione só a área do curso (módulos e aulas) e copie de novo, ou cole a ementa como texto.'
-        : `Não encontrei a grade nesta página da ${provider.label}. Ela pode ser montada por JavaScript ou exigir login. Cole a ementa ou envie um arquivo para organizar automaticamente.`,
+        : `Não encontrei a grade nesta página da ${provider.label}. Ela pode ser montada por JavaScript ou exigir login. Abra o curso na plataforma e use “Ler este curso” na extensão do Lume.`,
       'no_syllabus',
       422,
     );

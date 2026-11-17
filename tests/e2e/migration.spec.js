@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { materialSteps, stepUnits } from '../../public/material-model.js';
 import { createInitialState, completeMission } from '../../public/domain.js';
-import { seedAccount, readAccount, addMaterial } from './library-helpers.js';
+import { seedAccount, readAccount, addMaterial, captureCourse } from './library-helpers.js';
 
 // A biblioteca real começa vazia. Estes cenários de dados antigos precisam de
 // trilhas próprias para conferir busca, pausa e restauração.
@@ -51,10 +51,10 @@ test('prévia, dados legados, busca, filtros, teclado, curso e progresso', { tag
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Adicionar material', exact: true })).toBeFocused();
   await addMaterial(page, 'Adicionar curso');
-  await page.getByRole('tab', { name: 'Colar a grade' }).click();
-  await page.getByLabel('Nome do curso (opcional)').fill('Leitura React');
-  await page.getByLabel('Grade do curso').fill('Disciplina: Componentes\nMódulo: Fundamentos\nAula 1 — Props e estado\nAula 2 — Efeitos');
-  await page.getByRole('button', { name: 'Organizar grade' }).click();
+  await captureCourse(page, {
+    title: 'Leitura React',
+    disciplines: [{ title: 'Componentes', modules: [{ title: 'Fundamentos', lessons: [{ title: 'Aula 1 — Props e estado' }, { title: 'Aula 2 — Efeitos' }] }] }],
+  });
   await expect(page.getByRole('heading', { name: 'Leitura React' })).toBeVisible();
   await page.getByRole('button', { name: /Adicionar 2 aulas à biblioteca/ }).click();
   await expect(page.getByText('Importação concluída')).toBeVisible();
@@ -119,10 +119,10 @@ test('cadastro, saída, login, sincronização e recuperação na API local', as
   await expect(page.locator('#main > div')).toHaveCSS('opacity', '1');
   await page.getByRole('link', { name: 'Biblioteca', exact: true }).click();
   await addMaterial(page, 'Adicionar curso');
-  await page.getByRole('tab', { name: 'Colar a grade' }).click();
-  await page.getByLabel('Nome do curso (opcional)').fill('Curso da minha conta');
-  await page.getByLabel('Grade do curso').fill('Aula 1 — Primeira aula');
-  await page.getByRole('button', { name: 'Organizar grade' }).click();
+  await captureCourse(page, {
+    title: 'Curso da minha conta',
+    disciplines: [{ title: 'Conteúdo', modules: [{ title: 'Aulas', lessons: [{ title: 'Aula 1 — Primeira aula' }] }] }],
+  });
   await page.getByRole('button', { name: /Adicionar 1 aula à biblioteca/ }).click();
   await page.getByRole('button', { name: 'Voltar à biblioteca' }).click();
   await page.getByRole('button', { name: /^Menu da conta/ }).click();

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { seedAccount, readAccount, addMaterial } from './library-helpers.js';
+import { seedAccount, readAccount, addMaterial, captureCourse } from './library-helpers.js';
 import { addCourse, completeMission, createInitialState } from '../../public/domain.js';
 import { addSubject, linkMaterialSubject } from '../../public/subject-domain.js';
 import { addTask } from '../../public/tasks-domain.js';
@@ -13,18 +13,12 @@ async function importCourse(page) {
   await page.goto('/#biblioteca');
   await expect(page.getByRole('heading', { name: 'Biblioteca', exact: true })).toBeVisible();
   await addMaterial(page, 'Adicionar curso');
-  await page.getByRole('tab', { name: 'Colar a grade' }).click();
-  await page.getByLabel('Nome do curso (opcional)').fill('Curso em sequência');
-  await page.getByLabel('Grade do curso', { exact: true }).fill([
-    'Disciplina: Fundamentos',
-    'Módulo: Começo',
-    'Aula 1 — Apresentação',
-    'Aula 2 — Conceitos',
-    'Aula 3 — Exemplos',
-    'Aula 4 — Exercícios',
-    'Aula 5 — Revisão',
-  ].join('\n'));
-  await page.getByRole('button', { name: 'Organizar grade' }).click();
+  await captureCourse(page, {
+    title: 'Curso em sequência',
+    disciplines: [{ title: 'Fundamentos', modules: [{ title: 'Começo', lessons: [
+      'Aula 1 — Apresentação', 'Aula 2 — Conceitos', 'Aula 3 — Exemplos', 'Aula 4 — Exercícios', 'Aula 5 — Revisão',
+    ].map(title => ({ title })) }] }],
+  });
   await page.getByRole('button', { name: /Adicionar 5 aulas à biblioteca/ }).click();
   await page.getByRole('button', { name: 'Voltar à biblioteca' }).click();
   await page.getByRole('button', { name: /^Curso em sequência,/ }).click();
@@ -43,7 +37,7 @@ test('concluir e abrir a próxima registra a aula e já mostra a seguinte', asyn
   await dialog.getByRole('button', { name: 'Concluir e abrir a próxima' }).click();
 
   await expect(dialog.getByRole('heading', { name: 'Aula 2 — Conceitos' })).toBeVisible();
-  await expect(page.getByText(/Você concluiu Aula 1 — Apresentação\. Agora é Aula 2 — Conceitos/)).toBeVisible();
+  await expect(page.getByText(/Você concluiu Aula 1 — Apresentação\. Abrimos Aula 2 — Conceitos/)).toBeVisible();
   expect(completedTitles(await readAccount(page))).toEqual(['Aula 1 — Apresentação']);
 
   // Registrar só esta aula continua disponível e volta para o curso.

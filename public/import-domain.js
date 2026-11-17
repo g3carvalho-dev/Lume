@@ -240,7 +240,7 @@ export function normalizePayload(input, { sourceUrl = '' } = {}) {
   if (!completionAllowed && (flagged || (Array.isArray(input.completedTitles) && input.completedTitles.length))) {
     warnings.push('Fonte sem adaptador próprio: as marcas de concluído da página não foram lidas.');
   }
-  if (!lessonCount) throw new Error('Nenhuma aula identificada. Cole a grade inteira ou envie um arquivo com disciplinas, módulos e aulas.');
+  if (!lessonCount) throw new Error('Nenhuma aula identificada. Abra a grade do curso na plataforma e tente ler novamente pela extensão do Lume.');
 
   const extraction = ['structured-data', 'page-outline', 'page-snapshot', 'extension-capture', 'pasted-text', 'file-import', 'ai-assisted'].includes(input.extraction?.kind)
     ? input.extraction.kind : 'pasted-text';

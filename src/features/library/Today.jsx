@@ -246,7 +246,7 @@ export function Home({ state, open, go, planActions, notify, account }) {
               <span className="today-resume-label">comece por aqui</span>
             </div>
             <h2 id="next-title" className="today-resume-title">Nenhum material em andamento.</h2>
-            <p className="today-resume-sub">Importe um curso por link, anexe um PDF ou crie um material. A próxima aula aparece aqui com o tempo sugerido.</p>
+            <p className="today-resume-sub">Importe um curso pela extensão, anexe um PDF ou crie um material. A próxima aula aparece aqui com o tempo sugerido.</p>
             <div className="action-row">
               <Button onClick={() => go('biblioteca')}><Icon name="plus"/>Ir para a biblioteca</Button>
             </div>

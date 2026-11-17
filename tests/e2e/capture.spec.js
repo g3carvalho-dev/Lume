@@ -129,11 +129,13 @@ async function openLume(page) {
   await expect(page.getByRole('heading', { name: 'Biblioteca', exact: true })).toBeVisible();
 }
 
-test('a oferta de instalação verifica a versão novamente e mantém a opção de colar', async ({ page }) => {
+test('a oferta de instalação verifica a versão novamente sem oferecer grade colada', async ({ page }) => {
   await openLume(page);
   await addMaterial(page, 'Adicionar curso');
   const card = page.getByRole('region', { name: 'Extensão do Lume' });
   await expect(card.getByRole('link', { name: 'Instalar a extensão' })).toBeVisible();
+  await expect(card.getByRole('listitem')).toHaveCount(3);
+  await expect(card).toContainText('confirme a instalação no navegador');
   await page.evaluate(() => {
     window.addEventListener('message', event => {
       if (event.data?.source === 'lume' && event.data.type === 'ping') {
@@ -145,16 +147,18 @@ test('a oferta de instalação verifica a versão novamente e mantém a opção 
   await expect(card.getByRole('link', { name: 'Atualizar a extensão' })).toBeVisible();
   await page.evaluate(() => window.postMessage({ source: 'lume-extension', type: 'hello', version: '0.3.0' }, location.origin));
   await expect(card.getByRole('heading', { name: 'Extensão instalada' })).toBeVisible();
+  await expect(card.getByRole('link', { name: 'Ver extensão na loja' })).toBeVisible();
   await expect(card.getByRole('listitem')).toHaveCount(3);
-  await page.getByRole('tab', { name: 'Colar a grade' }).click();
-  await expect(page.getByLabel('Grade do curso', { exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog')).not.toContainText(/colar a grade|colar a página/i);
 });
 
-test('no aplicativo de desktop a oferta orienta a colar a grade', async ({ page }) => {
+test('no aplicativo de desktop a oferta orienta a importar no navegador com a mesma conta', async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { value: 'Chrome/157 Electron/43' }));
   await openLume(page);
   await addMaterial(page, 'Adicionar curso');
   await expect(page.getByText(/funciona no Chrome e no Edge do computador/)).toBeVisible();
+  await expect(page.getByText(/usando a mesma conta do Lume/)).toBeVisible();
+  await expect(page.getByRole('dialog')).not.toContainText(/colar a grade|colar a página/i);
   await expect(page.getByRole('link', { name: 'Instalar a extensão' })).toHaveCount(0);
 });
 
@@ -219,7 +223,11 @@ test('mensagem repetida é confirmada de novo sem abrir outra revisão e payload
 
   await page.keyboard.press('Escape');
   await deliver(page, { title: 'Quebrado', disciplines: 'nada' }, 'quebrada');
-  await expect(page.getByRole('heading', { name: 'Não encontrei aulas nesse texto' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Não consegui ler a grade' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Extensão do Lume' })).toBeVisible();
+  await expect(page.getByRole('dialog').locator('input, textarea, form')).toHaveCount(0);
+  await deliver(page, captured(0), 'corrigida');
+  await expect(page.getByRole('dialog').getByRole('heading', { name: 'React do zero' })).toBeVisible();
 });
 
 test('Gran DOM: URL, painel real, seções preguiçosas e seção vazia', async ({ page }) => {

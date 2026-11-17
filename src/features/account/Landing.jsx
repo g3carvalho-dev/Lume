@@ -6,7 +6,7 @@ import { Button, Logo } from '../../ui/ui.jsx';
 // exemplo é ilustrativo e diz isso. Sem depoimentos nem números de usuários.
 const PILLARS = [
   ['timer', 'Sessão de foco', 'Ciclos de 10 minutos a 1 hora, ou do tamanho que você quiser, com som de fundo opcional gerado no próprio aparelho.', 'Pausar não apaga nada', 'lume'],
-  ['book', 'Biblioteca com PDFs', 'Cursos importados por link, materiais próprios e PDFs com leitor embutido que lembra a página onde você parou.', 'Retomada sem procurar', 'mint'],
+  ['book', 'Biblioteca com PDFs', 'Cursos importados pela extensão, materiais próprios e PDFs com leitor embutido que lembra a página onde você parou.', 'Retomada sem procurar', 'mint'],
   ['calendar', 'Plano e Agenda', 'Cronograma montado pelo tempo que você tem em cada dia, compromissos com lembrete e sessões agendadas.', 'Recalculado pelo que você concluiu', 'reward'],
   ['users', 'Amigos e ranking', 'Amigos por convite, mensagens diretas e ranking por nível, cursos concluídos e empenho. Participar é escolha sua.', 'Sem grupos nem feed', 'lume'],
 ];
