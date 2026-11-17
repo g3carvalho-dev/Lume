@@ -44,3 +44,7 @@ companion/package-smoke.json
 Thumbs.db
 desktop.ini
 wrangler.contract-*.jsonc
+
+companion/build/webview2/
+companion/webview2/build/
+companion/build/udemy-runtime/

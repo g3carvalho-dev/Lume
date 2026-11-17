@@ -19,6 +19,7 @@ export function platformModule() {
 export async function buildCapture({ entry = 'capture', outfile = fileURLToPath(new URL(`../extension/${entry}.js`, import.meta.url)), write = true } = {}) {
   const result = await build({
     entryPoints: [fileURLToPath(new URL(`../extension/src/${entry}.js`, import.meta.url))],
+    external: entry === 'desktop-watch' ? ['electron'] : [],
     bundle: true,
     format: 'iife',
     platform: 'browser',
@@ -37,5 +38,6 @@ if (import.meta.url === `file:///${process.argv[1]?.replaceAll('\\', '/').replac
   await writeFile(new URL('../extension/platforms.js', import.meta.url), platformModule());
   await buildCapture();
   await buildCapture({ entry: 'watch' });
-  console.log('extension/capture.js atualizado.');
+  await buildCapture({entry:'edge-watch', outfile:fileURLToPath(new URL('../companion/electron/edge-observer.js', import.meta.url))});
+  await buildCapture({entry:'desktop-watch', outfile:fileURLToPath(new URL('../companion/electron/lesson-preload.cjs', import.meta.url))});
 }

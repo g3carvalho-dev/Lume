@@ -115,6 +115,12 @@ function renderUpdate() {
   const line = $('update-line');
   const action = $('update-action');
   const note = $('update-note');
+  if (info.mode === 'store') {
+    action.hidden = true;
+    line.textContent = `Versão ${current}`;
+    note.textContent = 'A Microsoft Store gerencia as atualizações do Lume.';
+    return;
+  }
 
   if (status === 'checking') line.textContent = 'Procurando atualização…';
   else if (status === 'current') line.textContent = `Versão ${current} é a mais recente.`;

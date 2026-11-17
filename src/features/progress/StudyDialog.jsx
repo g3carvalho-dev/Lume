@@ -1,6 +1,6 @@
 import { courseEstimateText, courseStats } from '../../../public/course-stats-domain.js';
 import { useExtension } from '../../lib/extension.js';
-import ExtensionInvite from '../library/ExtensionInvite.jsx';
+import { lessonProvider } from '../../../companion/electron/lesson-provider.mjs';
 import { providerById } from '../../../public/providers/registry.js';
 import { useState } from 'react';
 import { achievements, courseProgress, hasPreparation, materialType } from '../../../public/domain.js';
@@ -215,6 +215,9 @@ function ImportedSession({ course, state, actions, open, close, notify, stepId, 
   const done = isCompleted(state, step.id);
   const origin = lessonOrigin(state, step.id);
   const link = lesson?.url || course.url;
+  const provider = lessonProvider(lesson?.url);
+  const desktopPlayer = Boolean(window.lumeWindow && provider);
+  const desktopTracking = desktopPlayer && window.lumeWindow.tracksVideoLessons && account && state.preferences.watchLessons !== false;
   const upcoming = done ? null : nextLessonAfter(state, course, step.id);
   const watching = state.activeSession?.origin === 'watching' && state.activeSession.courseId === course.id && state.activeSession.stepId === step.id;
   const xpNote = account ? 'O XP é confirmado pelo servidor.' : 'Na prévia, o XP não é validado.';
@@ -241,30 +244,27 @@ function ImportedSession({ course, state, actions, open, close, notify, stepId, 
     notify(`Você concluiu ${step.title}. ${target ? 'Abrimos' : 'Agora é'} ${following.title}. ${xpNote}`);
     open({ type: 'session', id: course.id, stepId: following.id });
   }
-  return <div className="session-content">
-    <div className="dialog-emblem"><Icon name="focus"/></div>
-    <span className="eyebrow">{lesson?.discipline || sourceLabel(course.source)}{lesson?.module ? ` · ${lesson.module}` : ''}</span>
-    <h2 id="dialog-title" className="headline">{step.title}</h2>
-    <p className="session-course">{course.title}</p>
-    {lesson?.duration ? <p className="quiet-note"><Icon name="clock"/>Duração informada pela fonte: {formatDuration(lesson.duration)}</p> : null}
-    {watching ? <p className="inline-note"><Icon name="clock"/>{state.activeSession.status === 'active' ? 'Assistindo' : 'Vídeo pausado'} · Aula {materialSteps(course).findIndex(item => item.id === step.id) + 1} de {summary.total}</p>
-      : <p className="dialog-text">{tracking ? 'No selo da aula, escolha “Assistir sobre o Lume” para trazer o vídeo em uma janela flutuante. O timer acompanha a reprodução.' : 'Abra a aula na plataforma. Ao terminar, registre a conclusão aqui.'}</p>}
-    {!extension.installed && <ExtensionInvite provider={providerById(course.source?.provider)}/>}
-    {link ? <a href={link} className="button secondary full-width" target="_blank" rel="noopener noreferrer">Abrir aula na plataforma<Icon name="external"/></a> : <p className="inline-note"><Icon name="book"/><span>A fonte não publicou um link direto para esta aula. Use o link do curso.</span></p>}
-    <p className="inline-note"><Icon name="shield"/><span>Origem do registro: {origin ? ORIGIN_LABEL[origin] : 'ainda não concluída'} · {tracking ? 'acompanhamento pela extensão autorizado' : 'nenhuma integração de progresso ativa'}.</span></p>
-    <div className="session-actions">
-      {done
-        ? <p className="completed-message"><Icon name="check"/>Já registrada como concluída.</p>
-        : upcoming
-          ? <>
-            <Button className="full-width" onClick={finishAndContinue}><Icon name="arrow"/>Concluir e abrir a próxima</Button>
-            <Button secondary className="full-width" onClick={finish}><Icon name="check"/>Concluí esta aula</Button>
-            <p className="quiet-note">Próxima: {upcoming.title}{upcoming.duration ? ` · ${formatDuration(upcoming.duration)}` : ''}</p>
-          </>
-          : <Button className="full-width" onClick={finish}><Icon name="check"/>Concluí esta aula</Button>}
-      <button className="text-button centered" onClick={() => open({ type: 'course', id: course.id })}>Ver todas as aulas</button>
-      <button className="text-button centered" onClick={close}>Fechar · o progresso continua salvo</button>
+  const platform = provider || providerById(course.source?.provider)?.label;
+  return <div className="session-content lesson-dialog">
+    <header>
+      <p className="session-course">{course.title}</p>
+      <h2 id="dialog-title" className="headline">{step.title}</h2>
+      <p className="quiet-note">{[platform, lesson?.module, lesson?.duration && formatDuration(lesson.duration)].filter(Boolean).join(' · ')}</p>
+    </header>
+    {link && <a href={link} className="button primary full-width" target="_blank" rel="noopener noreferrer">
+      <Icon name={desktopPlayer ? 'play' : 'external'}/>{desktopPlayer ? 'Assistir no Lume' : lesson?.url ? 'Assistir na plataforma' : 'Abrir curso na plataforma'}
+    </a>}
+    {desktopPlayer && window.lumeWindow.openLessonInBrowser &&
+      <button className="text-button centered" onClick={() => window.lumeWindow.openLessonInBrowser(link)}>Abrir {provider === 'Udemy' ? 'na Udemy' : 'no Gran'} pelo navegador<Icon name="external"/></button>}
+    {watching ? <p className="quiet-note">{state.activeSession.status === 'active' ? 'Registrando tempo de estudo' : 'Contagem pausada'}</p>
+      : (desktopTracking || tracking) && <p className="quiet-note">O tempo de estudo acompanha a reprodução.</p>}
+    <div className="lesson-record">
+      {done ? <span className="completed-message"><Icon name="check"/>Aula concluída · {ORIGIN_LABEL[origin]}</span>
+        : <Button secondary onClick={finish}><Icon name="check"/>Concluí esta aula</Button>}
+      {!done && upcoming && <button className="text-button" onClick={finishAndContinue}>Concluir e abrir a próxima<Icon name="arrow"/></button>}
     </div>
+    {upcoming && <small className="quiet-note">Próxima: {upcoming.title}</small>}
+    <button className="text-button centered" onClick={() => open({ type: 'course', id: course.id })}>Ver todas as aulas</button>
   </div>;
 }
 
@@ -375,7 +375,9 @@ function ImportedCourse({ course, state, actions, progressActions, open, close, 
       <strong>{nextLesson.title}</strong>
       <small>{nextLesson.discipline}{nextLesson.module ? ` · ${nextLesson.module}` : ''}{nextLesson.duration ? ` · ${formatDuration(nextLesson.duration)}` : ''}</small>
       <div className="action-row">
-        <Button onClick={() => open({ type: 'session', id: course.id, stepId: nextLesson.id })}><Icon name="play"/>Abrir e registrar</Button>
+        {window.lumeWindow && lessonProvider(nextLesson.url)
+          ? <a className="button primary" href={nextLesson.url} target="_blank" rel="noopener noreferrer"><Icon name="play"/>Assistir no Lume</a>
+          : <Button onClick={() => open({ type: 'session', id: course.id, stepId: nextLesson.id })}><Icon name="play"/>Abrir e registrar</Button>}
         <Button secondary onClick={() => markLesson(nextLesson.id)}><Icon name="check"/>Já concluí</Button>
       </div>
     </section>}

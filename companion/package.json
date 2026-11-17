@@ -13,8 +13,13 @@
     "smoke": "electron . --smoke",
     "pack": "electron-builder --win dir",
     "dist": "electron-builder --win nsis --publish never",
+    "dist:store": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File store/build.ps1",
     "pack:linux": "electron-builder --linux dir",
-    "dist:linux": "electron-builder --linux AppImage deb --publish never"
+    "dist:linux": "electron-builder --linux AppImage deb --publish never",
+    "webview2:build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File webview2/build.ps1",
+    "prepack": "npm run webview2:build",
+    "predist": "npm run webview2:build",
+    "prestart": "node webview2/prepare.mjs"
   },
   "devDependencies": {
     "electron": "^45.2.1",

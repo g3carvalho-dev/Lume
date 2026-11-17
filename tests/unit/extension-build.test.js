@@ -20,6 +20,10 @@ test('plataformas do popup acompanham o registro', () => {
 test('observador, permissões opcionais e fontes acompanham as fontes do projeto', async () => {
   const fresh = await buildCapture({entry:'watch',write:false});
   assert.equal(readFileSync(new URL('../../extension/watch.js',import.meta.url),'utf8').replace(/\r\n/g,'\n'),fresh.replace(/\r\n/g,'\n'));
+  const preload = await buildCapture({entry:'desktop-watch',write:false});
+  assert.equal(readFileSync(new URL('../../companion/electron/lesson-preload.cjs',import.meta.url),'utf8').replace(/\r\n/g,'\n'), preload.replace(/\r\n/g,'\n'));
+  const edge = await buildCapture({entry:'edge-watch',write:false});
+  assert.equal(readFileSync(new URL('../../companion/electron/edge-observer.js',import.meta.url),'utf8').replace(/\r\n/g,'\n'), edge.replace(/\r\n/g,'\n'));
   const manifest=JSON.parse(readFileSync(new URL('../../extension/manifest.json',import.meta.url)));
   const hosts=PROVIDERS.flatMap(p=>p.hosts.map(h=>'https://*.'+h+'/*'));
   assert.deepEqual(manifest.optional_host_permissions,hosts);

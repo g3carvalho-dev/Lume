@@ -38,6 +38,10 @@ publish:
   releaseType: release
 
 win:
+  extraResources:
+    - from: build/udemy-runtime
+      to: webview2
+      filter: ["lume_webview.node", "LICENSE.txt"]
   target:
     - target: nsis
       arch: [x64]

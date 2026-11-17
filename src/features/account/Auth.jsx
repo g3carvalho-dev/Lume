@@ -287,6 +287,7 @@ export function Login({ model, mode, setMode, go, notify }) {
                   </label>
                   {termsOpen && <p className="auth-terms-note">
                     Seus materiais, progresso e sessões pertencem à sua conta. Senhas ficam armazenadas apenas como hash seguro e não há anúncios ou venda de dados.
+                    {' '}<a href="/privacidade.html" target="_blank" rel="noopener">Ler a política de privacidade completa</a>.
                   </p>}
                 </div>}
 

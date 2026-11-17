@@ -39,6 +39,7 @@ export function createUpdater({
   autoUpdater = null,
   currentVersion,
   native = false,
+  store = false,
   fallback = null,
   releasesPage = '',
   onChange = () => {},
@@ -46,6 +47,11 @@ export function createUpdater({
   setTimer = setTimeout,
   setRepeat = setInterval,
 } = {}) {
+  if (store) {
+    const snapshot = () => ({ ...INITIAL, mode: 'store', currentVersion });
+    return { getInfo: snapshot, check: async () => snapshot(), download: async () => snapshot(),
+      install: async () => snapshot(), start() {}, stop() {} };
+  }
   let info = { ...INITIAL, mode: native && autoUpdater ? 'native' : 'manual', page: releasesPage };
   let timers = [];
   let installing = false;

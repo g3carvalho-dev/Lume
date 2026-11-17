@@ -499,3 +499,14 @@
 .extension-invite ol, .extension-invite p { color: var(--text-muted); margin: var(--space-2) 0 0; }
 .extension-invite ol { padding-inline-start: 1.4em; }
 .extension-invite-actions { flex-wrap: wrap; margin-top: var(--space-3); }
+
+.lesson-dialog header { display: grid; gap: var(--space-2); padding-right: var(--space-4); }
+.lesson-dialog header > * { margin: 0; }
+.lesson-dialog .lesson-record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--actions-gap);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+}

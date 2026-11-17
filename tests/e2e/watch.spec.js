@@ -11,6 +11,7 @@ test('vídeo real em página de exemplo: selo, pausa, avanço pela barra, fim e 
     window.events=[];
     const attach=Element.prototype.attachShadow;
     Element.prototype.attachShadow=function(options){const root=attach.call(this,options);window.badge=root;return root;};
+    window.chrome ||= {};
     window.chrome.runtime={getURL:file=>location.origin+'/'+file,
       onMessage:{addListener(fn){window.stopWatch=fn;},removeListener(){}},
       async sendMessage(message){

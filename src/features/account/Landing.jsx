@@ -235,6 +235,7 @@ export default function Landing({ go, setAuthMode, signedIn }) {
             <div>
               <strong>Acesso</strong>
               <a href="#recuperar">Recuperar acesso</a>
+              <a href="/privacidade.html">Política de privacidade</a>
               <a href="#aplicativo">Aplicativo desktop</a>
             </div>
           </div>

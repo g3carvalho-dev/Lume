@@ -64,11 +64,13 @@ function setStudy(value) {
 }
 
 let discordStatus = { enabled: true, configured: false, status: 'unconfigured' };
-const nativeUpdates = nativeUpdatesSupported({ packaged: app.isPackaged });
+const storeUpdates = process.windowsStore || (app.isPackaged && existsSync(join(process.resourcesPath, 'microsoft-store')));
+const nativeUpdates = !storeUpdates && nativeUpdatesSupported({ packaged: app.isPackaged });
 const updater = createUpdater({
   autoUpdater: nativeUpdates ? electronUpdater.autoUpdater : null,
   currentVersion: app.getVersion(),
   native: nativeUpdates,
+  store: storeUpdates,
   releasesPage: RELEASES_PAGE,
   onChange: () => { broadcast(); buildMenu(); },
   // Deixa o Lume sair de verdade (sem esconder na bandeja) para o instalador trocar os arquivos.
@@ -88,7 +90,7 @@ const updater = createUpdater({
   },
 });
 
-if (process.platform === 'win32') app.setAppUserModelId('com.lume.app');
+if (process.platform === 'win32' && !storeUpdates) app.setAppUserModelId('com.lume.app');
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -212,6 +214,7 @@ function trayLabel(value) {
 
 function updateMenuItem() {
   const update = updater.getInfo();
+  if (update.mode === 'store') return { label: 'Atualizações na Microsoft Store', click: () => shell.openExternal('ms-windows-store://downloadsandupdates') };
   if (update.status === 'ready') {
     return { label: `Reiniciar e atualizar para ${update.latest}`, click: () => { installUpdate().catch(() => showPanel()); } };
   }
@@ -414,6 +417,12 @@ async function disconnect() {
   broadcast();
   return state;
 }
+
+ipcMain.handle('lume:lesson-browser', (event, url) => {
+  if (event.sender !== mainWindow?.webContents || event.senderFrame !== mainWindow.webContents.mainFrame ||
+      new URL(event.senderFrame.url).origin !== new URL(appUrl()).origin || typeof url !== 'string' || !lessonProvider(url)) return;
+  return shell.openExternal(url);
+});
 
 ipcMain.on('lume:study', (event, value) => {
   if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return;

@@ -56,3 +56,10 @@ h1,footer strong{font-family:Bricolage,"Segoe UI",sans-serif}
   .lesson-heading { grid-template-columns: minmax(0, 1fr); }
   .lesson-heading dl { grid-column: 1; grid-row: 3; }
 }
+
+#login-help { grid-column: 1 / -1; color: var(--ink); padding-block: 6px; }
+#login-help a { display: inline-block; margin-inline-start: 8px; }
+
+.stage:has(#player-error:not([hidden])) { display: grid; place-items: center; }
+#player-error { max-width: 48ch; padding: 20px; text-align: center; }
+#player-error p { color: var(--sub); margin-block: 10px; }

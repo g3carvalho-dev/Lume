@@ -186,8 +186,8 @@ export function Preferences({ state, actions, libraryActions, confirmSave, notif
             <p className="cfg-lead">{studyRhythm(state).title}</p>
             <LinkButton onClick={onPersonalize}>Revisar respostas iniciais</LinkButton>
           </div>
-          <Toggle title="Acompanhar aulas pela extensão"
-            hint="A extensão registra a reprodução das aulas nas plataformas que você ligar no navegador."
+          <Toggle title="Acompanhar a reprodução de aulas"
+            hint="Registra aulas importadas no player do aplicativo e nas plataformas que você autorizar pela extensão."
             checked={state.preferences.watchLessons !== false} onChange={value => preference('watchLessons', value)}/>
           <Toggle
             title="Registrar tempo ao ler PDFs"

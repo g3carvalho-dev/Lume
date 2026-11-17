@@ -21,8 +21,7 @@ Os instaladores têm nomes fixos (`Lume-setup.exe`, `Lume.AppImage`, `Lume.deb`)
 3. **Assinatura (opcional, recomendada)** — em *Settings → Secrets and variables → Actions*:
    - `CSC_LINK`: certificado `.pfx` em base64 (`certutil -encode cert.pfx cert.b64`).
    - `CSC_KEY_PASSWORD`: senha do certificado.
-   Sem esses secrets, o instalador é gerado **sem assinatura**: funciona, mas o
-   Windows mostra o aviso do SmartScreen na primeira execução.
+   Sem esses secrets, os executáveis saem **sem assinatura**. O SmartScreen pode mostrar um aviso e o Controle de Aplicativos pode impedir a execução, inclusive do módulo de vídeo da Udemy. Valide o instalador, `Lume.exe` e `resources/webview2/lume_webview.node` numa máquina com a política de destino.
 4. Opcional: proteger a tag `companion-v*` contra exclusão acidental em
    *Settings → Tags*.
 
@@ -55,6 +54,8 @@ Também é possível disparar manualmente em *Actions → Companion release → 
 workflow*, informando uma tag já existente.
 
 ## 3. O que vai no pacote
+
+No Windows x64, o build compila o módulo Node-API do WebView2 com node-gyp, Python, as ferramentas C++ do Visual Studio e os cabeçalhos da versão de Electron do pacote. O SDK WebView2 é fixado por SHA-256 em `companion/webview2/build.ps1`. O carregador é vinculado estaticamente. O Lume carrega `resources/webview2/lume_webview.node` em seu próprio processo e usa o runtime Evergreen instalado no computador.
 
 - `electron/`, `core.mjs`, `domain.mjs`, `update.mjs`, `discord-*.mjs` e `package.json` dentro do `app.asar`.
 - Ícones da bandeja e da janela em `resources/assets` (fora do asar).
@@ -90,3 +91,13 @@ Localmente, sem `PLAYWRIGHT_CHANNEL`, os testes usam o Chrome instalado.
 - Atualização automática: o app instalado (Windows e AppImage) lê `latest.yml`/`latest-linux.yml` da release mais recente, baixa em segundo plano e instala por cima em silêncio (`companion/updater.mjs`, `electron-updater`). O `.deb` e a execução fora do instalador usam o caminho manual de `companion/update.mjs`. `dist` roda com `--publish never`: quem publica é o workflow. Quem está numa versão sem o novo updater precisa instalar a primeira versão nova à mão, uma única vez.
 - `npm audit` acusa vulnerabilidades moderadas em dependências transitivas do
   `electron-builder`; nenhuma delas entra no app empacotado (são ferramentas de build).
+# Microsoft Store (Windows x64)
+
+No Windows com o Windows SDK e os pré-requisitos de compilação do player, rode
+`npm.cmd run dist:store --prefix companion`. O MSIX sai em `companion/release/`.
+O manifesto em `companion/store/AppxManifest.xml` usa a identidade reservada de
+**Lume Academy**. O script usa a versão do pacote Desktop e zero no quarto campo.
+Para distribuir, carregue o MSIX em **Pacotes** no Partner Center e envie a
+submissão para certificação. A Store assina o pacote e gerencia as atualizações
+dessa edição. O player da Udemy exige o runtime Microsoft Edge WebView2.
+
