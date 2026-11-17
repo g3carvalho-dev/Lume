@@ -12,7 +12,7 @@ continua disponível para diagnóstico.
 ## O que ele faz
 
 - Abre o site do Lume em uma janela própria (1240×820), com barra de título do
-  Lume. Links diretos de videoaulas importadas do Gran e da Udemy abrem o player da plataforma dentro da janela, com **Voltar ao Lume** e **Abrir no navegador**. O primeiro acesso pode pedir login na plataforma dentro do app. Ao reconhecer o vídeo, o Lume enquadra o player e seus controles em uma tela com título da aula, curso, plataforma e duração, conforme disponíveis. A sessão dos cursos fica separada da conta do Lume. Os demais links externos abrem no navegador.
+  Lume. Links diretos de videoaulas importadas do Gran e da Udemy abrem o player da plataforma dentro da janela, com **Voltar ao Lume** e **Abrir no navegador**. O primeiro acesso pode pedir login na plataforma dentro do app. Ao reconhecer o vídeo, o Lume enquadra o player e seus controles em uma tela com título da aula, curso, plataforma e duração, conforme disponíveis. Os links da aula ficam na barra de título arrastável, junto aos controles da janela. O vídeo usa a área central em 16:9 e o controle de tela cheia do player. Esc retorna à tela da aula. A sessão dos cursos fica separada da conta do Lume. Os demais links externos abrem no navegador.
 - Fecha para a bandeja em vez de encerrar; a bandeja mostra estado, próxima aula
   e o atalho para sair.
 - Painel de presença (400×640): dispositivo, aplicativo detectado, roteiro por

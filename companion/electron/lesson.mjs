@@ -27,18 +27,34 @@ function readPlayerDetails(provider) {
 
 export function showLesson(window, url, provider, titleHeight, openExternal) {
   const bar = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
+  const nav = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
   const player = new WebContentsView({ webPreferences: { partition: 'persist:lume-courses', sandbox: true, contextIsolation: true, nodeIntegration: false } });
   const contents = player.webContents;
   const partition = contents.session;
   partition.setPermissionRequestHandler((_wc, permission, callback) => callback(permission === 'fullscreen'));
   partition.setPermissionCheckHandler((_wc, permission) => permission === 'fullscreen');
   window.contentView.addChildView(bar);
+  window.contentView.addChildView(nav);
   window.contentView.addChildView(player);
   let closed = false;
+  // A faixa reservada aos controles nativos pertence à página de fundo.
+  // Cubra-a também quando a aula foi aberta sobre uma página sem a barra do app.
+  const titleStrip = window.webContents.insertCSS(`
+    html::after {
+      content: ""; position: fixed; top: 0; right: 0; width: 150px; pointer-events: none; height: ${titleHeight}px;
+      background: #0c111b; z-index: 2147483647;
+    }`, { cssOrigin: 'user' });
+  let fullscreen = false;
   let layoutRevision = 0;
   function layout() {
     const revision = ++layoutRevision;
     const [width, height] = window.getContentSize();
+    if (fullscreen) {
+      player.setBounds({ x: 0, y: 0, width, height });
+      return;
+    }
+    // A área dos três botões nativos permanece com a janela principal.
+    nav.setBounds({ x: 0, y: 0, width: Math.max(1, width - 150), height: titleHeight });
     bar.setBounds({ x: 0, y: titleHeight, width, height: height-titleHeight });
     bar.webContents.executeJavaScript(`new Promise(resolve => requestAnimationFrame(() => {
       const box = document.querySelector('.stage')?.getBoundingClientRect();
@@ -49,6 +65,14 @@ export function showLesson(window, url, provider, titleHeight, openExternal) {
       player.setBounds({ x:x+3, y:y+titleHeight+3, width:Math.max(1,w-6), height:Math.max(1,h-6) });
     }).catch(() => {});
   }
+  contents.on('enter-html-full-screen', () => { fullscreen = true; layout(); });
+  contents.on('leave-html-full-screen', () => { fullscreen = false; layout(); });
+  contents.on('before-input-event', (event, input) => {
+    if (fullscreen && input.type === 'keyDown' && input.key === 'Escape') {
+      event.preventDefault();
+      contents.executeJavaScript('document.fullscreenElement && document.exitFullscreen()').catch(() => {});
+    }
+  });
   let timer;
   let currentAddress;
   let imported = {};
@@ -88,9 +112,12 @@ export function showLesson(window, url, provider, titleHeight, openExternal) {
     if (closed) return;
     closed = true;
     clearInterval(timer);
+    titleStrip.then(key => {
+      if (!window.webContents.isDestroyed()) return window.webContents.removeInsertedCSS(key);
+    }).catch(() => {});
     window.off('resize', layout);
     window.off('close', close);
-    for (const view of [player, bar]) {
+    for (const view of [player, nav, bar]) {
       window.contentView.removeChildView(view);
       if (!view.webContents.isDestroyed()) view.webContents.close();
     }
@@ -99,7 +126,7 @@ export function showLesson(window, url, provider, titleHeight, openExternal) {
   function setStatus(message) {
     if (!closed) bar.webContents.executeJavaScript('document.querySelector("output").textContent = ' + JSON.stringify(message)).catch(() => {});
   }
-  bar.webContents.on('did-navigate-in-page', (_event, address) => {
+  nav.webContents.on('did-navigate-in-page', (_event, address) => {
     const action = new URL(address).hash;
     if (action === '#back') close();
     if (action === '#browser') { openExternal(lessonProvider(contents.getURL()) === provider ? contents.getURL() : url); close(); }
@@ -118,6 +145,7 @@ export function showLesson(window, url, provider, titleHeight, openExternal) {
   window.on('resize', layout);
   window.once('close', close);
   layout();
+  nav.webContents.loadFile(fileURLToPath(new URL('./renderer/lesson-nav.html', import.meta.url))).catch(close);
   bar.webContents.loadFile(toolbarFile,{query:{provider}}).then(() => {
     if (closed) return;
     layout();

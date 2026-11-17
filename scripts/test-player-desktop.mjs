@@ -22,11 +22,12 @@ let desktop;
 try {
   const executablePath = createRequire(new URL('../companion/package.json',import.meta.url))('electron');
   desktop = await electron.launch({executablePath,args:[resolve('companion'),'--user-data-dir='+dir],env});
+  desktop.context().setDefaultTimeout(10000);
   const page = await desktop.firstWindow();
   await page.waitForURL(origin+'/**');
   const media = (await readFile('tests/fixtures/watch.webm')).toString('base64');
   await desktop.evaluate(({session}, media) => {
-    session.fromPartition('persist:lume-courses').protocol.handle('https', () => new Response('<header><h1>Curso de exemplo</h1><h2 class="line-clamp-2">Aula de exemplo</h2></header><main><div class="video-js" data-purpose="video-player"><video muted autoplay loop src="data:video/webm;base64,'+media+'"></video><button>Pausar</button></div><aside>Grade</aside></main>',{headers:{'Content-Type':'text/html'}}));
+    session.fromPartition('persist:lume-courses').protocol.handle('https', () => new Response('<header><h1>Curso de exemplo</h1><h2 class="line-clamp-2">Aula de exemplo</h2></header><main><div class="video-js" data-purpose="video-player"><video muted autoplay loop src="data:video/webm;base64,'+media+'"></video><button style="position:absolute;bottom:12px;right:12px">Tela cheia</button></div><aside>Grade</aside></main>',{headers:{'Content-Type':'text/html'}}));
   }, media);
   for (const address of ['https://www.udemy.com/course/teste/learn/lecture/1','https://www.grancursosonline.com.br/aluno/curso/video/codigo/teste/v/1']) {
     await page.evaluate(value=>window.lesson=value,address);
@@ -50,8 +51,27 @@ try {
     const stage = await toolbar.locator('.stage').boundingBox();
     const guest = desktop.context().pages().find(p => p.url() === address);
     assert.ok(Math.abs((await guest.evaluate(() => innerWidth)) - stage.width) < 8);
+    const footer = await toolbar.locator('footer').boundingBox();
+    assert.ok(stage.y + stage.height < footer.y);
+    assert.ok(footer.y + footer.height < await toolbar.evaluate(() => innerHeight));
+    assert.ok(Math.abs(stage.width / stage.height - 16/9) < .01);
+    assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement,'::after').height), '36px');
+    const nav = desktop.context().pages().find(p => p.url().includes('/renderer/lesson-nav.html'));
+    assert.equal(await nav.evaluate(() => innerHeight), 36);
+    assert.equal(await nav.evaluate(() => innerWidth), await toolbar.evaluate(() => innerWidth-150));
+    await guest.locator('button').evaluate(button => button.onclick = () => button.parentElement.requestFullscreen());
+    await guest.locator('button').click();
+    await guest.waitForFunction(() => document.fullscreenElement && innerHeight === screen.height);
+    await desktop.evaluate(({webContents}, url) => {
+      const player = webContents.getAllWebContents().find(w => w.getURL() === url);
+      player.focus();
+      player.sendInputEvent({type:'keyDown', keyCode:'Escape'});
+      player.sendInputEvent({type:'keyUp', keyCode:'Escape'});
+    }, address);
+    await guest.waitForFunction(() => !document.fullscreenElement);
+    await guest.waitForFunction(width => Math.abs(innerWidth-width)<8, stage.width);
     await desktop.evaluate(async ({webContents})=>{
-      const toolbar=webContents.getAllWebContents().find(w=>w.getURL().includes('/renderer/lesson.html'));
+      const toolbar=webContents.getAllWebContents().find(w=>w.getURL().includes('/renderer/lesson-nav.html'));
       await toolbar.executeJavaScript('document.querySelector("a").click()');
     });
     await page.getByText('Continuar').waitFor();
