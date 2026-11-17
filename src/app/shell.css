@@ -1,7 +1,7 @@
 /* Casca, navegação e cabeçalhos do aplicativo. */
 
 /* Casca do aplicativo (identidade Norte): cabeçalho sobre a noite, estrela e
-   nome "Lume", navegação em abas de 10px com a ativa em papel, nível em mono
+   nome "Lume", navegação com a estrela pousada sob o destino aberto, nível em mono no cartão da conta
    e rodapé discreto. No celular, a navegação vira a barra fixa inferior. */
 .app-shell {
   min-height: 100vh;
@@ -61,43 +61,66 @@
   background: var(--surface-2);
 }
 .nav-link.active {
-  color: var(--bg);
+  color: var(--text);
   font-weight: 700;
+}
+.nav-link.active .icon {
+  color: var(--star);
 }
 .nav-link.active:hover {
   background: transparent;
 }
-.nav-highlight {
+/* Destino aberto: a estrela pousa na linha do cabeçalho, sob o destino, com um
+   brilho curto de horizonte. Ao trocar, ela percorre a linha (um quarto de volta,
+   então chega igual) e o caminho tracejado aparece e some atrás dela. */
+.nav-mark {
   position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: 10px;
-  background: var(--text);
+  left: 0;
+  bottom: -1px;
+  width: 0;
+  height: 1px;
+  pointer-events: none;
+  transform: translateX(var(--nav-x));
+  transition: transform 0.56s cubic-bezier(0.22, 1, 0.36, 1);
 }
-/* Nível no cabeçalho: contexto gamificado, sempre em mono. */
-.level-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.75rem;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  white-space: nowrap;
+.nav-mark::before {
+  content: '';
+  position: absolute;
+  left: -2.75rem;
+  top: 0;
+  width: 5.5rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--star), transparent);
 }
-.level-chip:hover {
-  border-color: var(--border-strong);
+.nav-mark-star {
+  position: absolute;
+  left: -8px;
+  top: -7.5px;
+  display: grid;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--star) 55%, transparent));
+  animation: nav-star-turn 0.56s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.level-chip strong {
-  color: var(--reward);
-  font-weight: 700;
+.nav-trail {
+  position: absolute;
+  bottom: -1px;
+  height: 1px;
+  pointer-events: none;
+  background: repeating-linear-gradient(90deg, var(--trail) 0 5px, transparent 5px 10px);
+  opacity: 0;
+  animation: nav-trail 0.9s ease-out;
 }
-.level-chip-note {
-  color: var(--text-subtle);
+.nav-trail.to-right { transform-origin: left; }
+.nav-trail.to-left { transform-origin: right; }
+@keyframes nav-star-turn {
+  from { transform: rotate(-90deg) scale(0.7); }
+  to { transform: rotate(0) scale(1); }
 }
-.nav-link > :not(.nav-highlight) {
+@keyframes nav-trail {
+  0% { opacity: 0.9; transform: scaleX(0); }
+  45% { opacity: 0.9; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+.nav-link > * {
   position: relative;
   z-index: 1;
 }
@@ -422,13 +445,55 @@ input[type='checkbox'][switch]:focus-visible {
 .account-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.25rem 0.65rem 0.25rem 0.3rem;
+  gap: 0.55rem;
+  padding: 0.3rem 0.7rem 0.3rem 0.35rem;
   border-radius: var(--radius-pill);
   background: var(--surface-2);
   border: 1px solid var(--border);
   font-size: 0.82rem;
   white-space: nowrap;
+}
+/* Nome em cima, nível embaixo: o contexto gamificado fica em mono, com a barra
+   de XP fina ao lado. */
+.account-meta {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  text-align: left;
+  line-height: 1.15;
+}
+.account-name {
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  font-weight: 600;
+}
+.account-level {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-subtle);
+}
+.account-level strong {
+  color: var(--reward);
+  font-weight: 700;
+}
+.account-level-bar {
+  flex: 1;
+  min-width: 2.25rem;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.account-level-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--xp-from), var(--xp-to));
 }
 
 .app-shell > #main {
@@ -478,13 +543,11 @@ input[type='checkbox'][switch]:focus-visible {
 }
 
 /* Telas largas demais para o cabeçalho completo: só os ícones nos atalhos. */
-@media (max-width: 1400px) {
-  .account-name {
-    display: none;
-  }
-}
-@media (max-width: 1180px) and (min-width: 821px), (max-width: 480px) {
-  .level-chip-note {
+@media (max-width: 1180px) {
+  .account-name,
+  .account-level-bar,
+  .account-level-note,
+  .account-level .star-mark {
     display: none;
   }
 }
@@ -541,7 +604,8 @@ input[type='checkbox'][switch]:focus-visible {
   .nav-link.active .icon {
     color: var(--reward);
   }
-  .nav-highlight {
+  .nav-mark,
+  .nav-trail {
     display: none;
   }
   /* Rótulo curto na barra inferior (ex.: "Plano"); o nome completo fica no
@@ -586,10 +650,6 @@ input[type='checkbox'][switch]:focus-visible {
   .topbar-right {
     gap: 0.35rem;
   }
-  .level-chip {
-    padding: 0.35rem 0.55rem;
-  }
-  .level-chip .star-mark,
   .user-menu-caret {
     display: none;
   }

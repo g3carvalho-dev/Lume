@@ -5,11 +5,12 @@ import { preloadProfileScreen } from './prefetch.js';
 import SocialFrame from './SocialFrame.jsx';
 import SocialFeed from './SocialFeed.jsx';
 import { ActiveFriendList, useActiveFriends } from './ActiveFriends.jsx';
+import { openMessagesDock } from './dock-bus.js';
 
 // Feed do Social: publicações entre amigos e, ao lado, quem está estudando agora
-// (a mesma peça do Início). Convite recebido por link (#amigos?convite=) e pedidos
-// de amizade ficam na aba Amigos (#adicionar); o endereço antigo continua valendo
-// e leva para lá. Ser amigo não compartilha biblioteca, progresso nem XP.
+// (a mesma peça do Início). Amigos, pedidos e convites ficam na dock de Mensagens:
+// um link de convite (#amigos?convite=) abre o painel de conexões dela com o
+// código preenchido. Ser amigo não compartilha biblioteca, progresso nem XP.
 
 function StudyingNow({ account, go }) {
   const { friends, active, loaded } = useActiveFriends(account, { only: 'studying' });
@@ -23,7 +24,7 @@ function StudyingNow({ account, go }) {
     </div>
     <ActiveFriendList account={account} go={go} friends={friends} active={active} loaded={loaded} empty="Ninguém estudando agora."/>
     <div className="active-rail-foot">
-      <a className="text-link" href="#adicionar">Ver todos os amigos{friends.length ? ` (${friends.length})` : ''}</a>
+      <button type="button" className="text-link" onClick={() => openMessagesDock()}>Ver todos os amigos{friends.length ? ` (${friends.length})` : ''}</button>
     </div>
   </aside>;
 }
@@ -31,8 +32,11 @@ function StudyingNow({ account, go }) {
 export default function Friends({ account, state, xp, inviteCode = '', notify, go }) {
   useEffect(() => { preloadProfileScreen(); }, []);
   useEffect(() => {
-    if (inviteCode) location.replace(`#adicionar?convite=${encodeURIComponent(inviteCode)}`);
-  }, [inviteCode]);
+    if (!inviteCode || !account) return;
+    openMessagesDock({ mode: 'connections', inviteCode });
+    // O código já está no painel: o endereço volta ao Feed para não reabrir ao recarregar.
+    try { history.replaceState(null, '', '#amigos'); } catch { /* Hash indisponível. */ }
+  }, [inviteCode, account]);
 
   return <SocialFrame route="amigos" account={account}>
     {!account

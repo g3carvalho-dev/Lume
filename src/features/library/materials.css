@@ -263,3 +263,66 @@
 }
 .editor-more[open] > summary { color: var(--text); }
 .editor-more-body { display: grid; gap: 1rem; padding: 0.2rem 0.9rem 1rem; }
+
+/* Diálogo do material (curso manual): cabeçalho com progresso, etapas e um
+   rodapé fixo com as ferramentas à esquerda e a única ação principal à direita. */
+.course-sheet-head {
+  display: grid;
+  gap: 0.55rem;
+}
+.course-sheet-head .headline {
+  margin: 0;
+}
+.course-sheet-progress {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.25rem;
+}
+.course-sheet-progress .mono {
+  font-size: 0.74rem;
+  color: var(--text-subtle);
+}
+.course-sheet-link {
+  align-self: flex-start;
+}
+.course-sheet .slides-details {
+  margin-top: 0;
+}
+.course-sheet-count {
+  margin-left: 0.5rem;
+  font-size: 0.74rem;
+  color: var(--text-subtle);
+}
+.course-sheet-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin: 0.35rem -1.65rem -1.65rem;
+  padding: 0.8rem 1.65rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+.course-sheet-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem;
+  margin-left: -0.55rem;
+}
+.course-sheet-tools .text-button {
+  font-size: 0.84rem;
+}
+.course-sheet-foot > .button,
+.course-sheet-foot > .completed-message {
+  margin-left: auto;
+}
+@media (max-width: 600px) {
+  .course-sheet-foot > .button {
+    order: -1;
+    flex: 1 1 100%;
+  }
+}

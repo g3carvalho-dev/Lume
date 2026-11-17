@@ -91,30 +91,39 @@ export default function StudyDialog({ modal, state, libraryActions, progressActi
   if (modal.type === 'course') {
     const progress = courseProgress(state, course);
     const deck = slidesSummary(course);
+    const complete = progress.total > 0 && progress.done === progress.total;
+    // Uma ação principal por estado (continuar, retomar ou nada a fazer); o resto
+    // são ferramentas discretas no rodapé.
     return <>
       <div className="dialog-course-cover"><Cover art={course.art}/></div>
-      <div className="dialog-content">
-        <div className="eyebrow">{course.example ? 'Curso de exemplo' : materialLabel(course)}</div>
-        <h2 id="dialog-title" className="headline">{course.title}</h2>
-        <p className="muted-text">{progress.done} de {progress.total} etapas concluídas. Seu progresso fica com você.</p>
-        {course.resumeAt && <p className="resume-pill"><Icon name="return"/>Parou em: {course.resumeAt}</p>}
-        <Progress value={progress.percent} tone="lume" label={`Progresso de ${course.title}`}/>
-        {course.url ? <a className="text-link" target="_blank" rel="noopener noreferrer" href={course.url}>Abrir conteúdo do curso<Icon name="external"/></a> : <p className="inline-note"><Icon name="book"/><span>Este curso não tem conteúdo vinculado.</span></p>}
+      <div className="dialog-content course-sheet">
+        <header className="course-sheet-head">
+          <div className="eyebrow">{course.example ? 'Curso de exemplo' : materialLabel(course)}{course.paused && !complete ? ' · pausado' : ''}</div>
+          <h2 id="dialog-title" className="headline">{course.title}</h2>
+          <div className="course-sheet-progress">
+            <Progress value={progress.percent} tone="lume" label={`Progresso de ${course.title}`}/>
+            <span className="mono">{progress.done} de {progress.total} etapas concluídas</span>
+          </div>
+          {course.resumeAt && <p className="resume-pill"><Icon name="return"/>Parou em: {course.resumeAt}</p>}
+        </header>
         <Steps course={course} state={state}/>
-        <div className="dialog-actions">
-          <Button secondary onClick={() => open({ type: 'edit', id: course.id })}><Icon name="edit"/>Editar material</Button>
-          {deck.total > 0
-            ? <Button secondary onClick={() => open({ type: 'slides', id: course.id })}><Icon name="book"/>Abrir apresentação ({deck.total})</Button>
-            : <Button secondary onClick={() => open({ type: 'edit', id: course.id })}><Icon name="plus"/>Adicionar slides</Button>}
-          {progress.done < progress.total && <Button secondary onClick={() => libraryActions.togglePause(course.id)}><Icon name={course.paused ? 'play' : 'pause'}/>{course.paused ? 'Retomar curso' : 'Pausar curso'}</Button>}
-          {mission && <Button onClick={() => { if (libraryActions.selectMaterial(course.id)) open({ type: 'session', id: course.id }); }}>Continuar<Icon name="arrow"/></Button>}
-          {progress.done === progress.total && <span className="completed-message"><Icon name="check"/>Um caminho concluído.</span>}
-        </div>
+        {course.url && <a className="text-link course-sheet-link" target="_blank" rel="noopener noreferrer" href={course.url}>Abrir conteúdo do curso<Icon name="external"/></a>}
         <details className="slides-details">
-          <summary>Apresentação e slides</summary>
+          <summary>Apresentação e slides{deck.total > 0 && <span className="mono course-sheet-count">{deck.total}</span>}</summary>
           <SlidesEditor course={course} actions={libraryActions} notify={notify}/>
         </details>
-        <p className="quiet-note">Editar o material não apaga o XP já confirmado. Excluir remove o progresso registrado neste material, com confirmação.</p>
+        <footer className="course-sheet-foot">
+          <div className="course-sheet-tools">
+            <button type="button" className="text-button" onClick={() => open({ type: 'edit', id: course.id })}><Icon name="edit"/>Editar material</button>
+            {deck.total > 0 && <button type="button" className="text-button" onClick={() => open({ type: 'slides', id: course.id })}><Icon name="book"/>Abrir apresentação ({deck.total})</button>}
+            {!complete && !course.paused && <button type="button" className="text-button" onClick={() => libraryActions.togglePause(course.id)}><Icon name="pause"/>Pausar curso</button>}
+          </div>
+          {complete
+            ? <span className="completed-message"><Icon name="check"/>Um caminho concluído.</span>
+            : course.paused
+              ? <Button onClick={() => libraryActions.togglePause(course.id)}><Icon name="play"/>Retomar curso</Button>
+              : mission && <Button onClick={() => { if (libraryActions.selectMaterial(course.id)) open({ type: 'session', id: course.id }); }}>Continuar<Icon name="arrow"/></Button>}
+        </footer>
       </div>
     </>;
   }

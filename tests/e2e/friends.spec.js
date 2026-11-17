@@ -24,7 +24,7 @@ test('convite cria amizade entre duas contas sem compartilhar progresso', async 
   await page.getByRole('link', { name: 'Social', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Social', exact: true })).toBeVisible();
 
-  // O convite é criado em Adicionar amigos (#adicionar); aqui basta a rota.
+  // O convite é criado na dock de Mensagens; aqui basta a rota.
   const invite = await page.request.post('/api/friends/invite', { data: {}, headers: { origin: baseURL } });
   expect(invite.status()).toBe(201);
   const code = (await invite.json()).code;
@@ -96,11 +96,12 @@ test('link de convite preenche o código e a amizade não concede XP', async ({ 
     data: { name: 'Eva do teste', email: `friend-d-${stamp}@example.test`, password: 'senha-local-teste-123' },
   });
 
-  // Abrir o link com ?convite= leva à aba Amigos com o código preenchido.
+  // Abrir o link com ?convite= abre as conexões da dock com o código preenchido
+  // e devolve o endereço ao Feed.
   await page.goto(`/#amigos?convite=${encodeURIComponent(code)}`);
-  await expect(page).toHaveURL((url) => url.hash.startsWith('#adicionar?convite='));
   await expect(page.getByLabel('Código do convite')).toHaveValue(code);
   await expect(page.getByLabel('Código do convite')).toBeVisible();
+  await expect(page).toHaveURL((url) => url.hash === '#amigos');
 
   const accepted = await guest.post('/api/friends/accept', { data: { code } });
   expect(accepted.status()).toBe(200);
@@ -121,25 +122,41 @@ test('Conexões na dock flutuante: busca por @usuário e convite por link', asyn
   await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
   await register(page, testInfo, 'friend-add', 'Pessoa simples');
   await page.getByRole('button', { name: 'Adicionar amigo ou ver pedidos' }).first().click();
-  await expect(page.getByPlaceholder('Buscar por @usuário exato…')).toBeVisible();
+  await expect(page.getByLabel('Buscar por @usuário')).toBeVisible();
+  // Sem pedidos, o painel não mostra as listas.
+  await expect(page.getByText('Aguardando resposta')).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Link convite' }).click();
+  await page.getByRole('button', { name: /Copiar link de convite/ }).click();
   await expect(page.getByText(/Link do convite copiado|Link: /)).toBeVisible();
 });
 
-test('aba Amigos: lista primeiro e Encontrar pessoas com busca e convite por link', async ({ page, context }, testInfo) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
+test('pedido de amizade aparece na dock e pode ser aceito', async ({ page, playwright }, testInfo) => {
+  const baseURL = testInfo.project.use.baseURL;
+  await register(page, testInfo, 'friend-req', 'Lia do teste');
+  const mine = await (await page.request.get('/api/friends/requests', { headers: { origin: baseURL } })).json();
+
+  const guest = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { origin: baseURL } });
+  const stamp = `${testInfo.project.name}-${crypto.randomUUID()}`;
+  await guest.post('/api/register', {
+    data: { name: 'Caio do teste', email: `friend-req-b-${stamp}@example.test`, password: 'senha-local-teste-123' },
+  });
+  const sent = await guest.post('/api/friends/requests', { data: { handle: mine.handle } });
+  expect(sent.status()).toBe(201);
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Adicionar amigo ou ver pedidos' }).first().click();
+  await expect(page.getByText('Pedidos recebidos · 1')).toBeVisible();
+  await page.getByRole('button', { name: 'Aceitar', exact: true }).click();
+  await expect(page.getByText('Agora você e Caio do teste são amigos.')).toBeVisible();
+  expect((await (await guest.get('/api/friends')).json()).friends).toHaveLength(1);
+
+  await guest.dispose();
+});
+
+test('o endereço antigo da aba Amigos abre o Feed, sem aba própria', async ({ page }, testInfo) => {
   await register(page, testInfo, 'friend-add-tab', 'Pessoa simples');
   await page.goto('/#adicionar');
   await expect(page.getByRole('heading', { name: 'Social', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Seus amigos' })).toBeVisible();
-  await expect(page.getByText('Sua lista ainda está vazia.', { exact: false })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Encontrar pessoas', exact: true })).toBeVisible();
-  await expect(page.getByRole('searchbox').or(page.getByPlaceholder('@usuario'))).toBeVisible();
-  // Sem abas nem solicitações enquanto não há pedidos.
-  await expect(page.getByRole('tab')).toHaveCount(0);
-  await expect(page.getByText('Aguardando resposta')).toHaveCount(0);
-
-  await page.getByRole('button', { name: 'Copiar link' }).click();
-  await expect(page.getByText(/Link do convite copiado|Link: /)).toBeVisible();
+  await expect(page.getByLabel('Sua publicação')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Seções de Social' }).getByRole('link', { name: 'Amigos', exact: true })).toHaveCount(0);
 });

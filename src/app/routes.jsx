@@ -23,7 +23,6 @@ const Friends = lazy(() => import('../features/social/Friends.jsx'));
 const Profile = lazy(() => import('../features/social/Profile.jsx'));
 const Agenda = lazy(() => import('../features/agenda/Agenda.jsx'));
 const Ranking = lazy(() => import('../features/social/Ranking.jsx'));
-const AddFriends = lazy(() => import('../features/social/AddFriends.jsx'));
 const Reports = lazy(() => import('../features/social/Reports.jsx'));
 const ScheduleSession = lazy(() => import('../features/agenda/ScheduleSession.jsx'));
 const News = lazy(() => import('../features/news/News.jsx'));
@@ -48,8 +47,9 @@ export const PUBLIC_ROUTES = new Set(['recuperar', 'redefinir', 'conheca']);
 // Endereços antigos continuam válidos. `#plano` abre a aba padrão do Plano
 // (Tarefas), assim como Missões e Roteiro; Meu caminho virou Conquistas. A tela
 // de Foco e a aba Agenda deixaram de existir: o timer fica no cabeçalho e as
-// aulas previstas, no Calendário.
-const ALIASES = { plano: 'tarefas', missoes: 'tarefas', roteiro: 'tarefas', historico: 'conquistas', foco: 'hoje' };
+// aulas previstas, no Calendário. A aba Amigos saiu do Social: amigos, pedidos e
+// convites ficam na dock de Mensagens, e `#adicionar` abre o Feed.
+const ALIASES = { plano: 'tarefas', missoes: 'tarefas', roteiro: 'tarefas', historico: 'conquistas', foco: 'hoje', adicionar: 'amigos' };
 
 // Enquanto a sessão é verificada, o formulário não aparece: evita a impressão de estar deslogada.
 export function SessionCheck() {
@@ -78,7 +78,6 @@ const ROUTES = [
 
   { id: 'amigos', title: 'Social', section: 'amigos', tab: 'Feed', hideTabs: () => true, render: (ctx) => <Friends account={ctx.model.account} state={ctx.state} xp={ctx.model.xp} inviteCode={ctx.params.get('convite') || ''} notify={ctx.notify} go={ctx.go}/> },
   { id: 'ranking', title: 'Ranking', section: 'amigos', tab: 'Ranking', hideTabs: () => true, render: (ctx) => <Ranking account={ctx.model.account} xp={ctx.model.xp} refreshXP={ctx.model.refreshXP} notify={ctx.notify} go={ctx.go}/> },
-  { id: 'adicionar', title: 'Amigos', section: 'amigos', tab: 'Amigos', tabIcon: 'users', hideTabs: () => true, render: (ctx) => <AddFriends account={ctx.model.account} inviteCode={ctx.params.get('convite') || ''} notify={ctx.notify} go={ctx.go}/> },
 
 
   // Perfil de uma amizade (#perfil?id=) não mostra as abas da própria conta.
