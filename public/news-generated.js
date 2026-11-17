@@ -23,6 +23,53 @@ export const GENERATED_NEWS = [
     ]
   },
   {
+    "id": "news-84c118df",
+    "at": "2026-11-17T02:37:17.000Z",
+    "title": "Diálogos de material mais organizados",
+    "body": "Curso importado e PDF agora têm as ações reunidas no rodapé, com um só botão principal.",
+    "href": "#biblioteca",
+    "area": "site",
+    "details": [
+      "A lista de aulas do curso importado ganhou mais espaço entre os itens."
+    ]
+  },
+  {
+    "id": "news-e14b8360",
+    "at": "2026-11-17T02:25:00.000Z",
+    "title": "Conversas com histórico completo",
+    "body": "As mensagens antigas voltam a aparecer: use \"Carregar mensagens anteriores\" no topo da conversa. Mensagens, reações e leituras também chegam mais rápido.",
+    "href": "#amigos",
+    "area": "site",
+    "details": [
+      "Reenviar uma mensagem após falha de rede não a duplica mais.",
+      "Reações em grupos aparecem para todos na hora."
+    ]
+  },
+  {
+    "id": "news-df4c2ea6",
+    "at": "2026-11-17T02:24:57.000Z",
+    "title": "Amigos dentro de Mensagens",
+    "body": "Buscar pessoas, aceitar pedidos e enviar convites agora ficam nas conexões de Mensagens. A aba Amigos saiu do Social.",
+    "href": "#amigos",
+    "area": "site",
+    "details": [
+      "O link de convite abre as conexões com o código já preenchido.",
+      "O nível aparece no cartão da conta, sob o seu nome."
+    ]
+  },
+  {
+    "id": "news-05d8d7b7",
+    "at": "2026-11-17T01:58:18.000Z",
+    "title": "Texto do PDF pronto ao anexar",
+    "body": "O texto dos seus PDFs agora é guardado assim que você anexa, sem precisar gerar o resumo com IA. PDFs antigos são preparados ao abrir no leitor.",
+    "href": "#biblioteca",
+    "area": "site",
+    "details": [
+      "Assistentes conectados pelo MCP leem o texto do PDF sem depender do resumo com IA.",
+      "Documentos muito longos têm o texto cortado no limite, em vez de resumido."
+    ]
+  },
+  {
     "id": "news-98d4cd08",
     "at": "2026-11-17T01:31:02.000Z",
     "title": "Cabeçalho da aula",
@@ -237,72 +284,6 @@ export const GENERATED_NEWS = [
       "\"Continuar\" no Início abre o conteúdo direto; aula de curso importado abre na plataforma.",
       "O Plano tem as abas Tarefas e Calendário; adiar aula e o alerta de prazo ficam no detalhe do dia.",
       "O próximo marco conta só provas e entregas."
-    ]
-  },
-  {
-    "id": "news-37ddfdda",
-    "at": "2026-11-15T22:21:36.000Z",
-    "title": "Grupos de conversa entre amigos",
-    "body": "Crie grupos com 3 a 20 amigos, converse, adicione ou remova pessoas e saia quando quiser.",
-    "href": "#mensagens",
-    "area": "site",
-    "details": [
-      "Quem cria o grupo é a dona; se ela sair, o grupo passa à pessoa mais antiga.",
-      "O botão de nova conversa fica ao lado de Conversas.",
-      "Dá para bloquear na mesma hora e enviar uma cópia das mensagens para a análise."
-    ]
-  },
-  {
-    "id": "news-7b73fcbd",
-    "at": "2026-11-15T22:21:29.000Z",
-    "title": "GIFs por categoria",
-    "body": "O seletor de GIFs agora mostra categorias com capa, favoritos e uma grade organizada, e os GIFs ficam mais nítidos nas publicações.",
-    "href": "#amigos",
-    "area": "site",
-    "details": [
-      "Marque a estrela de um GIF para guardá-lo em Favoritos neste navegador."
-    ]
-  },
-  {
-    "id": "news-2683dc8d",
-    "at": "2026-11-15T21:50:59.000Z",
-    "title": "Social com emojis, respostas e GIFs",
-    "body": "Reaja com vários emojis, responda comentários, escolha emojis e GIFs e use um compositor mais limpo.",
-    "href": "#amigos",
-    "area": "site",
-    "details": [
-      "Cada pessoa pode reagir com mais de um emoji; as curtidas antigas viraram coração.",
-      "Comentários aceitam respostas, reações e GIFs.",
-      "Os GIFs dependem da chave do Giphy configurada no servidor."
-    ]
-  },
-  {
-    "id": "news-9e5ff99a",
-    "at": "2026-11-15T21:29:58.000Z",
-    "title": "Biblioteca mais limpa",
-    "body": "Um só botão para adicionar material (curso, PDF ou manual), filtros reunidos num painel e concluídos recolhidos.",
-    "href": "#biblioteca",
-    "area": "site",
-    "details": [
-      "Adicionar material abre um menu com Adicionar curso, Anexar PDF e Criar manualmente.",
-      "Tipo, disciplina e situação ficam no botão de filtros ao lado da busca.",
-      "Excluir um material continua disponível no editor do material e no leitor de PDF.",
-      "Prioridade, Agendar e Remover ficam no menu das reticências de cada tarefa.",
-      "As subtarefas concluídas ficam recolhidas em Ver N concluídas.",
-      "O botão Finalizar com resumo agora se chama Finalizar.",
-      "As anotações são salvas ao sair do campo ou ao finalizar a sessão."
-    ]
-  },
-  {
-    "id": "news-d1689716",
-    "at": "2026-11-15T21:12:16.000Z",
-    "title": "Capa do perfil ajustável",
-    "body": "Arraste a capa para escolher a parte da imagem que aparece, com zoom, e veja Online, Offline ou o que cada pessoa está estudando em todos os perfis.",
-    "href": "#perfil",
-    "area": "site",
-    "details": [
-      "Envie a capa de novo para poder reposicionar a imagem inteira.",
-      "O selo de presença aparece em qualquer perfil que você abre, e o tema só aparece se a pessoa compartilha a biblioteca."
     ]
   }
 ];
