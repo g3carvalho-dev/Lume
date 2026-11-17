@@ -1,8 +1,57 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
-    "id": "news-1397cfb9",
-    "at": "2026-11-17T00:34:11.000Z",
+    "id": "news-98d4cd08",
+    "at": "2026-11-17T01:31:02.000Z",
+    "title": "Cabeçalho da aula",
+    "body": "O título tem sua própria linha, com o curso, a plataforma e a duração logo acima.",
+    "href": "#aplicativo",
+    "area": "desktop"
+  },
+  {
+    "id": "news-9d4d4f4f",
+    "at": "2026-11-17T01:31:02.000Z",
+    "title": "Mais espaço na tela de aula",
+    "body": "Os links ficam junto aos controles da janela. Você pode ampliar o vídeo em tela cheia e voltar com Esc.",
+    "href": "#aplicativo",
+    "area": "desktop",
+    "details": [
+      "O player se ajusta em 16:9 com espaço para o rodapé."
+    ]
+  },
+  {
+    "id": "news-3fe5307a",
+    "at": "2026-11-17T01:31:02.000Z",
+    "title": "Nova tela de videoaula",
+    "body": "Veja o título da aula, o curso, a plataforma e a duração enquanto assiste no Lume.",
+    "href": "#aplicativo",
+    "area": "desktop",
+    "details": [
+      "O player original conserva os controles de reprodução dentro da janela."
+    ]
+  },
+  {
+    "id": "news-ae033165",
+    "at": "2026-11-17T01:31:01.000Z",
+    "title": "Player da aula em destaque",
+    "body": "Ao abrir uma videoaula compatível no aplicativo, o vídeo e seus controles ocupam a área de estudo.",
+    "href": "#aplicativo",
+    "area": "desktop"
+  },
+  {
+    "id": "news-8b564cfb",
+    "at": "2026-11-17T01:31:01.000Z",
+    "title": "Aula na janela do Lume",
+    "body": "No aplicativo de desktop, Continuar abre a página da videoaula do Gran ou da Udemy dentro da janela. Voltar ao Lume retorna ao seu curso.",
+    "href": "#aplicativo",
+    "area": "desktop",
+    "details": [
+      "A sessão da plataforma é separada da conta do Lume. A barra da aula também oferece abrir o endereço no navegador."
+    ]
+  },
+  {
+    "id": "news-7f01e310",
+    "at": "2026-11-17T01:31:01.000Z",
     "title": "Miniplayer na página da aula",
     "body": "No selo do Lume, escolha Miniplayer nesta página para consultar a grade enquanto o vídeo continua no canto. Esc restaura o tamanho original.",
     "href": "#biblioteca",
@@ -12,8 +61,8 @@ export const GENERATED_NEWS = [
     ]
   },
   {
-    "id": "news-7379dd76",
-    "at": "2026-11-17T00:29:26.000Z",
+    "id": "news-5370e32b",
+    "at": "2026-11-17T01:31:01.000Z",
     "title": "Quanto falta no curso",
     "body": "Veja as aulas e seções concluídas, as horas restantes e uma estimativa pelo seu ritmo recente ou pela disponibilidade do Plano.",
     "href": "#biblioteca",
@@ -23,8 +72,8 @@ export const GENERATED_NEWS = [
     ]
   },
   {
-    "id": "news-10a5ab67",
-    "at": "2026-11-17T00:29:09.000Z",
+    "id": "news-d5f8a5cc",
+    "at": "2026-11-17T01:31:01.000Z",
     "title": "O timer acompanha a aula",
     "body": "Ao tocar ou pausar um vídeo autorizado, a sessão acompanha o player. A conclusão e o XP passam pela validação da conta.",
     "href": "#configuracoes",
@@ -34,8 +83,8 @@ export const GENERATED_NEWS = [
     ]
   },
   {
-    "id": "news-a804516f",
-    "at": "2026-11-17T00:28:46.000Z",
+    "id": "news-246dc1cb",
+    "at": "2026-11-17T01:31:00.000Z",
     "title": "Assista sobre o Lume",
     "body": "Nas aulas reconhecidas, o selo mostra a reprodução e permite abrir o vídeo em uma janela flutuante sobre o Lume quando o player oferece esse recurso.",
     "href": "#biblioteca",
@@ -45,26 +94,14 @@ export const GENERATED_NEWS = [
     ]
   },
   {
-    "id": "news-48f8697d",
-    "at": "2026-11-16T23:48:44.000Z",
+    "id": "news-7692f661",
+    "at": "2026-11-17T01:31:00.000Z",
     "title": "Instale a extensão ao adicionar um curso",
     "body": "Abra a ficha da extensão e confira os passos para importar as aulas no Chrome ou no Edge do computador.",
     "href": "#biblioteca",
     "area": "extensao",
     "details": [
       "O painel reconhece a plataforma da aba e o Lume verifica a versão instalada."
-    ]
-  },
-  {
-    "id": "news-364aee3b",
-    "at": "2026-11-16T23:34:49.000Z",
-    "title": "Mensagens em painel flutuante",
-    "body": "Abra conversas e conexões pelo painel flutuante enquanto usa o Lume.",
-    "href": "#amigos",
-    "area": "site",
-    "details": [
-      "Integra o painel de mensagens preservando o perfil em duas colunas e a privacidade por seção.",
-      "Tarefas passam a aceitar subtarefas dentro de subtarefas."
     ]
   },
   {
