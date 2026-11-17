@@ -5,17 +5,17 @@ import { useRealtimeStatus } from '../../lib/realtime.js';
 import { materialType } from '../../../public/domain.js';
 import { GROUP_MAX_MEMBERS, GROUP_MIN_OTHERS, GROUP_NAME_LIMIT } from '../../../public/report-domain.js';
 import Icon from '../../ui/Icon.jsx';
-import { Button, Empty, PersonAvatar, Skeleton } from '../../ui/ui.jsx';
+import { Button, PersonAvatar, Skeleton, Star } from '../../ui/ui.jsx';
 import ReportDialog from './ReportDialog.jsx';
+import ConnectionsPanel from './ConnectionsPanel.jsx';
 import EmojiButton from './EmojiPicker.jsx';
-import SocialFrame from './SocialFrame.jsx';
 import { PersonButton, profileRoute } from './PersonCard.jsx';
 
-// Mensagens em três regiões: lista de conversas (busca e filtro), conversa e
-// detalhes sob demanda (pessoa ou grupo). No celular, uma região por vez: lista,
-// conversa em tela cheia com voltar, detalhes em folha inferior. Responder
-// citando, reagir, GIF e silenciar valem para conversas diretas e grupos.
-// Mensagens não geram XP.
+// Mensagens em três regiões: lista de conversas (busca, filtro e @conexões),
+// conversa e detalhes sob demanda (pessoa ou grupo). No celular e na dock
+// compacta, uma região por vez: lista, conversa com voltar, detalhes em folha.
+// Responder citando, reagir, GIF e silenciar valem para conversas diretas e
+// grupos. Mensagens não geram XP.
 
 const FILTERS = [['all', 'Todas'], ['direct', 'Privadas'], ['group', 'Grupos']];
 const RUN_GAP_MS = 5 * 60 * 1000;
@@ -83,10 +83,10 @@ function MenuItem({ icon, danger = false, children, ...props }) {
 }
 
 // A altura do corpo acompanha a janela: só a lista e a conversa rolam.
-function useFillHeight(ref, deps) {
+function useFillHeight(ref, deps, enabled = true) {
   useLayoutEffect(() => {
     const node = ref.current;
-    if (!node) return undefined;
+    if (!node || !enabled) return undefined;
     const fit = () => {
       // O que fica abaixo da caixa: o respiro do <main> e a reserva da barra
       // inferior do celular (padding da casca).
@@ -104,7 +104,7 @@ function useFillHeight(ref, deps) {
 }
 
 // Nova conversa: escolher uma amizade ou montar um grupo.
-function NewChat({ friends, onDirect, onCreated, onBack, notify }) {
+function NewChat({ friends, onDirect, onCreated, onBack, onOpenConnections, notify }) {
   const [mode, setMode] = useState('direct');
   const [name, setName] = useState('');
   const [picked, setPicked] = useState([]);
@@ -137,7 +137,7 @@ function NewChat({ friends, onDirect, onCreated, onBack, notify }) {
       <button type="button" role="tab" aria-selected={mode === 'direct'} onClick={() => setMode('direct')}><Icon name="message"/>Conversa privada</button>
       <button type="button" role="tab" aria-selected={mode === 'group'} onClick={() => setMode('group')}><Icon name="users"/>Novo grupo</button>
     </div>
-    {friends.length === 0 && <p className="inline-note"><Icon name="users"/><span>Nenhuma amizade ainda. <a href="#adicionar" className="text-link">Convide alguém</a> para começar.</span></p>}
+    {friends.length === 0 && <p className="inline-note"><Icon name="users"/><span>Nenhuma amizade ainda. <button type="button" className="text-link" onClick={onOpenConnections}>Convide alguém</button> para começar.</span></p>}
     {friends.length > 6 && <label className="mg-search"><Icon name="search"/><span className="sr-only">Filtrar amigos</span>
       <input type="search" value={filter} placeholder="Filtrar amigos" onChange={(event) => setFilter(event.target.value)}/>
     </label>}
@@ -269,8 +269,8 @@ function Details({ thread, isGroup, selected, friends, account, busy, go, notify
   }
 
   return <>
-    {sheet && <div className="mg-details-backdrop" aria-hidden="true" onClick={onClose}/>}
-    <aside ref={ref} tabIndex={-1} className={`mg-details ${sheet ? 'is-sheet' : ''}`} aria-label={isGroup ? 'Detalhes do grupo' : 'Detalhes da conversa'}>
+    <div className="mg-details-backdrop" aria-hidden="true" onClick={onClose}/>
+    <aside ref={ref} tabIndex={-1} className="mg-details is-drawer" aria-label={isGroup ? 'Detalhes do grupo' : 'Detalhes da conversa'}>
       <div className="mg-details-head">
         <strong className="metric-label">{isGroup ? 'Grupo' : 'Conversa privada'}</strong>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Fechar detalhes"><Icon name="close"/></button>
@@ -317,9 +317,18 @@ function Message({ message, isGroup, person, me, startsRun, endsRun, canMessage,
   </div>;
 }
 
-export default function Messages({ account, state, notify, go, contactId = '', groupId = '' }) {
-  const initial = groupId ? { kind: 'group', id: groupId } : contactId ? { kind: 'direct', id: contactId } : null;
-  const [selection, setSelection] = useState(initial);
+export default function Messages({
+  account,
+  state,
+  notify,
+  go,
+  selection,
+  setSelection,
+  leftView = 'chats',
+  setLeftView,
+  requestsResource,
+  onMinimize,
+}) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [text, setText] = useState('');
@@ -351,6 +360,7 @@ export default function Messages({ account, state, notify, go, contactId = '', g
 
   const live = useRealtimeStatus();
   const conversationsResource = useResource('/api/messages', { interval: live ? 60000 : 10000, enabled: Boolean(account) });
+  const friendsActivityResource = useResource('/api/friends', { interval: 45000, enabled: Boolean(account) });
   const isGroup = selection?.kind === 'group';
   const isDirect = selection?.kind === 'direct';
   const selected = selection && selection.kind !== 'new' ? selection.id : '';
@@ -359,12 +369,14 @@ export default function Messages({ account, state, notify, go, contactId = '', g
   const settingsResource = useResource('/api/messages/settings', { enabled: Boolean(account) });
   const friends = conversationsResource.data?.conversations || [];
   const groups = conversationsResource.data?.groups || [];
+  const activityById = new Map((friendsActivityResource.data?.friends || []).map((friend) => [friend.id, friend.activity]));
   const thread = threadPath && threadResource.data ? threadResource.data : null;
   const loading = Boolean(threadPath) && threadResource.loading && !threadResource.data;
   const notifications = notificationsOverride ?? settingsResource.data?.notifications !== false;
   const loadError = conversationsResource.error || (threadPath ? threadResource.error : '');
   const inThread = Boolean(selection);
 
+  const incomingCount = requestsResource?.data?.incoming?.length || 0;
   const query = normalize(search.trim());
   const all = [
     ...friends.map((item) => ({ ...item, kind: 'direct' })),
@@ -373,12 +385,7 @@ export default function Messages({ account, state, notify, go, contactId = '', g
   const items = all.filter((item) => (filter === 'all' || item.kind === filter) && (!query || normalize(item.name).includes(query) || normalize(item.handle).includes(query)));
   const unreadBy = (kind) => all.filter((item) => (kind === 'all' || item.kind === kind) && item.unread > 0 && !item.muted).length;
 
-  useFillHeight(shellRef, [Boolean(account), inThread, narrow]);
-
-  useEffect(() => {
-    if (groupId) setSelection((current) => current?.kind === 'group' && current.id === groupId ? current : { kind: 'group', id: groupId });
-    else if (contactId) setSelection((current) => current?.kind === 'direct' && current.id === contactId ? current : { kind: 'direct', id: contactId });
-  }, [contactId, groupId]);
+  useFillHeight(shellRef, [Boolean(account), inThread, narrow, Boolean(onMinimize)], !onMinimize);
 
   // Abrir (ou receber novas mensagens na) conversa marca como lida e atualiza
   // o contador do menu, que usa o mesmo cache.
@@ -433,8 +440,6 @@ export default function Messages({ account, state, notify, go, contactId = '', g
     setReferenceId('');
     setPickerOpen(false);
     setError('');
-    const hash = next?.kind === 'group' ? `#mensagens?grupo=${encodeURIComponent(next.id)}` : next?.kind === 'direct' ? `#mensagens?com=${encodeURIComponent(next.id)}` : '#mensagens';
-    try { history.replaceState(null, '', hash); } catch { /* Hash indisponível. */ }
   }
 
   const refreshAll = () => Promise.all([threadResource.refresh(), conversationsResource.refresh()]);
@@ -668,10 +673,7 @@ export default function Messages({ account, state, notify, go, contactId = '', g
     notify(next ? 'Notificações de mensagens ativadas.' : 'Notificações de mensagens silenciadas. As mensagens continuam guardadas.');
   }
 
-  if (!account) return <SocialFrame route="mensagens" account={account}>
-    <Empty icon="mail" title="Entre para conversar.">Mensagens exigem uma conta e amizades aceitas. O convite por link é o caminho para formar sua lista de amigos.</Empty>
-    <Button onClick={() => go('login')}><Icon name="lock"/>Entrar na minha conta</Button>
-  </SocialFrame>;
+  if (!account) return null;
 
   const me = { name: account.name, avatar: state.profile?.avatar || account.avatar };
   const chosen = state.courses.find((item) => item.id === referenceId);
@@ -679,76 +681,171 @@ export default function Messages({ account, state, notify, go, contactId = '', g
   const messages = thread?.messages || [];
   const showDetails = Boolean(detailsOpen && thread);
   const view = !inThread ? 'list' : showDetails && narrow ? 'details' : 'thread';
+  const threadActivity = !isGroup && thread?.friend ? activityById.get(thread.friend.id) : null;
+  const threadStudying = threadActivity?.status === 'studying';
 
-  const list = <aside className="mg-list" aria-label="Conversas">
+  const list = <aside className="mg-list" aria-label="Conversas e conexões">
     <div className="mg-list-head">
-      <h2 className="title">Conversas</h2>
-      <button type="button" className="icon-button" onClick={toggleNotifications} aria-pressed={!notifications} aria-label={notifications ? 'Silenciar notificações de mensagens' : 'Ativar notificações de mensagens'} title={notifications ? 'Notificações ativas' : 'Notificações silenciadas'}><Icon name={notifications ? 'bell' : 'mute'}/></button>
-      <button type="button" className="button primary mg-new-button" aria-label="Nova conversa" onClick={() => select({ kind: 'new' })}><Icon name="edit"/>Nova</button>
+      <h2 className="title">Mensagens</h2>
+      <div className="mg-head-actions">
+        <button
+          type="button"
+          className={`icon-button mg-at-btn ${leftView === 'connections' ? 'active' : ''}`}
+          aria-label="Adicionar amigo ou ver pedidos"
+          aria-pressed={leftView === 'connections'}
+          title="Adicionar amigo (@usuário)"
+          onClick={() => setLeftView?.(leftView === 'connections' ? 'chats' : 'connections')}
+        >
+          <span className="mg-at-glyph mono">+@</span>
+          {incomingCount > 0 && <span className="mg-at-badge" aria-label={`${incomingCount} pedidos pendentes`}>{incomingCount > 9 ? '9+' : incomingCount}</span>}
+        </button>
+        <button type="button" className="icon-button" onClick={toggleNotifications} aria-pressed={!notifications} aria-label={notifications ? 'Silenciar notificações de mensagens' : 'Ativar notificações de mensagens'} title={notifications ? 'Notificações ativas' : 'Notificações silenciadas'}><Icon name={notifications ? 'bell' : 'mute'}/></button>
+        <button type="button" className="icon-button" aria-label="Nova conversa ou grupo" title="Nova conversa ou grupo" onClick={() => { setLeftView?.('chats'); select({ kind: 'new' }); }}><Icon name="edit"/></button>
+        {onMinimize && <button type="button" className="icon-button mg-mobile-close" aria-label="Minimizar mensagens" title="Minimizar" onClick={onMinimize}><Icon name="minus"/></button>}
+      </div>
     </div>
-    <label className="mg-search"><Icon name="search"/><span className="sr-only">Buscar conversa</span>
-      <input type="search" value={search} placeholder="Buscar por nome" onChange={(event) => setSearch(event.target.value)}/>
-    </label>
-    <div className="mg-filters" role="group" aria-label="Filtrar conversas">
-      {FILTERS.map(([id, label]) => {
-        const count = unreadBy(id);
-        return <button key={id} type="button" className="filter-btn" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}{count > 0 && <span className="mg-filter-dot" aria-label={`${count} com mensagens novas`}/>}</button>;
-      })}
-    </div>
-    <div className="mg-list-scroll">
-      {!conversationsResource.data && !conversationsResource.error && <Skeleton label="Carregando as conversas…" rows={4}/>}
-      {conversationsResource.data && all.length === 0 && <p className="inline-note"><Icon name="users"/><span>Nenhuma amizade ainda. <a href="#adicionar" className="text-link">Convide alguém</a> para começar.</span></p>}
-      <ul className="conversation-list">
-        {items.map((conversation) => {
-          const active = selection?.kind === conversation.kind && selection.id === conversation.id;
-          const preview = conversation.kind === 'group'
-            ? (conversation.lastMessage ? conversation.lastMessage.preview : `${conversation.members} pessoas`)
-            : conversation.blockedByMe ? 'Você bloqueou esta pessoa' : conversation.blockedMe ? 'Mensagens bloqueadas por ela' : conversation.lastMessage ? `${conversation.lastMessage.fromMe ? 'Você: ' : ''}${conversation.lastMessage.preview}` : 'Comece uma conversa';
-          return <li key={`${conversation.kind}-${conversation.id}`}>
-            <button type="button" className={`conversation-item ${active ? 'active' : ''} ${conversation.unread > 0 ? 'is-unread' : ''} ${conversation.muted ? 'is-muted' : ''}`} onClick={() => select({ kind: conversation.kind, id: conversation.id })} aria-current={active ? 'true' : undefined}>
-              {conversation.kind === 'group' ? <GroupAvatar/> : <PersonAvatar person={conversation} className="conversation-avatar"/>}
-              <span className="conversation-copy">
-                <span className="conversation-line"><strong>{conversation.name}</strong>
-                  {conversation.lastMessage && <time dateTime={conversation.lastMessage.at}>{timeLabel(conversation.lastMessage.at)}</time>}
-                </span>
-                <span className="conversation-line">
-                  <small>{preview}</small>
-                  {conversation.muted && <Icon name="mute" className="conversation-muted"/>}
-                  {conversation.unread > 0 && <span className="unread-badge" aria-label={`${conversation.unread} não lidas`}>{conversation.unread > 99 ? '99+' : conversation.unread}</span>}
-                </span>
-              </span>
-            </button>
-          </li>;
-        })}
-      </ul>
-      {conversationsResource.data && all.length > 0 && items.length === 0 && <p className="muted-text mg-list-empty">{query ? 'Nenhuma conversa encontrada.' : filter === 'group' ? 'Nenhum grupo ainda. Crie um em Nova.' : 'Nenhuma conversa privada.'}</p>}
-    </div>
-    <p className="mg-list-foot"><Icon name="lock"/>Só entre amigos</p>
+    {leftView === 'connections'
+      ? <ConnectionsPanel
+        account={account}
+        requestsResource={requestsResource}
+        searchQuery={search}
+        notify={notify}
+        onOpenDirect={(id) => { setLeftView?.('chats'); select({ kind: 'direct', id }); }}
+        onBack={() => { setLeftView?.('chats'); if (search.startsWith('@')) setSearch(''); }}
+      />
+      : <>
+        <label className="mg-search"><Icon name="search"/><span className="sr-only">Buscar conversa ou @usuário</span>
+          <input
+            type="search"
+            value={search}
+            placeholder="Buscar ou @usuário…"
+            onChange={(event) => {
+              const next = event.target.value;
+              setSearch(next);
+              if (next.startsWith('@')) setLeftView?.('connections');
+            }}
+          />
+        </label>
+        <div className="mg-filters" role="group" aria-label="Filtrar conversas">
+          {FILTERS.map(([id, label]) => {
+            const count = unreadBy(id);
+            return <button key={id} type="button" className="mg-filter-tab" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}{count > 0 && <span className="mg-filter-dot" aria-label={`${count} com mensagens novas`}/>}</button>;
+          })}
+        </div>
+        <div className="mg-list-scroll">
+          {!conversationsResource.data && !conversationsResource.error && <Skeleton label="Carregando as conversas…" rows={4}/>}
+          {conversationsResource.data && all.length === 0 && <p className="inline-note"><Icon name="users"/><span>Nenhuma amizade ainda. <button type="button" className="text-link" onClick={() => setLeftView?.('connections')}>Convide alguém</button> para começar.</span></p>}
+          <ul className="conversation-list">
+            {items.map((conversation) => {
+              const active = selection?.kind === conversation.kind && selection.id === conversation.id;
+              const activity = conversation.kind === 'direct' ? activityById.get(conversation.id) : null;
+              const preview = conversation.kind === 'group'
+                ? (conversation.lastMessage ? conversation.lastMessage.preview : `${conversation.members} pessoas`)
+                : conversation.blockedByMe ? 'Você bloqueou esta pessoa' : conversation.blockedMe ? 'Mensagens bloqueadas por ela' : conversation.lastMessage ? `${conversation.lastMessage.fromMe ? 'Você: ' : ''}${conversation.lastMessage.preview}` : 'Comece uma conversa';
+              return <li key={`${conversation.kind}-${conversation.id}`}>
+                <button type="button" className={`conversation-item ${active ? 'active' : ''} ${conversation.unread > 0 ? 'is-unread' : ''} ${conversation.muted ? 'is-muted' : ''}`} onClick={() => select({ kind: conversation.kind, id: conversation.id })} aria-current={active ? 'true' : undefined}>
+                  <span className="mg-avatar-wrap">
+                    {conversation.kind === 'group' ? <GroupAvatar/> : <PersonAvatar person={conversation} className="conversation-avatar"/>}
+                    {activity?.active && <span className={`mg-presence-dot ${activity.status === 'studying' ? 'is-studying' : ''}`} title={activity.status === 'studying' ? (activity.topic ? `Estudando · ${activity.topic}` : 'Estudando agora') : 'Online'} aria-hidden="true"/>}
+                  </span>
+                  <span className="conversation-copy">
+                    <span className="conversation-line"><strong>{conversation.name}</strong>
+                      {conversation.lastMessage && <time dateTime={conversation.lastMessage.at}>{timeLabel(conversation.lastMessage.at)}</time>}
+                    </span>
+                    <span className="conversation-line">
+                      <small>{preview}</small>
+                      {conversation.muted && <Icon name="mute" className="conversation-muted"/>}
+                      {conversation.unread > 0 && <span className="unread-badge" aria-label={`${conversation.unread} não lidas`}>{conversation.unread > 99 ? '99+' : conversation.unread}</span>}
+                    </span>
+                  </span>
+                </button>
+              </li>;
+            })}
+          </ul>
+          {conversationsResource.data && all.length > 0 && items.length === 0 && <p className="muted-text mg-list-empty">{query ? 'Nenhuma conversa encontrada.' : filter === 'group' ? 'Nenhum grupo ainda. Crie um em Nova.' : 'Nenhuma conversa privada.'}</p>}
+        </div>
+        <p className="mg-list-foot"><Icon name="lock"/>Só entre amigos</p>
+      </>}
   </aside>;
 
   let lastDay = '';
   const center = <section className="mg-thread" aria-label="Conversa selecionada">
-    {!selection && <div className="messages-placeholder"><span className="mg-bubbles" aria-hidden="true"><Icon name="message"/></span><h2 className="title">Escolha uma conversa</h2><p className="muted-text">Selecione um amigo ou grupo ao lado, ou comece uma conversa nova.</p></div>}
-    {selection?.kind === 'new' && <NewChat friends={friends} notify={notify} onBack={() => select(null)} onDirect={(id) => select({ kind: 'direct', id })} onCreated={(id) => select({ kind: 'group', id })}/>}
-    {selected && loading && <div className="mg-thread-loading"><Skeleton label="Carregando a conversa…" rows={3} variant="text"/></div>}
-    {selected && !thread && !loading && threadResource.error && <div className="messages-placeholder"><p className="form-error" role="alert">{threadResource.error}</p><Button secondary onClick={() => select(null)}>Voltar às conversas</Button></div>}
+    {!selection && <>
+      {onMinimize && <div className="message-thread-topbar">
+        <span className="quiet-note">Conversas e estudos</span>
+        <button type="button" className="icon-button" aria-label="Minimizar mensagens" title="Minimizar" onClick={onMinimize}><Icon name="minus"/></button>
+      </div>}
+      <div className="messages-placeholder">
+        <div className="mg-empty-emblem" aria-hidden="true">
+          <Icon name="message"/>
+          <Star size={14} className="mg-empty-star"/>
+        </div>
+        <h2 className="title">Escolha uma conversa</h2>
+        <p className="muted-text">Compartilhe materiais, tire dúvidas ou combine sessões de foco com seus amigos.</p>
+        <div className="mg-empty-actions">
+          <Button secondary onClick={() => { setLeftView?.('chats'); select({ kind: 'new' }); }}><Icon name="edit"/>Nova conversa</Button>
+          <Button ghost onClick={() => setLeftView?.('connections')}><Icon name="users"/>Conectar por @</Button>
+        </div>
+      </div>
+    </>}
+    {selection?.kind === 'new' && <>
+      {onMinimize && <div className="message-thread-topbar">
+        <button type="button" className="icon-button mg-back" onClick={() => select(null)} aria-label="Voltar para as conversas"><Icon name="back"/></button>
+        <span className="quiet-note">Nova conversa</span>
+        <button type="button" className="icon-button" aria-label="Minimizar mensagens" title="Minimizar" onClick={onMinimize}><Icon name="minus"/></button>
+      </div>}
+      <NewChat friends={friends} notify={notify} onOpenConnections={() => setLeftView?.('connections')} onBack={() => select(null)} onDirect={(id) => select({ kind: 'direct', id })} onCreated={(id) => select({ kind: 'group', id })}/>
+    </>}
+    {selected && loading && <>
+      {onMinimize && <div className="message-thread-topbar">
+        <button type="button" className="icon-button mg-back" onClick={() => select(null)} aria-label="Voltar para as conversas"><Icon name="back"/></button>
+        <span className="quiet-note">Abrindo conversa…</span>
+        <button type="button" className="icon-button" aria-label="Minimizar mensagens" title="Minimizar" onClick={onMinimize}><Icon name="minus"/></button>
+      </div>}
+      <div className="mg-thread-loading"><Skeleton label="Carregando a conversa…" rows={3} variant="text"/></div>
+    </>}
+    {selected && !thread && !loading && threadResource.error && <>
+      {onMinimize && <div className="message-thread-topbar">
+        <button type="button" className="icon-button mg-back" onClick={() => select(null)} aria-label="Voltar para as conversas"><Icon name="back"/></button>
+        <span className="quiet-note">Não foi possível carregar</span>
+        <button type="button" className="icon-button" aria-label="Minimizar mensagens" title="Minimizar" onClick={onMinimize}><Icon name="minus"/></button>
+      </div>}
+      <div className="messages-placeholder"><p className="form-error" role="alert">{threadResource.error}</p><Button secondary onClick={() => select(null)}>Voltar às conversas</Button></div>
+    </>}
     {selected && thread && <>
       <header className="message-thread-head">
         <button type="button" className="icon-button mg-back" onClick={() => select(null)} aria-label="Voltar para as conversas"><Icon name="back"/></button>
         {isGroup
           ? <button type="button" className="person-button mg-thread-who" onClick={() => setDetailsOpen(true)} aria-label={`Detalhes do grupo ${title}`}>
-            <GroupAvatar size="is-large"/>
+            <span className="mg-avatar-wrap"><GroupAvatar size="is-large"/></span>
             <span className="message-thread-copy"><strong className="title">{title}</strong><small>{thread.members.map((member) => member.isMe ? 'você' : member.name.split(' ')[0]).join(', ')}</small></span>
           </button>
           : <PersonButton person={thread.friend} go={go} className="mg-thread-who">
-            <PersonAvatar person={thread.friend} className="conversation-avatar is-large"/>
-            <span className="message-thread-copy"><strong className="title">{title}</strong><small>{thread.blockedByMe ? 'Você bloqueou esta pessoa.' : thread.blockedMe ? 'Esta pessoa bloqueou novas mensagens.' : thread.friend.handle ? `@${thread.friend.handle}` : 'Amizade aceita'}</small></span>
+            <span className="mg-avatar-wrap">
+              <PersonAvatar person={thread.friend} className="conversation-avatar is-large"/>
+              {threadActivity?.active && <span className={`mg-presence-dot ${threadStudying ? 'is-studying' : ''}`} aria-hidden="true"/>}
+            </span>
+            <span className="message-thread-copy">
+              <strong className="title">{title}</strong>
+              <small className={threadStudying ? 'is-studying-text' : ''}>
+                {thread.blockedByMe
+                  ? 'Você bloqueou esta pessoa.'
+                  : thread.blockedMe
+                    ? 'Esta pessoa bloqueou novas mensagens.'
+                    : threadStudying
+                      ? (threadActivity.topic ? `Estudando · ${threadActivity.topic}` : 'Estudando agora')
+                      : threadActivity?.active
+                        ? 'Online agora'
+                        : thread.friend.handle ? `@${thread.friend.handle}` : 'Amizade aceita'}
+              </small>
+            </span>
           </PersonButton>}
         {thread.muted && <span className="mg-muted-tag" title="Conversa silenciada"><Icon name="mute"/><span className="sr-only">Conversa silenciada</span></span>}
-        <button type="button" className="icon-button" aria-label={isGroup ? 'Detalhes do grupo' : 'Detalhes da conversa'} aria-expanded={showDetails} onClick={() => setDetailsOpen((value) => !value)}><Icon name="info"/></button>
+        <button type="button" className={`icon-button ${showDetails ? 'active' : ''}`} aria-label={isGroup ? 'Detalhes do grupo' : 'Detalhes da conversa'} aria-expanded={showDetails} onClick={() => setDetailsOpen((value) => !value)}><Icon name="info"/></button>
+        {onMinimize && <button type="button" className="icon-button" aria-label="Minimizar mensagens" title="Minimizar" onClick={onMinimize}><Icon name="minus"/></button>}
       </header>
       <div className="message-list" ref={listRef} onScroll={(event) => { const node = event.currentTarget; stuck.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80; }} tabIndex={0} role="log" aria-live="polite" aria-label={`Mensagens de ${title}`}>
-        {messages.length === 0 && <p className="messages-placeholder-copy">Nenhuma mensagem ainda. Diga olá ou compartilhe um material.</p>}
+        {messages.length === 0 && <p className="messages-placeholder-copy">Nenhuma mensagem ainda. Diga olá ou compartilhe um material da sua biblioteca.</p>}
         {messages.map((message, index) => {
           const day = new Date(message.at).toDateString();
           const divider = day !== lastDay;
@@ -783,8 +880,9 @@ export default function Messages({ account, state, notify, go, contactId = '', g
             <div className="message-attach">
               <button type="button" className="mg-tool" aria-label="Compartilhar material" title="Compartilhar material" aria-expanded={pickerOpen} onClick={() => setPickerOpen((open) => !open)}><Icon name="plus"/></button>
               {pickerOpen && <ul className="message-picker" aria-label="Materiais para compartilhar">
+                <li className="mg-picker-head">Compartilhar material</li>
                 {state.courses.length === 0 && <li className="muted-text">Nenhum material na biblioteca.</li>}
-                {state.courses.map((course) => <li key={course.id}><button type="button" onClick={() => { setReferenceId(course.id); setPickerOpen(false); }}>{materialType(course.type).title} · {course.title}</button></li>)}
+                {state.courses.map((course) => <li key={course.id}><button type="button" onClick={() => { setReferenceId(course.id); setPickerOpen(false); }}><Icon name="book"/><span>{materialType(course.type).title} · {course.title}</span></button></li>)}
               </ul>}
             </div>
             <EmojiButton className="mg-tool" label="Emoji" disabled={busy} onEmoji={(emoji) => { setText((value) => `${value}${emoji}`.slice(0, 4000)); inputRef.current?.focus(); }}><Icon name="smile"/></EmojiButton>
@@ -800,9 +898,9 @@ export default function Messages({ account, state, notify, go, contactId = '', g
     </>}
   </section>;
 
-  return <SocialFrame route="mensagens" account={account} className={`messages-frame ${inThread ? 'is-in-thread' : ''}`}>
-    {(error || loadError) && <p className="form-error" role="alert">{error || loadError}</p>}
-    <div ref={shellRef} className={`card-surface mg-shell ${showDetails ? 'has-details' : ''}`} data-view={view}>
+  return <div className={`messages-dock-body ${inThread ? 'is-in-thread' : ''}`}>
+    {(error || loadError) && <p className="form-error mg-dock-error" role="alert">{error || loadError}</p>}
+    <div ref={shellRef} className="mg-shell" data-view={view}>
       {list}
       {center}
       {showDetails && <Details thread={thread} isGroup={isGroup} selected={selected} friends={friends} account={account} busy={busy} go={go} notify={notify} sheet={sheet}
@@ -829,5 +927,5 @@ export default function Messages({ account, state, notify, go, contactId = '', g
       notify(blocked ? 'Denúncia enviada e contato bloqueado. A equipe do Lume vai analisar.' : 'Denúncia enviada. A equipe do Lume vai analisar.');
       if (blocked) refreshAll();
     }}/>}
-  </SocialFrame>;
+  </div>;
 }

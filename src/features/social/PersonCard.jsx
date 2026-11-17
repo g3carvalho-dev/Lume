@@ -4,6 +4,7 @@ import Icon from '../../ui/Icon.jsx';
 import { Button, PersonAvatar } from '../../ui/ui.jsx';
 import { useResource } from '../../lib/resources.js';
 import { warmProfile } from './prefetch.js';
+import { openMessagesDock } from './dock-bus.js';
 
 // Cartão rápido da pessoa: a mesma peça no Feed, no Ranking, em Amigos e em
 // Mensagens. Clicar no nome ou na foto abre foto, nome, @usuário, nível, posição
@@ -83,7 +84,7 @@ function PersonCardPanel({ person, anchor, go, onClose }) {
       </dl>}
     <div className="person-card-actions">
       <Button secondary onClick={() => open(profileRoute(shown, { self }))} disabled={missing}><Icon name="user"/>{self ? 'Meu perfil' : 'Ver perfil'}</Button>
-      {!self && data?.canMessage && <Button onClick={() => open(`mensagens?com=${encodeURIComponent(shown.id)}`)}><Icon name="message"/>Enviar mensagem</Button>}
+      {!self && data?.canMessage && <Button onClick={() => { onClose(); openMessagesDock({ contactId: shown.id }); }}><Icon name="message"/>Enviar mensagem</Button>}
     </div>
   </div>;
 

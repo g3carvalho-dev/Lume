@@ -38,8 +38,9 @@ test('grupo entre amigos, denúncia enviada à criadora e acesso restrito', asyn
   await befriend(page.request, carlaPage.request, baseURL);
 
   // Ana cria o grupo: exige nome e pelo menos duas pessoas.
-  await page.goto('/#mensagens');
-  await page.getByRole('button', { name: 'Nova conversa' }).click();
+  await page.goto('/#hoje');
+  await page.getByRole('button', { name: /Abrir mensagens/ }).click();
+  await page.getByRole('button', { name: 'Nova conversa ou grupo' }).click();
   await page.getByRole('tab', { name: 'Novo grupo' }).click();
   const create = page.getByRole('button', { name: 'Criar grupo' });
   await expect(create).toBeDisabled();
@@ -57,7 +58,8 @@ test('grupo entre amigos, denúncia enviada à criadora e acesso restrito', asyn
   await page.screenshot({ path: testInfo.outputPath('grupo.png') });
 
   // Bia vê o grupo com a mensagem não lida, abre e responde.
-  await biaPage.goto('/#mensagens');
+  await biaPage.goto('/#hoje');
+  await biaPage.getByRole('button', { name: /Abrir mensagens/ }).click();
   const entry = biaPage.getByRole('button', { name: /Turma de Direito/ });
   await expect(entry).toContainText('Ana: Bom dia, turma!');
   await entry.click();
@@ -77,8 +79,9 @@ test('grupo entre amigos, denúncia enviada à criadora e acesso restrito', asyn
   await expect(biaPage.getByRole('heading', { name: 'Denunciar Ana Grupo' })).toHaveCount(0);
 
   // Carla denuncia Ana na conversa direta e bloqueia ao mesmo tempo.
-  await carlaPage.goto('/#mensagens');
-  await carlaPage.getByRole('button', { name: /Ana Grupo/ }).first().click();
+  await carlaPage.goto('/#hoje');
+  await carlaPage.getByRole('button', { name: /Abrir mensagens/ }).click();
+  await carlaPage.locator('.messages-dock-panel').getByRole('button', { name: /Ana Grupo/ }).first().click();
   await carlaPage.getByRole('button', { name: 'Detalhes da conversa' }).click();
   await carlaPage.getByRole('button', { name: /^Denunciar/ }).click();
   await carlaPage.getByLabel('Assédio, ameaça ou ofensa').check();
@@ -108,7 +111,6 @@ test('grupo entre amigos, denúncia enviada à criadora e acesso restrito', asyn
   await expect(creatorPage.locator('.report-card').filter({ hasText: 'Spam ou propaganda' })).toBeVisible();
 
   // Ana sai do grupo como dona: a pessoa mais antiga que ficou assume.
-  await page.goto('/#mensagens');
   await page.getByRole('button', { name: /Turma de Direito/ }).first().click();
   // Gestão no painel de detalhes: renomear no próprio lugar e depois sair.
   await page.getByRole('button', { name: 'Detalhes do grupo', exact: true }).click();
@@ -119,7 +121,8 @@ test('grupo entre amigos, denúncia enviada à criadora e acesso restrito', asyn
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: /^Sair do grupo/ }).click();
   await expect(page.getByText('Escolha uma conversa')).toBeVisible();
-  await biaPage.goto('/#mensagens');
+  await biaPage.reload();
+  await biaPage.getByRole('button', { name: /Abrir mensagens/ }).click();
   await biaPage.getByRole('button', { name: /Direito Civil/ }).click();
   await expect(biaPage.getByRole('region', { name: 'Conversa selecionada' }).getByText('Ana Grupo saiu do grupo.')).toBeVisible();
 

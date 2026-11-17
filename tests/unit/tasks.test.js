@@ -4,7 +4,7 @@ import { addCourse, createInitialState, restoreState, totalXP, weekCount } from 
 import {
   MAX_TASKS, addTask, completeTask, isOverdue, normalizeTasks, priorityLabel, removeTask, reopenTask,
   setTaskPriority, sortTasks, taskAgenda, clearTaskFocus, focusTask, focusedTask,
-  addSubtask, moveSubtask, renameSubtask, toggleSubtask,
+  addSubtask, moveSubtask, removeSubtask, renameSubtask, toggleSubtask,
 } from '../../public/tasks-domain.js';
 import { ACCOUNT_FIELDS, libraryActions } from '../../public/library-actions.js';
 
@@ -156,4 +156,45 @@ test('renomear e reordenar subtarefas preserva id e marcação', () => {
   assert.deepEqual(state.tasks[0].subtasks.map((item) => item.id), [third.id, second.id, first.id]);
   assert.equal(state.tasks[0].subtasks[2].done, true);
   assert.equal(totalXP(state), 0);
+});
+
+test('sub-subtarefas suportam criação, marcação, renomeação, reordenação, remoção e limite de profundidade', () => {
+  let state = stateWithTask();
+  const id = state.tasks[0].id;
+  state = addSubtask(state, id, 'Imunidade tributária');
+  const parentId = state.tasks[0].subtasks[0].id;
+
+  state = addSubtask(state, id, 'Ler artigos 150 a 152', parentId);
+  state = addSubtask(state, id, 'Fazer resumo', parentId);
+  const [childA, childB] = state.tasks[0].subtasks[0].subtasks;
+  assert.equal(childA.title, 'Ler artigos 150 a 152');
+  assert.equal(childB.title, 'Fazer resumo');
+
+  state = toggleSubtask(state, id, childA.id);
+  state = renameSubtask(state, id, childA.id, 'Ler arts. 150-152');
+  state = moveSubtask(state, id, childB.id, 0);
+  assert.deepEqual(state.tasks[0].subtasks[0].subtasks, [
+    { id: childB.id, title: 'Fazer resumo', done: false },
+    { id: childA.id, title: 'Ler arts. 150-152', done: true },
+  ]);
+
+  // Normalização preserva 2 níveis e descarta um 3º nível inválido.
+  const normalized = normalizeTasks([{
+    ...state.tasks[0],
+    subtasks: [{
+      ...state.tasks[0].subtasks[0],
+      subtasks: [{
+        ...childB,
+        subtasks: [{ id: 'deep', title: 'Profundo demais', done: false }],
+      }],
+    }],
+  }]);
+  assert.equal(normalized[0].subtasks[0].subtasks[0].subtasks, undefined);
+
+  state = removeSubtask(state, id, childA.id);
+  assert.deepEqual(state.tasks[0].subtasks[0].subtasks, [
+    { id: childB.id, title: 'Fazer resumo', done: false },
+  ]);
+  state = removeSubtask(state, id, childB.id);
+  assert.equal(state.tasks[0].subtasks[0].subtasks, undefined);
 });

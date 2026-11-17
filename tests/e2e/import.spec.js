@@ -35,7 +35,8 @@ test('erro de link, fonte protegida e falha de rede preservam a escolha', async 
   await page.getByLabel('Link do curso').fill('https://www.grancursosonline.com.br/curso/oab');
   await page.getByRole('button', { name: 'Analisar link' }).click();
   await expect(page.getByRole('heading', { name: 'Essa fonte pede acesso à conta' })).toBeVisible();
-  await expect(page.getByText(/não contorna login/i)).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Extensão do Lume' })).toBeVisible();
+  await expect(page.getByRole('dialog')).not.toContainText('extension/');
 
   // Falha de rede: mensagem recuperável e link preservado.
   await page.unroute('**/api/import/analyze');

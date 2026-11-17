@@ -20,6 +20,21 @@ function identify(url) {
 
 const seconds = (video) => Number(video?._tempo_duracao) || toSeconds(video?.st_tempo_duracao) || 0;
 
+function videoId(url) {
+  const part = /\/v\/([^/]+)/.exec(url.pathname)?.[1];
+  try { return part ? decodeURIComponent(part) : ''; } catch { return ''; }
+}
+
+async function readLesson({ pageUrl, origin, externalId, fetchJson }) {
+  const url = new URL(pageUrl);
+  const course = identify(url);
+  if (!course || url.origin !== origin || !/^\d+\/\d+$/.test(externalId || '')) return null;
+  const [subject, lesson] = externalId.split('/');
+  const items = await fetchJson(`/aluno/curso/listar-conteudo-aula/codigo/${course.courseExternalId}/tipo/video/disciplina/${subject}/conteudo/${lesson}?audiobooks=true`);
+  if (!Array.isArray(items) || !items.some(item=>item.id_video === videoId(url)) || !items.every(item=>typeof item.visualizado === 'boolean')) return null;
+  return items.every(item=>item.visualizado);
+}
+
 // ctx: { pageUrl, origin, fetchJson(path), report(texto), limits: { disciplines } }
 async function readPage({ pageUrl, origin, fetchJson, report = () => {}, limits = {} }) {
   let url;
@@ -59,6 +74,7 @@ async function readPage({ pageUrl, origin, fetchJson, report = () => {}, limits 
       return {
         title,
         externalId,
+        ...(videos.length > 1 ? { videoIds: videos.map(video => String(video.id_video)) } : {}),
         url: `${origin}/aluno/curso/video/codigo/${course.courseExternalId}/v/${encodeURIComponent(videos[0].id_video)}`,
         duration: total || null,
         completed: videos.every((video) => video.visualizado === true),
@@ -88,5 +104,6 @@ export default {
   note: 'A página pública costuma mostrar as disciplinas do pacote. Módulos e aulas detalhados normalmente ficam na área autenticada: abra o curso logado e use a extensão do Lume, ou copie a página e cole, ou envie o texto.',
   capabilities: { syllabus: 'full', progress: 'lesson-flags', resume: false, requiresLogin: true },
   identify,
-  readers: { page: readPage },
+  videoId,
+  readers: { page: readPage, lesson: readLesson },
 };

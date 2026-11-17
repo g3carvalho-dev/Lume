@@ -1,6 +1,18 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-4530727c",
+    "at": "2026-11-17T01:44:46.000Z",
+    "title": "Disciplinas dentro da Biblioteca",
+    "body": "O carrossel de disciplinas agora fica na Biblioteca, com o detalhe aberto em modal e disciplina nova no menu de adicionar material.",
+    "href": "#biblioteca",
+    "area": "site",
+    "details": [
+      "A rota #disciplinas virou alias de #biblioteca e o detalhe da disciplina abre em uma janela, sem sair da tela.",
+      "Os cards do carrossel ficaram mais largos, com o botão Continuar no rodapé, e a disciplina do último PDF lido aparece primeiro."
+    ]
+  },
+  {
     "id": "news-40fd23c7",
     "at": "2026-11-16T05:05:00.000Z",
     "title": "Tempo de leitura dos PDFs",

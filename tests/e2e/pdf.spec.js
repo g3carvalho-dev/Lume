@@ -50,9 +50,10 @@ test('anexar PDF, vincular à disciplina, ler no leitor e retomar na página dep
   await page.getByRole('dialog').getByRole('button', { name: 'Voltar para a biblioteca' }).click();
 
   await page.goto('/#biblioteca');
-  const card = page.locator('.subject-card').filter({ hasText: 'Processo Penal' });
-  await expect(card.getByText(/1 material · 0 concluídos · até p\. 4 de 6/)).toBeVisible();
-  await expect(card.getByRole('button', { name: /Continuar: Apostila de Processo Penal · p\. 4/ })).toBeVisible();
+  await page.locator('.subject-slide.is-active').getByRole('button', { name: 'Processo Penal', exact: true }).click();
+  const subjectPanel = page.getByRole('dialog');
+  await expect(subjectPanel.getByText(/0 de 1 material concluído · páginas abertas: até 4 de 6/)).toBeVisible();
+  await expect(subjectPanel.getByRole('button', { name: /Continuar: Apostila de Processo Penal · p\. 4/ })).toBeVisible();
 });
 
 test('leitor de PDF registra leitura automática, pausa por inatividade e retoma com interação', async ({ page }) => {
@@ -234,7 +235,7 @@ test('no celular, o leitor de PDF ocupa a tela sem controles sobrepostos e as te
   test.skip(!isMobile, 'Layout de celular.');
   await seedAccount(page, seeded());
   // Nenhuma tela principal pode ficar mais larga que o celular.
-  for (const route of ['hoje', 'biblioteca', 'plano', 'agenda', 'tarefas', 'amigos', 'adicionar', 'perfil', 'configuracoes']) {
+  for (const route of ['hoje', 'biblioteca', 'plano', 'agenda', 'tarefas', 'amigos', 'perfil', 'configuracoes']) {
     await page.goto(`/#${route}`);
     await expect(page.locator('#main h1').first()).toBeVisible();
     const [scroll, client] = await page.locator('#main').evaluate((node) => [node.scrollWidth, node.clientWidth]);

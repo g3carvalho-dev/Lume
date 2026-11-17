@@ -288,18 +288,34 @@
   background: var(--inner);
 }
 .subtask-list li {
+  position: relative;
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.1rem 0.15rem 0.1rem 0.5rem;
+  border-radius: calc(var(--radius-md) - 4px);
+  background: transparent;
+  transition: background 0.16s ease;
+}
+.subtask-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
   min-width: 0;
-  padding: 0.1rem 0.15rem 0.1rem 0.5rem;
-  border-radius: calc(var(--radius-md) - 4px);
-  transition: background 0.16s ease;
 }
-.subtask-list li {
-  position: relative;
-  background: transparent;
+.subtask-children {
+  margin-left: 1.35rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--border);
+  display: grid;
+  gap: 0.25rem;
+}
+.todo-subtasks .subtask-sublist {
+  margin: 0.1rem 0 0;
+}
+.subtask-subform {
+  margin-top: 0.15rem;
 }
 .subtask-list li:hover {
   background: color-mix(in srgb, var(--text-muted) 8%, transparent);
@@ -372,14 +388,58 @@
     opacity: 0.7;
   }
 }
-.subtask {
+.subtask-main {
   flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.subtask {
+  flex: 0 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 0.6rem;
   padding: 0.35rem 0;
   cursor: pointer;
+}
+.subtask.is-editing {
+  flex: 1 1 auto;
+}
+.subtask-nest-btn {
+  flex: 0 0 auto;
+  width: 1.45rem;
+  height: 1.45rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.16s ease, color 0.16s ease, background 0.16s ease;
+}
+@media (hover: none) {
+  .subtask-nest-btn {
+    opacity: 0.7;
+  }
+}
+.subtask-nest-btn .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+.subtask-row:hover .subtask-nest-btn,
+.subtask-nest-btn:focus-visible,
+.subtask-nest-btn[aria-expanded='true'] {
+  opacity: 0.9;
+}
+.subtask-nest-btn:hover,
+.subtask-nest-btn[aria-expanded='true'] {
+  color: var(--lume);
+  background: var(--lume-soft);
 }
 .subtask span {
   overflow-wrap: anywhere;

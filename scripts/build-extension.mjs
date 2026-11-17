@@ -1,3 +1,5 @@
+import { writeFile } from 'node:fs/promises';
+import { PROVIDERS } from '../public/providers/registry.js';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 
@@ -9,16 +11,21 @@ import { fileURLToPath } from 'node:url';
 
 export const BANNER = '// Gerado por scripts/build-extension.mjs a partir de extension/src/capture.js. Não edite: rode npm run extension:build.';
 
-export async function buildCapture({ outfile = fileURLToPath(new URL('../extension/capture.js', import.meta.url)), write = true } = {}) {
+export function platformModule() {
+  const platforms = PROVIDERS.map(({ id, label, hosts }) => ({ id, label, hosts }));
+  return `// Gerado do registro de provedores por npm run extension:build.\nexport const platforms = ${JSON.stringify(platforms, null, 2)};\n`;
+}
+
+export async function buildCapture({ entry = 'capture', outfile = fileURLToPath(new URL(`../extension/${entry}.js`, import.meta.url)), write = true } = {}) {
   const result = await build({
-    entryPoints: [fileURLToPath(new URL('../extension/src/capture.js', import.meta.url))],
+    entryPoints: [fileURLToPath(new URL(`../extension/src/${entry}.js`, import.meta.url))],
     bundle: true,
     format: 'iife',
     platform: 'browser',
     target: ['chrome110'],
     charset: 'utf8',
     legalComments: 'none',
-    banner: { js: BANNER },
+    banner: { js: BANNER.replaceAll('capture.js', `${entry}.js`) },
     outfile,
     write,
     logLevel: 'silent',
@@ -27,6 +34,8 @@ export async function buildCapture({ outfile = fileURLToPath(new URL('../extensi
 }
 
 if (import.meta.url === `file:///${process.argv[1]?.replaceAll('\\', '/').replace(/^\//, '')}` || process.argv[1]?.endsWith('build-extension.mjs')) {
+  await writeFile(new URL('../extension/platforms.js', import.meta.url), platformModule());
   await buildCapture();
+  await buildCapture({ entry: 'watch' });
   console.log('extension/capture.js atualizado.');
 }

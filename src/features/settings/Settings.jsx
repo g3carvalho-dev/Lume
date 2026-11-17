@@ -3,6 +3,9 @@ import { STUDY_TYPES, studyRhythm } from '../../../public/domain.js';
 import { materialSteps } from '../../../public/material-model.js';
 import { completionKindForCourse, stepEventKey } from '../../../public/xp-policy.js';
 import { isCompleted } from '../../../public/progress-domain.js';
+import {
+  AUDIENCE_LABELS, AUDIENCES, PRIVACY_SECTION_LABELS, PRIVACY_SECTIONS, audienceSentence, normalizePrivacy, sectionAudience,
+} from '../../../public/privacy-domain.js';
 import BackupPanel from './BackupPanel.jsx';
 import ConnectionsPanel from './ConnectionsPanel.jsx';
 import CreatorQuotaPanel from './CreatorQuotaPanel.jsx';
@@ -21,12 +24,6 @@ const SECTIONS = [
   { id: 'cotas', label: 'Controle de cotas', icon: 'settings', creatorOnly: true, info: 'Defina os limites de armazenamento das contas sem precisar de IDs. Visível apenas para a criadora.' },
 ];
 
-const SHARING = [
-  ['library', 'Biblioteca', 'Materiais em estudo e concluídos.'],
-  ['queue', 'Fila de estudo', 'O roteiro que aparece no Início.'],
-  ['progress', 'Progresso', 'Aulas concluídas e percentuais.'],
-  ['xp', 'XP e nível', 'Confirmados pelo servidor; o saldo legado fica fora.'],
-];
 
 function Info({ text }) {
   const id = useId();
@@ -117,8 +114,8 @@ export function Preferences({ state, actions, libraryActions, confirmSave, notif
       setMessagesBusy(false);
     }
   }
-  function sharingPreference(key, value) {
-    if (!actions.setSharingPreference(key, value)) return;
+  function privacyChange(patch) {
+    if (!actions.setPrivacy(patch)) return;
     notify('Privacidade do perfil atualizada.');
   }
   function toggleProject(course) {
@@ -126,7 +123,7 @@ export function Preferences({ state, actions, libraryActions, confirmSave, notif
     if (!actions.setProjectSharing(course.id, open)) return;
     notify(open ? 'Projeto marcado como público no seu perfil.' : 'Projeto voltou a ser privado.');
   }
-  const sharing = state.preferences.sharing ?? {};
+  const privacy = normalizePrivacy(state.preferences);
   const projects = state.courses.filter((course) => course.type === 'project');
   const eventKeys = new Set((xp?.events || []).map((event) => event.eventKey));
   const legacyCourses = state.courses.filter((course) => !course.example
@@ -189,6 +186,9 @@ export function Preferences({ state, actions, libraryActions, confirmSave, notif
             <p className="cfg-lead">{studyRhythm(state).title}</p>
             <LinkButton onClick={onPersonalize}>Revisar respostas iniciais</LinkButton>
           </div>
+          <Toggle title="Acompanhar aulas pela extensão"
+            hint="A extensão registra a reprodução das aulas nas plataformas que você ligar no navegador."
+            checked={state.preferences.watchLessons !== false} onChange={value => preference('watchLessons', value)}/>
           <Toggle
             title="Registrar tempo ao ler PDFs"
             hint="O leitor inicia uma sessão de leitura automática, pausa após 5 minutos sem interação e pode ser pausada ou encerrada no próprio leitor."
@@ -217,18 +217,32 @@ export function Preferences({ state, actions, libraryActions, confirmSave, notif
         </div>}
 
         {section === 'social' && <div className="cfg-stack">
-          <p className="cfg-sub">Seu perfil é visível apenas para amigos, a menos que você ligue o perfil público.</p>
+          <p className="cfg-sub">Só pessoas com conta no Lume, logadas, veem seu perfil. Nada dele aparece para quem está fora do Lume.</p>
           {!account && <p className="inline-note"><Icon name="info"/><span>Na prévia não existe lista de amigos: o perfil fica só neste navegador.</span></p>}
           {account && <HandleSetting notify={notify}/>}
           <div className="cfg-block">
-            <h3>O que amigos veem</h3>
-            {SHARING.map(([key, label, hint]) => <Toggle key={key} title={label} hint={hint} checked={sharing[key] !== false} onChange={(value) => sharingPreference(key, value)}/>)}
-          </div>
-          <div className="cfg-block">
-            <h3>Busca por @usuário</h3>
-            {account
-              ? <Toggle title="Perfil público: ser encontrado pelo @usuário" hint="Ligado, qualquer pessoa com conta acha você pelo @usuário e abre seu perfil, só com o que você compartilha acima. Desligado, você não aparece em buscas por @usuário e só amigos abrem seu perfil." checked={sharing.public !== false} onChange={(value) => sharingPreference('public', value)} label="Perfil público"/>
-              : <p className="inline-note"><Icon name="lock"/><span>Perfil público exige conta.</span></p>}
+            <h3>Quem vê seu perfil</h3>
+            <Toggle
+              title="Perfil aberto"
+              hint={privacy.mode === 'open'
+                ? 'Qualquer pessoa com conta acha você pelo @usuário e abre seu perfil, com o que cada seção abaixo permite.'
+                : 'Perfil privado: só amigos abrem seu perfil, e quem não tem vínculo com você não o acha pelo @usuário.'}
+              checked={privacy.mode === 'open'}
+              onChange={(value) => privacyChange({ mode: value ? 'open' : 'private' })}
+              label="Perfil aberto"
+            />
+            {PRIVACY_SECTIONS.map((section) => {
+              const value = sectionAudience(privacy, section);
+              return <label key={section} className="cfg-row cfg-privacy-row">
+                <span className="cfg-row-copy"><strong>{PRIVACY_SECTION_LABELS[section]}</strong><span>{audienceSentence(privacy, section)}</span></span>
+                <select className="cfg-select" value={value} onChange={(event) => privacyChange({ [section]: event.target.value })} aria-label={`Quem vê: ${PRIVACY_SECTION_LABELS[section]}`}>
+                  {AUDIENCES.map((audience) => <option key={audience} value={audience} disabled={audience === 'all' && privacy.mode === 'private'}>
+                    {AUDIENCE_LABELS[audience]}{audience === 'all' && privacy.mode === 'private' ? ' (perfil privado)' : ''}
+                  </option>)}
+                </select>
+              </label>;
+            })}
+            <p className="cfg-sub">Reagir e comentar ficam sempre entre amigos. Agenda e tarefas nunca aparecem no perfil, e nada disso gera XP.</p>
           </div>
           <div className="cfg-block">
             <h3>Ranking de amigos</h3>

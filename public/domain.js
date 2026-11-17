@@ -7,6 +7,7 @@ import { levelProgress } from './xp-policy.js';
 import { normalizeSlideProgress, normalizeSlides } from './slides-domain.js';
 import { normalizeHighlights, normalizePdfMeta, normalizeReading } from './pdf-domain.js';
 import { normalizeSubjects } from './subject-domain.js';
+import { defaultPrivacy, normalizePrivacy } from './privacy-domain.js';
 import {
   activeCompletions, completedUnitIds, hasPreparationFor, isCompleted, legacyProgressXp, materialHasActivity,
   normalizeProgress, pruneProgress, recordCompletion, recordPreparation,
@@ -336,10 +337,12 @@ export function createInitialState() {
       soundscape: 'off',
       focusShield: false,
       focusNotes: '',
+      watchLessons: true,
       readingTimer: true,
       focusTimer: true,
       studyGoal: '',
       sharing: { library: true, queue: true, progress: true, xp: true, public: true },
+      privacy: defaultPrivacy(),
     },
     onboarding: emptyOnboarding(),
     courses: [],
@@ -718,6 +721,7 @@ export function restoreState(raw) {
         soundscape: normalizeSoundscape(preferences.soundscape, 'off'),
         focusShield: preferences.focusShield === true,
         focusNotes: typeof preferences.focusNotes === 'string' ? preferences.focusNotes.slice(0, 4000) : '',
+        watchLessons: preferences.watchLessons !== false,
         readingTimer: preferences.readingTimer !== false,
         focusTimer: preferences.focusTimer !== false,
         studyGoal: STUDY_GOALS.includes(preferences.studyGoal) ? preferences.studyGoal : '',
@@ -729,6 +733,8 @@ export function restoreState(raw) {
           // Perfil público por padrão: só some da busca e dos perfis abertos a quem desliga.
           public: preferences.sharing?.public !== false,
         },
+        // Privacidade por seção; sem ela, converte as escolhas antigas acima (privacy-domain.js).
+        privacy: normalizePrivacy(preferences),
       },
       onboarding: normalizeOnboarding(value.onboarding),
     };

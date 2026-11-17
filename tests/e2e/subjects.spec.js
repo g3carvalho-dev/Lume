@@ -3,7 +3,7 @@ import { createInitialState } from '../../public/domain.js';
 import { addSubject } from '../../public/subject-domain.js';
 import { readAccount, seedAccount } from './library-helpers.js';
 
-test('cria disciplina em modal e mantém a grade apenas com cards de disciplinas', async ({ page }) => {
+test('cria disciplina em modal e mantém o carrossel apenas com cards de disciplinas', async ({ page }) => {
   await seedAccount(page, { ...createInitialState(), onboarded: true });
   await page.goto('/#biblioteca');
   await expect(page.getByRole('heading', { name: 'Biblioteca', exact: true })).toBeVisible();
@@ -15,10 +15,12 @@ test('cria disciplina em modal e mantém a grade apenas com cards de disciplinas
   await dialog.getByLabel('Palavras-chave (opcional)').fill('penal, crime');
   await dialog.getByRole('button', { name: 'Criar disciplina' }).click();
 
-  await expect(dialog).toBeHidden();
-  const card = page.locator('.subject-card').filter({ hasText: 'Direito Penal' });
-  await expect(card).toBeVisible();
-  await expect(page.locator('.subject-card.subject-new')).toHaveCount(0);
+  // A criação continua no painel da disciplina recém-criada.
+  await expect(dialog.getByRole('heading', { name: 'Direito Penal', exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Fechar janela' }).click();
+
+  const card = page.locator('.subject-slide.is-active .subject-card');
+  await expect(card).toContainText('Direito Penal');
   const saved = await readAccount(page);
   expect(saved.subjects).toHaveLength(1);
   expect(saved.subjects[0]).toMatchObject({ title: 'Direito Penal', keywords: ['penal', 'crime'] });
@@ -28,10 +30,10 @@ test('cria disciplina em modal e mantém a grade apenas com cards de disciplinas
   await expect(attach.getByLabel('Disciplina')).toHaveValue(saved.subjects[0].id);
   await attach.getByRole('button', { name: 'Fechar janela' }).click();
 
-  await card.getByRole('button', { name: 'Direito Penal' }).click();
+  await card.getByRole('button', { name: 'Direito Penal', exact: true }).click();
   const detail = page.getByRole('dialog');
   await expect(detail.getByRole('heading', { name: 'Direito Penal', exact: true })).toBeVisible();
-  await detail.getByRole('button', { name: 'Fechar', exact: true }).click();
+  await detail.getByRole('button', { name: 'Fechar janela' }).click();
 });
 
 test('disciplinas em excesso viram um carrossel 3D infinito', async ({ page }) => {

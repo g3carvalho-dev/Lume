@@ -1036,6 +1036,12 @@ dialog#dialog:has(.pdf-reader) > div {
 .subject-card .title {
   margin: 0;
 }
+/* Filete na cor escolhida identifica a disciplina sem mudar o cartão. */
+.subject-card.card-surface { border-left: 3px solid var(--subject-lume); }
+.subject-card.color-mint { border-left-color: var(--subject-mint); }
+.subject-card.color-violet { border-left-color: var(--subject-violet); }
+.subject-card.color-amber { border-left-color: var(--subject-amber); }
+.subject-card.color-coral { border-left-color: var(--subject-coral); }
 .subject-title-link {
   padding: 0;
   border: 0;
@@ -1080,15 +1086,6 @@ dialog#dialog:has(.pdf-reader) > div {
 }
 .subject-empty > .icon { color: var(--text-subtle); }
 .subject-empty-action { color: var(--lume); font-size: 0.82rem; }
-.subject-detail {
-  display: grid;
-  gap: 1rem;
-}
-.subject-resume, .subject-materials, .subject-settings {
-  padding: 1.25rem;
-  display: grid;
-  gap: 0.75rem;
-}
 .subject-material-list {
   list-style: none;
   margin: 0;
@@ -1116,11 +1113,6 @@ dialog#dialog:has(.pdf-reader) > div {
   justify-self: start;
   color: var(--text-subtle);
   font-size: 0.85rem;
-}
-.subject-sections ul {
-  margin: 0.4rem 0 0;
-  padding-inline-start: 1.1rem;
-  color: var(--text-muted);
 }
 .subject-link {
   display: flex;
@@ -1283,14 +1275,6 @@ dialog#dialog:has(.pdf-reader) > div {
   }
 }
 
-/* Disciplinas: filete na cor escolhida e campos na largura do cartão. */
-.subject-card.card-surface {
-  border-left: 3px solid var(--subject-lume);
-}
-.subject-card.color-mint { border-left-color: var(--subject-mint); }
-.subject-card.color-violet { border-left-color: var(--subject-violet); }
-.subject-card.color-amber { border-left-color: var(--subject-amber); }
-.subject-card.color-coral { border-left-color: var(--subject-coral); }
 .subject-form .field input {
   width: 100%;
 }
@@ -1381,4 +1365,53 @@ dialog#dialog:has(.pdf-reader) > div {
     grid-column: 1 / -1;
     width: 100%;
   }
+}
+
+
+/* Painel da disciplina (diálogo). */
+.subject-chip-dot { flex: none; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--chip, var(--subject-lume)); }
+
+.subject-dialog { display: grid; gap: 1rem; }
+.subject-dialog > * { margin: 0; }
+.subject-dialog-eyebrow { display: inline-flex; align-items: center; gap: 0.45rem; }
+.subject-dialog-eyebrow.color-mint { --chip: var(--subject-mint); }
+.subject-dialog-eyebrow.color-violet { --chip: var(--subject-violet); }
+.subject-dialog-eyebrow.color-amber { --chip: var(--subject-amber); }
+.subject-dialog-eyebrow.color-coral { --chip: var(--subject-coral); }
+.subject-dialog-section { display: grid; gap: 0.75rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.subject-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.subject-dialog-head .metric-label { margin: 0; }
+.subject-material-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.9rem; }
+.subject-material-list > li { display: grid; gap: 0.35rem; }
+.subject-material-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.subject-material-head .text-button:first-child { min-width: 0; text-align: left; }
+.subject-material-list small { color: var(--text-muted); }
+.subject-material-list .text-button.subtle { color: var(--text-subtle); font-size: 0.8rem; flex: none; }
+.subject-sections ul { margin: 0.4rem 0 0; padding-inline-start: 1.1rem; color: var(--text-muted); }
+.subject-link { display: flex; gap: 0.6rem; }
+.subject-link select {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--inner);
+  color: var(--text);
+}
+.subject-dialog-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.subject-dialog-footer .field-hint { flex: 1 1 100%; margin: 0; }
+.subject-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.1rem 1.5rem;
+  align-items: end;
+}
+.subject-form-keywords, .subject-form-actions, .subject-form > .form-error { grid-column: 1 / -1; }
+.subject-form .field { display: grid; gap: 0.4rem; margin: 0; }
+.subject-form .field input { width: 100%; }
+.subject-form .field-hint { color: var(--text-subtle); font-size: 0.78rem; font-weight: 400; }
+.subject-form-color { display: grid; gap: 0.55rem; }
+@media (max-width: 640px) {
+  .subject-form { grid-template-columns: minmax(0, 1fr); }
 }

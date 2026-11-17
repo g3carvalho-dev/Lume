@@ -98,6 +98,11 @@ const entries = listFiles(source)
   });
 
 const { version } = JSON.parse(readFileSync(join(source, 'manifest.json'), 'utf8'));
+for (const { name, data } of entries) {
+  if (/\.(js|json|html)$/.test(name) && /https?:\/\/(localhost|127\.0\.0\.1)(:|\/)/.test(data.toString('utf8'))) {
+    throw new Error(`${name}: endereço local no pacote da loja.`);
+  }
+}
 mkdirSync(output, { recursive: true });
 const file = join(output, `lume-leitor-de-curso-${version}.zip`);
 writeFileSync(file, zip(entries));

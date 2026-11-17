@@ -4,6 +4,7 @@
 // amigos, mesmo perfil). O núcleo local cuida só de presença, roteiro e
 // atualização: o app não lê a tela, apenas nomes de processo da allowlist.
 
+import { lessonProvider, showLesson } from './lesson.mjs';
 import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell } from 'electron';
 import { existsSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -325,9 +326,15 @@ function createMainWindow() {
     event.preventDefault();
     mainWindow.hide();
   });
-  // Links de fora abrem no navegador; o app fica no Lume.
+  let closeLesson;
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    const provider = lessonProvider(url);
+    if (provider && new URL(mainWindow.webContents.getURL()).origin === new URL(appUrl()).origin) {
+      closeLesson?.();
+      closeLesson = showLesson(mainWindow, url, provider, TITLEBAR_HEIGHT, address => shell.openExternal(address));
+    } else {
+      shell.openExternal(url);
+    }
     return { action: 'deny' };
   });
   mainWindow.webContents.on('will-navigate', (event, url) => {

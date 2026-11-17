@@ -39,7 +39,7 @@ function AddMenu({ open }) {
     <Button aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><Icon name="plus"/>Adicionar material<Icon name="chevron" className="add-menu-caret"/></Button>
     {menuOpen && <div className="add-menu-list" role="menu">
       <button type="button" role="menuitem" className="add-menu-item" onClick={() => choose({ type: 'new' })}><Icon name="layers"/>Adicionar curso</button>
-      <button type="button" role="menuitem" className="add-menu-item" onClick={() => choose({ type: 'subject-new' })}><Icon name="school"/>Adicionar disciplina</button>
+      <button type="button" role="menuitem" className="add-menu-item" onClick={() => choose({ type: 'subject' })}><Icon name="school"/>Adicionar disciplina</button>
       <button type="button" role="menuitem" className="add-menu-item" onClick={() => choose({ type: 'pdf-attach' })}><Icon name="book"/>Anexar PDF</button>
       <button type="button" role="menuitem" className="add-menu-item" onClick={() => choose({ type: 'manual' })}><Icon name="edit"/>Criar manualmente</button>
     </div>}
@@ -193,11 +193,11 @@ export function Library({ state, open, actions }) {
 
   return <div className="library-root">
     <Heading
-      eyebrow="materiais e disciplinas"
+      eyebrow="materiais"
       title="Biblioteca"
       actions={<AddMenu open={open}/>}
     >
-      Seus cursos, livros, PDFs e disciplinas organizados com o ponto exato de retomada.
+      Seus cursos, livros e PDFs com o ponto exato de retomada.
     </Heading>
 
     {state.courses.length > 0 && <LibraryFilters state={state} search={search} setSearch={setSearch} kind={kind} setKind={setKind} filter={filter} setFilter={setFilter} subjectFilter={subjectFilter} setSubjectFilter={setSubjectFilter}/>}
@@ -252,7 +252,6 @@ export function Library({ state, open, actions }) {
         </div>
         <SubjectCarousel overviews={subjects} open={open} initialActive={initialSubject}/>
       </section>}
-
       {trails.length > 0 && <section className="library-section" aria-labelledby="library-courses-title">
         <div className="library-section-head">
           <span className="card-icon"><Icon name="layers"/></span>

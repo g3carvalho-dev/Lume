@@ -75,7 +75,7 @@ export function useLibraryPersistence(notify, onSaved) {
     const result = await api('/api/library');
     if (!result.ok || !connected.current || blocked.current) return false;
     if (sequence.current !== startedAt || settled.current !== startedAt) return false;
-    if (result.data.revision === revision.current) return false;
+    if (result.data.revision <= revision.current) return false;
     revision.current = result.data.revision;
     confirmed.current = result.data.state;
     publish(result.data.state);

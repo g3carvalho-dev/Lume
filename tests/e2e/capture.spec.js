@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { test, expect } from '@playwright/test';
-import { seedAccount, readAccount } from './library-helpers.js';
+import { seedAccount, readAccount, addMaterial } from './library-helpers.js';
 import { createInitialState, STORAGE_KEY } from '../../public/domain.js';
 
 // Leitor da extensão (extension/capture.js) contra páginas de exemplo no formato
@@ -129,6 +129,35 @@ async function openLume(page) {
   await expect(page.getByRole('heading', { name: 'Biblioteca', exact: true })).toBeVisible();
 }
 
+test('a oferta de instalação verifica a versão novamente e mantém a opção de colar', async ({ page }) => {
+  await openLume(page);
+  await addMaterial(page, 'Adicionar curso');
+  const card = page.getByRole('region', { name: 'Extensão do Lume' });
+  await expect(card.getByRole('link', { name: 'Instalar a extensão' })).toBeVisible();
+  await page.evaluate(() => {
+    window.addEventListener('message', event => {
+      if (event.data?.source === 'lume' && event.data.type === 'ping') {
+        window.postMessage({ source: 'lume-extension', type: 'hello', version: '0.2.1' }, location.origin);
+      }
+    });
+  });
+  await card.getByRole('button', { name: 'Já instalei' }).click();
+  await expect(card.getByRole('link', { name: 'Atualizar a extensão' })).toBeVisible();
+  await page.evaluate(() => window.postMessage({ source: 'lume-extension', type: 'hello', version: '0.3.0' }, location.origin));
+  await expect(card.getByRole('heading', { name: 'Extensão instalada' })).toBeVisible();
+  await expect(card.getByRole('listitem')).toHaveCount(3);
+  await page.getByRole('tab', { name: 'Colar a grade' }).click();
+  await expect(page.getByLabel('Grade do curso', { exact: true })).toBeVisible();
+});
+
+test('no aplicativo de desktop a oferta orienta a colar a grade', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { value: 'Chrome/157 Electron/43' }));
+  await openLume(page);
+  await addMaterial(page, 'Adicionar curso');
+  await expect(page.getByText(/funciona no Chrome e no Edge do computador/)).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Instalar a extensão' })).toHaveCount(0);
+});
+
 function captured(done) {
   const lesson = (title, completed, n) => ({ title, url: `https://www.udemy.com/course/react-do-zero/learn/lecture/${n}`, duration: 300, completed });
   return {
@@ -162,7 +191,9 @@ test('o Lume recebe a leitura da extensão, importa como histórico e depois reg
   await page.getByRole('button', { name: /Adicionar 3 aulas à biblioteca/ }).click();
   await expect(page.getByText('XP concedido agora: 0')).toBeVisible();
   await expect(page.getByText(/1 aula já constava como concluída/)).toBeVisible();
-  await page.getByRole('button', { name: 'Voltar à biblioteca' }).click();
+  await page.getByRole('button', { name: 'Ver o curso' }).click();
+  await expect(page.getByText(/Faltam 2 aulas · cerca de/)).toBeVisible();
+  await page.getByRole('button', { name: 'Fechar', exact:true }).click();
 
   // Segunda leitura: o curso já existe e uma aula nova aparece concluída.
   await deliver(page, captured(2), 'leitura-2');
@@ -368,12 +399,12 @@ test('Gran API: leitura direta, parcial, fallback e acordeão exclusivo', async 
   expect(payload.disciplines[1].modules).toEqual([{
     title: 'Aulas',
     lessons: [
-      { title: 'Aula 1 - Teoria da Constituição', externalId: '21718/1', url: `${GRAN_COURSE}/v/Ccc1`, duration: 2400, completed: false },
-      { title: 'Aula 2 - Poder Constituinte', externalId: '21718/2', url: `${GRAN_COURSE}/v/Ddd1`, duration: 900, completed: true },
+      { title: 'Aula 1 - Teoria da Constituição', externalId: '21718/1', videoIds: ['Ccc1', 'Ccc2'], url: `${GRAN_COURSE}/v/Ccc1`, duration: 2400, completed: false },
+      { title: 'Aula 2 - Poder Constituinte', externalId: '21718/2', videoIds: ['Ddd1', 'Ddd2', 'Ddd3'], url: `${GRAN_COURSE}/v/Ddd1`, duration: 900, completed: true },
       { title: 'Aula 3 - Controle de Constitucionalidade', externalId: '21718/3', url: `${GRAN_COURSE}/v/Eee1`, duration: 1800, completed: false },
     ],
   }]);
-  expect(payload.disciplines[0].modules[0].lessons[0]).toEqual({ title: 'Aula 1 - Análise do Edital', externalId: '21717/1', url: `${GRAN_COURSE}/v/ZxxT%2BCmS4Zc%3D`, duration: 2940, completed: true });
+  expect(payload.disciplines[0].modules[0].lessons[0]).toEqual({ title: 'Aula 1 - Análise do Edital', externalId: '21717/1', videoIds: ['ZxxT+CmS4Zc=', 'Abc1'], url: `${GRAN_COURSE}/v/ZxxT%2BCmS4Zc%3D`, duration: 2940, completed: true });
   expect(result.stats).toEqual({ lessons: 4, groups: 2, disciplines: 2, completed: 2, pending: 0, truncated: false });
   expect(requests.every((request) => request.method === 'GET' && request.query === '?audiobooks=true')).toBe(true);
   await expect(page.locator('[aria-expanded="true"]')).toHaveCount(0);
