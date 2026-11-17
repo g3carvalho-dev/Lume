@@ -14,8 +14,8 @@ async function saveForm(page) {
 }
 async function hours(page, start, end) {
   await page.getByRole('checkbox', { name: 'Sem horário', exact: true }).uncheck();
-  await page.getByLabel('Início', { exact: true }).selectOption(start);
-  await page.getByLabel('Fim', { exact: true }).selectOption(end);
+  await page.getByRole('combobox', { name: 'Início', exact: true }).selectOption(start);
+  await page.getByRole('combobox', { name: 'Fim', exact: true }).selectOption(end);
 }
 async function openEvent(page, title) {
   await page.getByLabel(`Abrir compromisso ${title}`, { exact: true }).first().click();
