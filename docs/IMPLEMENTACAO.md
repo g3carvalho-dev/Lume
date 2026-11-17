@@ -56,7 +56,7 @@ Em Chrome 157, o GET da extensão chegou sem Origin. A versão local utiliza POS
 
 A suíte de domínio e contratos passou em Node e workerd locais. Os testes da extensão no navegador passaram, incluindo os dois modos do miniplayer, a restauração do player e a estimativa na tela do curso. Na suíte geral, dois testes preexistentes de navegação (Plano e jornada de onboarding) procuram o nome acessível “Plano de Estudos”, enquanto o link da barra anuncia “Plano”.
 
-**Player no desktop.** O teste nativo `node scripts/test-player-desktop.mjs` reproduz um vídeo de exemplo na área de aula e volta ao Lume para os formatos de link do Gran e da Udemy. No Gran autenticado, a responsável confirmou vídeo com som. O player original, com a barra de controles, ocupou toda a área de aula (1240 × 732 na janela de teste). Na Udemy, a reprodução protegida no Electron ainda precisa de verificação em conta real.
+**Player no desktop.** O teste nativo `node scripts/test-player-desktop.mjs` reproduz um vídeo de exemplo na área de aula e volta ao Lume para os formatos de link do Gran e da Udemy. No Gran autenticado, a responsável confirmou vídeo com som. A tela de aula apresenta curso, título, plataforma e duração ao redor do player original. Na Udemy, a reprodução protegida no Electron ainda precisa de verificação em conta real.
 
 ## 2. O que falta verificar em produção (`lumeacademy.site`)
 

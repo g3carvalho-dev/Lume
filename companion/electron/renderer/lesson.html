@@ -1,8 +1,11 @@
 <!doctype html>
-<html lang="pt-BR"><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
-<title>Aula no Lume</title>
-<style>
-*{box-sizing:border-box}body{margin:0;height:52px;background:#141b2a;color:#eef2f7;display:flex;align-items:center;gap:22px;padding:0 18px;font:15px system-ui,sans-serif}a{color:#9ec5ff}a:first-child{font-weight:650}output{flex:1;color:#c3ccda}
-</style>
-<a href="#back">← Voltar ao Lume</a><output aria-live="polite">Carregando a aula…</output><a href="#browser">Abrir no navegador</a>
-</html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; font-src 'self'; script-src 'self'"><title>Aula no Lume</title><link rel="stylesheet" href="lesson.css"><script src="lesson-screen.js" defer></script></head>
+<body>
+<nav><a href="#back"><span aria-hidden="true">←</span> Voltar ao Lume</a><a href="#browser">Abrir no navegador <span aria-hidden="true">↗</span></a></nav>
+<main>
+<header><div class="titles"><p id="course"></p><h1 id="lesson">Videoaula</h1></div><dl>
+<div><dt>Plataforma</dt><dd id="provider"></dd></div><div><dt>Duração</dt><dd id="duration">—</dd></div>
+</dl></header>
+<section class="stage" aria-label="Player da aula"></section>
+<footer><strong><span aria-hidden="true">✦</span> Lume</strong><output aria-live="polite"></output></footer>
+</main></body></html>

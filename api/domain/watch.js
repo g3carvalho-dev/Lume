@@ -24,7 +24,7 @@ function describe(state, found, now) {
   const stats = courseStats(state, course.id, now);
   const active = state.activeSession;
   const session = active?.origin === 'watching' && active.courseId === course.id && active.stepId === lesson.id ? active : null;
-  return { found:true, courseId:course.id, stepId:lesson.id, courseTitle:course.title, lessonTitle:lesson.title,
+  return { found:true, courseId:course.id, stepId:lesson.id, courseTitle:course.title, lessonTitle:lesson.title, duration:lesson.duration || null,
     externalId:lesson.externalId || '', courseExternalId:course.source.externalId, provider:provider.id, videoKey,
     index:materialSteps(course).findIndex(item=>item.id===lesson.id)+1, stats, estimate:courseEstimateText(stats),
     session, otherSession:Boolean(active && !session), lesson:{completed:isCompleted(state,lesson.id)} };
