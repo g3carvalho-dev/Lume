@@ -2,12 +2,13 @@
 
 import {
   blockContact, getThread, listBlocks, listConversations, markThreadRead, messagePreferences, muteDirect, reactToDirectMessage,
-  sendMessage, unblockContact, unreadSummary, updateMessagePreferences, MESSAGE_WINDOW_LIMIT,
+  sendMessage, unblockContact, updateMessagePreferences, MESSAGE_WINDOW_LIMIT,
 } from '../domain/messages.js';
 import {
   addGroupMembers, createGroup, deleteGroup, getGroupThread, listGroups, markGroupRead, muteGroup, reactToGroupMessage, removeGroupMember,
-  renameGroup, sendGroupMessage, unreadGroupMessages,
+  renameGroup, sendGroupMessage,
 } from '../domain/groups.js';
+import { pageOptions, unreadTotal } from '../domain/conversations.js';
 import { createReport, listReports, reviewReport } from '../domain/reports.js';
 import { listProfilePosts } from '../domain/social-feed.js';
 import { acceptInvite, createInvite, listFriends, listProfileFriends, readFriendProfile, readPersonCard, removeFriend, touchUserPresence } from '../domain/friends.js';
@@ -119,14 +120,17 @@ export function socialRoutes(router) {
     .add('GET', '/api/messages', MESSAGES, async ({ db, user }) => json({ ...await listConversations(db, user.id), groups: await listGroups(db, user.id) }))
     .add('GET', '/api/messages/unread', MESSAGES, async ({ db, user }) => {
       await touchUserPresence(db, user.id);
-      const summary = await unreadSummary(db, user.id);
-      return json({ ...summary, unread: summary.unread + await unreadGroupMessages(db, user.id) });
+      return json(await unreadTotal(db, user.id));
     })
     .add('GET', '/api/messages/settings', MESSAGES, async ({ db, user }) => json(await messagePreferences(db, user.id)))
     .add(['PATCH', 'POST'], '/api/messages/settings', MESSAGES, async (ctx) =>
       json(await updateMessagePreferences(ctx.db, ctx.user.id, await ctx.json(LIMITS.tiny))))
-    .add('POST', '/api/messages/:friendId/read', MESSAGES, async ({ db, user, params }) =>
-      json(await markThreadRead(db, user.id, params.friendId)))
+    .add('POST', '/api/messages/:friendId/read', MESSAGES, async (ctx) => {
+      const marked = await markThreadRead(ctx.db, ctx.user.id, ctx.params.friendId);
+      // Quem enviou fica sabendo que foi lida, sem precisar reler a conversa.
+      if (marked.read) await announce(ctx.realtime, ctx.params.friendId, { type: 'read', conversation: { kind: 'direct', id: ctx.user.id }, readUpTo: marked.readUpTo, at: marked.at }, ctx.log);
+      return json({ read: marked.read });
+    })
     .add('PUT', '/api/messages/:friendId/mute', MESSAGES, async (ctx) =>
       json(await muteDirect(ctx.db, ctx.user.id, ctx.params.friendId, (await ctx.json(LIMITS.tiny)).muted)))
     .add(['PUT', 'DELETE'], '/api/messages/:friendId/messages/:messageId/reaction', {
@@ -134,19 +138,20 @@ export function socialRoutes(router) {
       rateLimit: { key: (ctx) => `message-reactions|${ctx.user.id}`, limit: MESSAGE_WINDOW_LIMIT, message: 'Muitas reações em pouco tempo. Aguarde um instante.', code: 'rate_limited' },
     }, async (ctx) => {
       const on = ctx.request.method === 'PUT';
-      const reacted = await reactToDirectMessage(ctx.db, ctx.user.id, ctx.params.friendId, ctx.params.messageId, ctx.url.searchParams.get('emoji') || undefined, on);
-      if (on) await announce(ctx.realtime, ctx.params.friendId, { type: 'message', from: ctx.user.id }, ctx.log);
+      const { changed, ...reacted } = await reactToDirectMessage(ctx.db, ctx.user.id, ctx.params.friendId, ctx.params.messageId, ctx.url.searchParams.get('emoji') || undefined, on);
+      if (changed) await announce(ctx.realtime, ctx.params.friendId, { type: 'reaction', conversation: { kind: 'direct', id: ctx.user.id }, messageId: reacted.messageId, emoji: reacted.emoji, on, from: ctx.user.id }, ctx.log);
       return json(reacted);
     })
-    .add('GET', '/api/messages/:friendId', MESSAGES, async ({ db, user, params }) =>
-      json(await getThread(db, user.id, params.friendId)))
+    .add('GET', '/api/messages/:friendId', MESSAGES, async ({ db, user, params, url }) =>
+      json(await getThread(db, user.id, params.friendId, pageOptions(url.searchParams))))
     .add('POST', '/api/messages/:friendId', {
       ...MESSAGES,
       rateLimit: { key: (ctx) => `messages|${ctx.user.id}`, limit: MESSAGE_WINDOW_LIMIT, message: 'Muitas mensagens em pouco tempo. Aguarde um instante.', code: 'rate_limited' },
     }, async (ctx) => {
       const sent = await sendMessage(ctx.db, ctx.user.id, ctx.params.friendId, await ctx.json(LIMITS.small));
-      await announce(ctx.realtime, ctx.params.friendId, { type: 'message', from: ctx.user.id }, ctx.log);
-      return json(sent, 201);
+      // O aviso leva a mensagem: quem recebe não precisa reler a conversa.
+      if (sent.deliver) await announce(ctx.realtime, sent.deliver.to, { type: 'message', from: ctx.user.id, conversation: sent.deliver.conversation, message: sent.deliver.message, sender: sent.deliver.sender, muted: sent.deliver.muted }, ctx.log);
+      return json({ message: sent.message }, sent.duplicate ? 200 : 201);
     })
     .add('GET', '/api/blocks', MESSAGES, async ({ db, user }) => json(await listBlocks(db, user.id)))
     .add('POST', '/api/blocks/:targetId', MESSAGES, async ({ db, user, params }) => json(await blockContact(db, user.id, params.targetId)))
@@ -154,50 +159,57 @@ export function socialRoutes(router) {
 
   // Grupos de conversa entre amigos.
   const GROUPS = { auth: 'Entre na sua conta para conversar em grupo.', origin: true };
-  const tellMembers = (ctx, ids) => Promise.all(ids.filter((id) => id !== ctx.user.id).map((id) => announce(ctx.realtime, id, { type: 'message', from: ctx.user.id }, ctx.log)));
+  // Mudança no grupo (criado, renomeado, entrou, saiu): o aviso diz qual grupo reler.
+  const tell = (ctx, ids, event) => Promise.all(ids.filter((id) => id !== ctx.user.id).map((id) => announce(ctx.realtime, id, event, ctx.log)));
+  const tellMembers = (ctx, ids, groupId) => tell(ctx, ids, { type: 'message', from: ctx.user.id, conversation: { kind: 'group', id: groupId } });
   router
     .add('POST', '/api/groups', {
       ...GROUPS,
       rateLimit: { key: (ctx) => `groups|${ctx.user.id}`, limit: 20, message: 'Muitos grupos criados em pouco tempo. Aguarde um instante.', code: 'rate_limited' },
     }, async (ctx) => {
       const created = await createGroup(ctx.db, ctx.user.id, await ctx.json(LIMITS.small));
-      await tellMembers(ctx, created.memberIds);
+      await tellMembers(ctx, created.memberIds, created.id);
       return json({ id: created.id }, 201);
     })
-    .add('GET', '/api/groups/:groupId', GROUPS, async ({ db, user, params }) => json(await getGroupThread(db, user.id, params.groupId)))
+    .add('GET', '/api/groups/:groupId', GROUPS, async ({ db, user, params, url }) => json(await getGroupThread(db, user.id, params.groupId, pageOptions(url.searchParams))))
     .add('POST', '/api/groups/:groupId/read', GROUPS, async ({ db, user, params }) => json(await markGroupRead(db, user.id, params.groupId)))
     .add('PUT', '/api/groups/:groupId/mute', GROUPS, async (ctx) =>
       json(await muteGroup(ctx.db, ctx.user.id, ctx.params.groupId, (await ctx.json(LIMITS.tiny)).muted)))
     .add(['PUT', 'DELETE'], '/api/groups/:groupId/messages/:messageId/reaction', {
       ...GROUPS,
       rateLimit: { key: (ctx) => `message-reactions|${ctx.user.id}`, limit: MESSAGE_WINDOW_LIMIT, message: 'Muitas reações em pouco tempo. Aguarde um instante.', code: 'rate_limited' },
-    }, async (ctx) => json(await reactToGroupMessage(ctx.db, ctx.user.id, ctx.params.groupId, ctx.params.messageId, ctx.url.searchParams.get('emoji') || undefined, ctx.request.method === 'PUT')))
+    }, async (ctx) => {
+      const on = ctx.request.method === 'PUT';
+      const { changed, memberIds, ...reacted } = await reactToGroupMessage(ctx.db, ctx.user.id, ctx.params.groupId, ctx.params.messageId, ctx.url.searchParams.get('emoji') || undefined, on);
+      if (changed) await tell(ctx, memberIds, { type: 'reaction', conversation: { kind: 'group', id: ctx.params.groupId }, messageId: reacted.messageId, emoji: reacted.emoji, on, from: ctx.user.id });
+      return json(reacted);
+    })
     .add('POST', '/api/groups/:groupId/messages', {
       ...GROUPS,
       rateLimit: { key: (ctx) => `messages|${ctx.user.id}`, limit: MESSAGE_WINDOW_LIMIT, message: 'Muitas mensagens em pouco tempo. Aguarde um instante.', code: 'rate_limited' },
     }, async (ctx) => {
       const sent = await sendGroupMessage(ctx.db, ctx.user.id, ctx.params.groupId, await ctx.json(LIMITS.small));
-      await tellMembers(ctx, sent.memberIds);
-      return json({ message: sent.message }, 201);
+      if (sent.deliver) await Promise.all(sent.deliver.to.map((member) => announce(ctx.realtime, member.id, { type: 'message', from: ctx.user.id, conversation: sent.deliver.conversation, message: sent.deliver.message, muted: member.muted }, ctx.log)));
+      return json({ message: sent.message }, sent.duplicate ? 200 : 201);
     })
     .add('PATCH', '/api/groups/:groupId', GROUPS, async (ctx) => {
       const renamed = await renameGroup(ctx.db, ctx.user.id, ctx.params.groupId, (await ctx.json(LIMITS.tiny)).name);
-      await tellMembers(ctx, renamed.memberIds);
+      await tellMembers(ctx, renamed.memberIds, renamed.id);
       return json({ id: renamed.id, name: renamed.name });
     })
     .add('POST', '/api/groups/:groupId/members', GROUPS, async (ctx) => {
       const added = await addGroupMembers(ctx.db, ctx.user.id, ctx.params.groupId, await ctx.json(LIMITS.small));
-      await tellMembers(ctx, added.memberIds);
+      await tellMembers(ctx, added.memberIds, added.id);
       return json({ id: added.id, added: added.added });
     })
     .add('DELETE', '/api/groups/:groupId/members/:memberId', GROUPS, async (ctx) => {
       const left = await removeGroupMember(ctx.db, ctx.user.id, ctx.params.groupId, ctx.params.memberId);
-      await tellMembers(ctx, left.memberIds);
+      await tellMembers(ctx, left.memberIds, left.id);
       return json({ id: left.id, deleted: left.deleted });
     })
     .add('DELETE', '/api/groups/:groupId', GROUPS, async (ctx) => {
       const gone = await deleteGroup(ctx.db, ctx.user.id, ctx.params.groupId);
-      await tellMembers(ctx, gone.memberIds);
+      await tellMembers(ctx, gone.memberIds, ctx.params.groupId);
       return json({ deleted: true });
     });
 

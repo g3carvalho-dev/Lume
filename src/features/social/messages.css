@@ -498,6 +498,11 @@
   font-family: var(--font-mono);
   font-size: 0.66rem;
 }
+.mg-older {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 var(--space-2);
+}
 .mg-system {
   align-self: center;
   margin: 0.45rem 0;
@@ -1612,11 +1617,11 @@ html[data-theme='light'] .messages-dock-panel {
   place-items: center;
 }
 
-/* --- Painel inline de conexões (@usuário + pedidos) --- */
+/* --- Painel de conexões (@usuário, convite e pedidos) --- */
 .mg-connections {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.75rem;
   min-height: 0;
   flex: 1;
   overflow-y: auto;
@@ -1625,27 +1630,104 @@ html[data-theme='light'] .messages-dock-panel {
 .mg-conn-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
+  margin: -0.15rem 0 -0.35rem -0.45rem;
 }
 .mg-conn-head .text-button {
   min-height: 1.9rem;
   padding: 0.25rem 0.45rem;
   font-size: 0.8rem;
 }
-.mg-conn-search {
+.mg-conn-title {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.35rem;
+  gap: 0.15rem;
+}
+.mg-conn-title strong {
+  font-family: var(--font-display);
+  font-size: 1rem;
+}
+.mg-conn-title small {
+  font-size: 0.74rem;
+  color: var(--text-subtle);
+}
+.mg-conn-title .mono {
+  color: var(--lume);
+}
+/* Campo do @usuário: o arroba é fixo, a pessoa digita só o nome e a lupa envia.
+   Ocupa a coluna inteira, então nada corta na dock estreita. */
+.mg-handle-field {
+  display: flex;
   align-items: center;
+  gap: 0.35rem;
+  min-height: 2.5rem;
+  padding: 0 0.3rem 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--inner);
+  transition: border-color var(--dur-fast, 150ms) ease;
 }
-.mg-conn-search .mg-search {
-  margin: 0;
-  padding: 0 0.55rem;
+.mg-handle-field:focus-within {
+  border-color: var(--lume);
 }
-.mg-conn-search .button {
-  min-height: 2.15rem;
-  padding: 0.35rem 0.65rem;
+.mg-handle-at {
+  color: var(--lume);
+  font-weight: 700;
+}
+.mg-handle-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  outline: none;
+}
+.mg-handle-field input::placeholder {
+  color: var(--text-subtle);
+}
+.mg-handle-go {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 8px;
+  background: var(--action);
+  color: var(--action-ink, var(--bg));
+  cursor: pointer;
+  transition: opacity var(--dur-fast, 150ms) ease;
+}
+.mg-handle-go:disabled {
+  background: var(--surface-3);
+  color: var(--text-subtle);
+  cursor: default;
+}
+.mg-handle-go .icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+.mg-conn-invite {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--reward) 40%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--reward) 6%, var(--surface));
+}
+.mg-conn-invite .mg-handle-field {
+  padding-right: 0.75rem;
+}
+.mg-conn-invite-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.mg-conn-invite-actions .button {
+  min-height: 2.1rem;
+  padding: 0.35rem 0.7rem;
   font-size: 0.8rem;
 }
 .mg-section-label {
@@ -1655,12 +1737,6 @@ html[data-theme='light'] .messages-dock-panel {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-subtle);
-}
-.mg-conn-card {
-  padding: 0.5rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
 }
 .mg-conn-section {
   display: grid;
@@ -1677,10 +1753,13 @@ html[data-theme='light'] .messages-dock-panel {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.35rem 0.45rem;
+  padding: 0.45rem 0.5rem;
   border-radius: var(--radius-md);
   background: var(--surface);
   border: 1px solid var(--border);
+}
+.mg-conn-found {
+  border-color: color-mix(in srgb, var(--lume) 40%, var(--border));
 }
 .mg-conn-row .conversation-avatar {
   width: 1.95rem;
@@ -1718,10 +1797,57 @@ html[data-theme='light'] .messages-dock-panel {
   padding: 0.28rem 0.55rem;
   font-size: 0.74rem;
 }
-.mg-conn-empty {
-  font-size: 0.8rem;
-  line-height: 1.45;
-  margin: 0.25rem 0;
+/* Convite por link: uma linha inteira clicável, presa ao fim do painel. */
+.mg-invite-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  margin-top: auto;
+  padding: 0.6rem 0.65rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast, 150ms) ease, background-color var(--dur-fast, 150ms) ease;
+}
+.mg-invite-link:hover:not(:disabled) {
+  border-color: var(--lume);
+  background: var(--lume-soft);
+}
+.mg-invite-link:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.mg-invite-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: var(--lume-soft);
+  color: var(--lume);
+}
+.mg-invite-icon .icon {
+  width: 1rem;
+  height: 1rem;
+}
+.mg-invite-copy {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.mg-invite-copy strong {
+  font-size: 0.82rem;
+}
+.mg-invite-copy small {
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: var(--text-subtle);
 }
 
 /* --- Tablet / janelas médias --- */

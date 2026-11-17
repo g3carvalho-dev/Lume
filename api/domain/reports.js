@@ -3,6 +3,7 @@
 // denunciada não é avisada e quem denunciou não aparece para ela.
 import { AppError } from '../errors.js';
 import { socialText } from '../../public/social-domain.js';
+import { pairKey } from './conversations.js';
 import {
   REPORT_CONTEXTS, REPORT_DETAILS_LIMIT, REPORT_EVIDENCE_MESSAGES, REPORT_EVIDENCE_TEXT, REPORT_REASONS, REPORT_STATUS,
 } from '../../public/report-domain.js';
@@ -31,23 +32,27 @@ async function collectEvidence(db, reporterId, input, includeContext) {
     if (!friend) throw new ReportError('Só é possível denunciar pessoas da sua lista de amigos nesta conversa.', 'not_friends', 403);
     if (!includeContext) return [];
     const rows = await db.all(
-      `SELECT sender_id, body, created_at FROM direct_messages
-        WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)
-        ORDER BY created_at DESC, id DESC LIMIT ?`,
-      [reporterId, targetId, targetId, reporterId, REPORT_EVIDENCE_MESSAGES],
+      `SELECT m.sender_id, m.body, m.created_at FROM conversation_messages m
+        WHERE m.conversation_id = (SELECT id FROM conversations WHERE pair_key = ?)
+        ORDER BY m.id DESC LIMIT ?`,
+      [pairKey(reporterId, targetId), REPORT_EVIDENCE_MESSAGES],
     );
     const names = { [reporterId]: 'Quem denunciou', [targetId]: await personName(db, targetId) };
     return rows.reverse().map((row) => ({ at: row.created_at, from: names[row.sender_id], body: clip(row.body) }));
   }
   if (context === 'group') {
     const id = idOf(groupId, 'Grupo inválido.');
-    const members = await db.all('SELECT user_id FROM chat_group_members WHERE group_id = ? AND user_id IN (?, ?)', [id, reporterId, targetId]);
+    const members = await db.all(
+      `SELECT p.user_id FROM conversation_members p JOIN conversations c ON c.id = p.conversation_id AND c.kind = 'group'
+        WHERE p.conversation_id = ? AND p.user_id IN (?, ?)`,
+      [id, reporterId, targetId],
+    );
     if (members.length !== 2) throw new ReportError('Grupo não encontrado.', 'group_not_found', 404);
     if (!includeContext) return [];
     const rows = await db.all(
-      `SELECT sender_id, body, created_at FROM chat_group_messages
-        WHERE group_id = ? AND kind = 'text' AND sender_id = ? ${subjectId ? 'AND id = ?' : ''}
-        ORDER BY created_at DESC, id DESC LIMIT ?`,
+      `SELECT sender_id, body, created_at FROM conversation_messages
+        WHERE conversation_id = ? AND kind = 'text' AND sender_id = ? ${subjectId ? 'AND id = ?' : ''}
+        ORDER BY id DESC LIMIT ?`,
       [id, targetId, ...(subjectId ? [idOf(subjectId)] : []), REPORT_EVIDENCE_MESSAGES],
     );
     const name = await personName(db, targetId);

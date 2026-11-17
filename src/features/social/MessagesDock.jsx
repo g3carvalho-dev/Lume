@@ -15,18 +15,20 @@ export default function MessagesDock({ account, state, notify, go, visible = fal
   const [expanded, setExpanded] = useState(false);
   const [selection, setSelection] = useState(null);
   const [leftView, setLeftView] = useState('chats');
+  const [inviteCode, setInviteCode] = useState('');
 
   const live = useRealtimeStatus();
   const unreadResource = useResource('/api/messages/unread', { interval: live ? 60000 : 10000, enabled: Boolean(account && visible) });
-  const requestsResource = useResource('/api/friends/requests', { interval: 30000, enabled: Boolean(account && visible) });
+  const requestsResource = useResource('/api/friends/requests', { interval: live ? 300000 : 30000, enabled: Boolean(account && visible) });
 
   const unread = unreadResource.data?.notifications !== false ? Number(unreadResource.data?.unread) || 0 : 0;
-  const incomingCount = requestsResource.data?.incoming?.length || 0;
+  const incomingCount = requestsResource.data?.received?.length || 0;
 
   useEffect(() => {
     return subscribeDockOpen((detail) => {
       setExpanded(true);
       if (detail.mode === 'connections') {
+        if (detail.inviteCode) setInviteCode(String(detail.inviteCode));
         setLeftView('connections');
         return;
       }
@@ -82,6 +84,8 @@ export default function MessagesDock({ account, state, notify, go, visible = fal
               leftView={leftView}
               setLeftView={setLeftView}
               requestsResource={requestsResource}
+              inviteCode={inviteCode}
+              onInviteDone={() => setInviteCode('')}
               onMinimize={() => setExpanded(false)}
             />
           </Suspense>

@@ -27,7 +27,7 @@ async function makeFriends(page, requestContext, baseURL, name, prefix) {
   await register(requestContext, baseURL, name, prefix);
   await markOnboarded(requestContext, baseURL);
   await page.goto('/#amigos');
-  // O convite é criado em Adicionar amigos (#adicionar); aqui basta a rota.
+  // O convite é criado na dock de Mensagens; aqui basta a rota.
   const invite = await page.request.post('/api/friends/invite', { data: {}, headers: { origin: baseURL } });
   expect(invite.status()).toBe(201);
   const code = (await invite.json()).code;
@@ -179,10 +179,10 @@ test('fotos de perfil na área Social e aviso flutuante de mensagem nova', async
   await recheck();
 
   // Com a conversa dessa pessoa aberta, não há aviso.
-  const conversationsRead = page.waitForResponse((response) => response.url().endsWith('/api/messages') && response.request().method() === 'GET');
+  // A mensagem chega pelo canal de tempo real, sem reler a lista de conversas.
   await send('Já estou com o código aberto.');
+  await expect(page.getByRole('region', { name: 'Conversa selecionada' }).getByText('Já estou com o código aberto.')).toBeVisible();
   await recheck();
-  await conversationsRead;
   await page.waitForTimeout(300);
   await expect(alert).toHaveCount(0);
 
@@ -205,11 +205,9 @@ test('fotos de perfil na área Social e aviso flutuante de mensagem nova', async
   // Notificações de mensagens desligadas: nenhum aviso.
   expect((await page.request.patch('/api/messages/settings', { data: { notifications: false }, headers: { origin: baseURL } })).ok()).toBe(true);
   await recheck();
-  const silentRead = page.waitForResponse((response) => response.url().endsWith('/api/messages') && response.request().method() === 'GET');
   await send('Silenciado?');
   await recheck();
-  await silentRead;
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(500);
   await expect(alert).toHaveCount(0);
 
   await guestContext.close();
@@ -232,9 +230,21 @@ test('mensagem enviada chega à conversa aberta da outra pessoa sem recarregar',
 
   const sent = await page.request.get('/api/friends', { headers: { origin: baseURL } });
   const friendId = (await sent.json()).friends.find((item) => item.name === 'Bia Tempo').id;
+  // O aviso do canal traz a mensagem: nada de mensagens é relido do servidor, só
+  // a leitura é registrada (a conversa está aberta).
+  const calls = [];
+  guestPage.on('request', (request) => {
+    const { pathname } = new URL(request.url());
+    if (pathname.startsWith('/api/messages') || pathname.startsWith('/api/groups')) calls.push(`${request.method()} ${pathname}`);
+  });
+  const read = guestPage.waitForResponse((response) => response.url().endsWith('/read') && response.request().method() === 'POST');
   const posted = await page.request.post(`/api/messages/${friendId}`, { data: { body: 'Chegou sem recarregar?' }, headers: { origin: baseURL } });
   expect(posted.status()).toBe(201);
   await expect(guestPage.getByRole('region', { name: 'Conversa selecionada' }).getByText('Chegou sem recarregar?')).toBeVisible({ timeout: 3000 });
+  await read;
+  await guestPage.waitForTimeout(300);
+  expect(calls.filter((call) => call.startsWith('GET'))).toEqual([]);
+  expect(calls.filter((call) => call.startsWith('POST')).length).toBe(1);
 });
 
 test('conversa longa mantém a altura da tela e rola por dentro até a última mensagem', { tag: '@celular' }, async ({ page, browser }, testInfo) => {
@@ -246,7 +256,7 @@ test('conversa longa mantém a altura da tela e rola por dentro até a última m
   await markOnboarded(guestPage.request, baseURL);
   expect((await guestPage.request.post('/api/friends/accept', { data: { code }, headers: { origin: baseURL } })).status()).toBe(200);
   const anaId = (await (await guestPage.request.get('/api/friends', { headers: { origin: baseURL } })).json()).friends.find((item) => item.name === 'Ana Rolagem').id;
-  for (let index = 1; index <= 40; index += 1) {
+  for (let index = 1; index <= 55; index += 1) {
     const posted = await guestPage.request.post(`/api/messages/${anaId}`, { data: { body: `Mensagem número ${index} para encher a conversa e forçar a rolagem.` }, headers: { origin: baseURL } });
     expect(posted.status()).toBe(201);
   }
@@ -254,7 +264,7 @@ test('conversa longa mantém a altura da tela e rola por dentro até a última m
   await page.getByRole('button', { name: /Abrir mensagens/ }).click();
   await page.locator('.messages-dock-panel').getByRole('button', { name: /Bia Rolagem/ }).first().click();
   const list = page.getByRole('log');
-  await expect(list.getByText('Mensagem número 40')).toBeVisible();
+  await expect(list.getByText('Mensagem número 55 para')).toBeVisible();
   const metrics = await page.evaluate(() => {
     const node = document.querySelector('.message-list');
     const dock = document.querySelector('.messages-dock-panel');
@@ -271,4 +281,12 @@ test('conversa longa mantém a altura da tela e rola por dentro até a última m
   expect(metrics.layout).toBeLessThanOrEqual(metrics.dock + 1);
   // A dock cabe na altura da janela e rola por dentro.
   expect(metrics.dock).toBeLessThanOrEqual(metrics.viewport + 1);
+
+  // A conversa abre com a página mais recente (50); as anteriores vêm sob pedido,
+  // sem tirar a leitura do lugar.
+  await expect(list.getByText('Mensagem número 5 para')).toHaveCount(0);
+  await list.getByRole('button', { name: 'Carregar mensagens anteriores' }).click();
+  await expect(list.getByText('Mensagem número 1 para')).toBeAttached();
+  await expect(list.getByRole('button', { name: 'Carregar mensagens anteriores' })).toHaveCount(0);
+  expect(await page.evaluate(() => document.querySelector('.message-list').scrollTop)).toBeGreaterThan(0);
 });

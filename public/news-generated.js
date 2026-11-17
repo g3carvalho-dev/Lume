@@ -1,6 +1,18 @@
 // GERADO por scripts/build-news.mjs a partir de commits com "Novidade:". Não edite.
 export const GENERATED_NEWS = [
   {
+    "id": "news-05d8d7b7",
+    "at": "2026-11-17T01:58:18.000Z",
+    "title": "Texto do PDF pronto ao anexar",
+    "body": "O texto dos seus PDFs agora é guardado assim que você anexa, sem precisar gerar o resumo com IA. PDFs antigos são preparados ao abrir no leitor.",
+    "href": "#biblioteca",
+    "area": "site",
+    "details": [
+      "Assistentes conectados pelo MCP leem o texto do PDF sem depender do resumo com IA.",
+      "Documentos muito longos têm o texto cortado no limite, em vez de resumido."
+    ]
+  },
+  {
     "id": "news-043e0d8b",
     "at": "2026-11-16T23:32:21.000Z",
     "title": "Disciplinas numa aba da Biblioteca",
@@ -225,13 +237,5 @@ export const GENERATED_NEWS = [
       "Janelas como Anexar PDF e Adicionar curso sobem do rodapé da tela, ao alcance do polegar.",
       "Abas e filtros rolam de lado, e nenhuma tela passa mais da largura do celular."
     ]
-  },
-  {
-    "id": "news-9e18b41f",
-    "at": "2026-11-15T01:23:51.000Z",
-    "title": "Telas mais limpas",
-    "body": "Foco, Tarefas e Plano de Estudos perdem textos explicativos, e o \"Estudando\" do perfil ganha respiro ao lado do nome.",
-    "href": "#foco",
-    "area": "site"
   }
 ];
