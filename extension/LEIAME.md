@@ -1,55 +1,20 @@
-# Extensão do Lume — leitor de curso
+# Extensão do Lume
 
-Lê, na página que você abriu com a sua conta, os nomes das aulas, as durações e o que aparece como concluído, e
-envia ao Lume para revisão. Serve para plataformas que só mostram a grade depois do login (Gran, Estratégia,
-Udemy, Alura, Coursera, Rocketseat e outras).
+No Chrome ou no Edge do computador, abra um curso com a sua conta e escolha **Ler este curso** no ícone do Lume. Revise as aulas e adicione à biblioteca. A primeira importação preserva as conclusões anteriores como histórico. Em leituras seguintes, a revisão permite registrar novas conclusões.
 
-**Status:** protótipo. Testado com páginas de exemplo e com um trecho real do painel do Gran. A leitura do Gran pela API foi conferida com uma conta real em 01/11/2026. Em 16/11/2026, a versão 0.3.0 foi carregada no Chrome 157. As outras plataformas ainda não foram vistas com contas reais. Não está publicado na loja. Não é o aplicativo de desktop do Lume (ver [aplicativo de desktop](../companion/README.md)): ele só lê cursos na página aberta.
+## Acompanhar uma aula
 
-O fluxo **Biblioteca › Adicionar curso** oferece a instalação pela loja no Chrome e no Edge do computador. Ao voltar, clique em **Já instalei** para verificar a versão. Se acabou de instalar com a página já aberta, recarregue também a aba do Lume.
+1. Entre no Lume no mesmo perfil do navegador. No popup, em **Acompanhar aulas**, ligue a plataforma e aceite o pedido de acesso do navegador.
+2. Abra uma aula importada. O selo do Lume mostra a posição no curso e o tempo da sessão. Pausar o vídeo pausa o tempo. Uma sessão de leitura ou foco já aberta conserva a prioridade.
+3. Se o player oferecer miniplayer, escolha **Assistir sobre o Lume** no selo. A aula continua na janela flutuante do navegador enquanto você usa o Lume. Mantenha a aba da plataforma aberta.
+4. Desligue a plataforma no popup para remover o acesso. Para desligar o acompanhamento em toda a conta, use **Configurações › Ritmo de estudo**.
 
-## Instalar (modo desenvolvedor)
+No Gran e na Udemy, a extensão consulta as marcas da própria plataforma e aguarda a passagem de pendente para concluída. No Gran é preciso concluir todos os vídeos da aula. Nas demais plataformas reconhecidas, uma aula pode concluir aos 90% dos trechos tocados, com validação pelo relógio do servidor. O avanço pela barra pula trechos. O botão **Concluí esta aula** permite abrir o registro manual quando o player não é reconhecido.
 
-1. Abra `chrome://extensions` (ou `edge://extensions`) e ligue **Modo do desenvolvedor**.
-2. **Carregar sem compactação** e escolha a pasta `extension/` deste repositório.
-3. Fixe o ícone na barra de ferramentas.
+## Instalação e desenvolvimento
 
-## Usar
+Em **Biblioteca › Adicionar curso**, o cartão leva à ficha na Chrome Web Store. O acompanhamento exige a versão 0.3.0 ou posterior. A disponibilização dessa versão depende da revisão da loja. Celular e aplicativo de desktop podem usar a grade colada.
 
-1. Entre no Lume (no endereço publicado ou em `localhost:4173`) e na plataforma do curso.
-2. Na plataforma, abra a tela com o índice do curso (módulos e aulas).
-3. Clique no ícone e em **Ler este curso**. A extensão abre e fecha as seções para ler os nomes. No Gran,
-   ela pede a grade às mesmas rotas que a página usa e não precisa abrir nada; cada aula do Gran vira uma aula no
-   Lume.
-4. O Lume abre a revisão. Confira, ajuste a seleção e adicione.
+Para testar a versão local, abra `chrome://extensions` ou `edge://extensions`, ative **Modo do desenvolvedor**, escolha **Carregar sem compactação** e selecione a pasta `extension/`. Se ela já estiver carregada, clique em **Recarregar** e recarregue as abas de estudo. Na versão de desenvolvimento, o seletor de destino no popup oferece **Lume local**.
 
-Em uma segunda leitura do mesmo curso, aulas novas concluídas na plataforma podem ser registradas (caixa marcada
-por padrão, que você pode desmarcar); as que já constavam continuam como histórico sem XP.
-
-## O que a extensão faz e não faz
-
-- Só age quando você clica (permissão `activeTab`). Não há acesso permanente às plataformas.
-- Não lê senha, cookie, token, vídeo nem o conteúdo das aulas; envia só título, módulos, nomes, links, durações e
-  marcas de conclusão, e só para o Lume.
-- Não contorna login nem proteção: lê o que a sua própria sessão já mostra na tela. No Gran, consulta só com
-  `GET` as rotas de grade que a página do curso já usa; o navegador envia o cookie e a extensão não o lê.
-- Se a plataforma montar a lista aos poucos ou em outro quadro, a leitura pode vir incompleta; confira na revisão.
-
-## Outro endereço do Lume
-
-Os endereços aceitos estão em `manifest.json` (`host_permissions` e `content_scripts.matches`) e em
-`background.js`. Para um domínio próprio, acrescente-o nos três lugares e recarregue a extensão.
-
-## Publicar na Chrome Web Store
-
-`npm run extension:package` gera o `.zip` da loja em `dist-extension/lume-leitor-de-curso-<versão>.zip`, aceitando apenas `https://lumeacademy.site/*` (sem endereços localhost e sem arquivos de documentação/desenvolvimento); a política de privacidade pública é `public/privacidade-extensao.html`.
-
-## Arquivos
-
-- `src/capture.js` — fonte do leitor da página; usa o registro de provedores de `public/providers/`.
-- `capture.js` — gerado por `npm run extension:build` a partir de `src/capture.js` (injetado ao clicar). Não edite à mão.
-- `icons/` — ícones da extensão e `store/` — imagens da ficha da loja; ambos gerados por `npm run extension:assets` (estrela dourada da identidade Norte, `scripts/build-extension-assets.mjs`). Não edite à mão.
-- `fonts/` — Bricolage Grotesque, Atkinson Hyperlegible Next e JetBrains Mono (cópias de `public/assets/fonts/`), usadas pelo popup.
-- `popup.html`, `popup.js` — interface do ícone, com os tokens da identidade Norte (tema escuro, mesmas cores do site).
-- `background.js` — encontra ou abre o Lume e entrega a leitura.
-- `bridge.js` — roda no Lume e repassa a leitura à página.
+`npm run extension:build` gera o leitor e o observador a partir de `extension/src/`. `npm run extension:package` monta o ZIP de distribuição só com o destino publicado. As permissões são descritas em [LOJA.md](LOJA.md), e a [política de privacidade](../public/privacidade-extensao.html) explica os dados enviados. Os resultados com contas reais e os testes que ainda faltam estão em [Implementação](../docs/IMPLEMENTACAO.md).

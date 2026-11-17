@@ -1,3 +1,5 @@
+import { installWatching } from './watch-background.js';
+
 // Entrega a leitura ao Lume. Fica aqui, e não no popup, porque o popup fecha
 // assim que a aba do Lume ganha o foco.
 async function lumeBase() {
@@ -30,6 +32,11 @@ async function deliver(payload, kind = 'capture') {
   for (let attempt = 0; attempt < 12; attempt += 1) {
     result = await sendToTab(tab.id, payload, kind);
     if (result.ok || result.reason !== 'no_bridge') break;
+    // Uma aba aberta antes da instalação ou recarga ainda não tem a ponte.
+    if (attempt === 0) {
+      try { await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['bridge.js'] }); }
+      catch { /* Uma aba nova ainda pode estar navegando. */ }
+    }
     await new Promise((resolve) => setTimeout(resolve, 700));
   }
   if (result.ok) {
@@ -39,8 +46,14 @@ async function deliver(payload, kind = 'capture') {
   return result;
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, reply) => {
+chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if (message?.type === 'watch-open-lume' && sender.tab?.id && sender.frameId===0) {
+    deliver({url:sender.url},'complete').then(reply,()=>reply({ok:false}));
+    return true;
+  }
   if (message?.type !== 'deliver') return false;
   deliver(message.payload, message.kind).then(reply, () => reply({ ok: false, reason: 'error' }));
   return true;
 });
+
+installWatching(lumeBase);

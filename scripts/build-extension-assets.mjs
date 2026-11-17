@@ -56,12 +56,12 @@ const shot = `<style>${FONTS} body { width:1280px; height:800px; display:flex; a
     <div class="brand">${STAR(36)} Lume <small>Leitor de curso</small></div>
     <h1>Leve o seu curso para o Lume <em>em um clique</em></h1>
     <p class="lead">Abra o curso na plataforma, com a sua conta, e envie a lista de aulas para revisar no Lume.</p>
-    <ul><li>Disciplinas, aulas, durações e o que já foi concluído</li><li>Você revisa antes de adicionar; nada entra sozinho</li><li>Não lê senha, cookie nem vídeo</li></ul>
+    <ul><li>Disciplinas, aulas, durações e o que já foi concluído</li><li>Revise a grade antes de adicionar o curso</li><li>Acompanhe a aula nas plataformas que você autorizar</li></ul>
   </div>
   <div class="pop">
     <header>${STAR(28)}<h2>Lume</h2><span class="tag">Leitor de curso</span></header>
     <p>Abra a lista de aulas do curso na plataforma, com a sua conta, e clique em Ler. O Lume recebe os nomes das aulas e o que aparece como concluído.</p>
-    <div class="btn">Ler esta página e enviar</div><div class="btn s">Concluí esta aula</div>
+    <div class="btn">Ler este curso</div><div class="btn s">Concluí esta aula</div>
     <div class="st">Encontrei <b>427</b> aulas, <b>3</b> concluídas. Enviando ao Lume…</div>
   </div>`;
 

@@ -12,7 +12,7 @@ export default function ExtensionInvite({ provider }) {
       : current ? <ol><li>Abra o curso na plataforma com a sua conta.</li><li>Clique no ícone do Lume e em “Ler este curso”.</li><li>Revise aqui as aulas que deseja adicionar.</li></ol>
       : installed === null ? <p role="status">Verificando a extensão…</p>
       : <><p>{installed ? `A versão ${version} está instalada. Atualize a extensão e recarregue esta página.` : extensionCapability(provider)}</p>
-        {!installed && <p>Você revisa a leitura aqui antes de salvar.</p>}
+        {!installed && <p>Você revisa a leitura aqui antes de salvar. Se já usa uma versão anterior, atualize a extensão e recarregue esta página.</p>}
         <div className="extension-invite-actions"><a className="button secondary" href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer">{installed ? 'Atualizar a extensão' : 'Instalar a extensão'}<Icon name="external"/></a>
           <button className="text-button" type="button" onClick={check}>Já instalei</button></div></>}
   </section>;

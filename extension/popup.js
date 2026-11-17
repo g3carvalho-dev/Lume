@@ -9,7 +9,7 @@ const say = (text) => { status.textContent = text; };
 // O pacote da loja não tem a escolha de destino: vale sempre o Lume publicado.
 if (target) {
   chrome.storage.local.get('lumeTarget').then(({ lumeTarget }) => { if (lumeTarget) target.value = lumeTarget; });
-  target.addEventListener('change', () => chrome.storage.local.set({ lumeTarget: target.value }));
+  target.addEventListener('change', async () => { await chrome.storage.local.set({ lumeTarget: target.value }); await panel(); });
 }
 
 const REASONS = {
@@ -88,3 +88,45 @@ async function showPlatform() {
   document.getElementById('actions').hidden = false;
 }
 showPlatform().catch(() => say('Abra novamente o painel na página do curso.'));
+
+async function panel() {
+  const result = await chrome.runtime.sendMessage({type:'watch-panel'}) || {};
+  const account = document.getElementById('account');
+  account.replaceChildren();
+  if (result.account?.login) {
+    const link = document.createElement('a');
+    const origins = chrome.runtime.getManifest().host_permissions;
+    const local = target?.value === 'local' && origins.find(origin => origin.startsWith('http:'));
+    link.href = new URL(local || origins.find(origin => origin.startsWith('https:'))).origin;
+    link.target = '_blank'; link.rel='noreferrer'; link.textContent='Entre no Lume';
+    account.append(link);
+  } else account.textContent = result.account?.name || 'Lume indisponível. Confira a conexão.';
+  const info = document.getElementById('lesson');
+  info.hidden = !result.found;
+  if (result.found) {
+    const status = result.lesson?.completed ? 'Aula concluída' : result.session?.status === 'active' ? 'Contando' : 'Pausado';
+    info.textContent = [result.lessonTitle, status, `Aula ${result.index} de ${result.stats.total}`, `${result.stats.completed} aulas e ${result.stats.modules.completed}/${result.stats.modules.total} módulos concluídos`, `${result.stats.todayMinutes} min hoje`, result.estimate].join(' · ');
+  }
+  const list = document.getElementById('platforms');
+  list.replaceChildren();
+  for (const p of platforms) {
+    const origins = p.hosts.map(host => 'https://*.'+host+'/*');
+    const label=document.createElement('label'), box=document.createElement('input');
+    box.type='checkbox'; box.setAttribute('role','switch');
+    const title = document.createElement('span');
+    title.textContent = p.label;
+    label.append(title,box); list.append(label);
+    box.checked = await chrome.permissions.contains({origins});
+    box.setAttribute('aria-label', 'Acompanhar aulas em ' + p.label);
+    if (!box.checked && document.getElementById('platform').textContent === p.label) title.textContent = 'Acompanhar aulas em ' + p.label;
+    box.addEventListener('change', async () => {
+      try {
+        const accepted = box.checked ? await chrome.permissions.request({origins}) : await chrome.permissions.remove({origins});
+        if (!accepted) say('A permissão da plataforma não mudou.');
+      } catch { say('Não foi possível alterar a permissão da plataforma.'); }
+      box.checked=await chrome.permissions.contains({origins});
+      await panel();
+    });
+  }
+}
+panel().catch(()=>say('Não foi possível consultar a conta local ou publicada.'));

@@ -212,6 +212,7 @@ export function normalizePayload(input, { sourceUrl = '' } = {}) {
           ...(externalId ? { externalId } : {}),
           title,
           url: safeAssetUrl(rawLesson?.url),
+          ...(provider.id === 'grancursos' && Array.isArray(rawLesson.videoIds) ? {videoIds:[...new Set(rawLesson.videoIds.filter(id=>typeof id==='string' && id.length>0 && id.length<=160))].slice(0,200)} : {}),
           duration,
           completedInSource,
           removedFromSource: false,
@@ -520,6 +521,10 @@ export function findLessonByUrl(state, pageUrl) {
     for (const lesson of courseLessons(course)) {
       if (!lesson.url || lesson.removedFromSource || !selected.has(lesson.id)) continue;
       const target = segments(lesson.url);
+      if (course.source?.provider === 'grancursos' && target?.host === page.host && lesson.videoIds?.length) {
+        const v = target.parts.indexOf('v');
+        if (v > 0 && target.parts.slice(0,v+1).every((part,i)=>part===page.parts[i]) && lesson.videoIds.includes(page.parts[v+1])) return {course,lesson};
+      }
       if (!target || target.host !== page.host || target.parts.length > page.parts.length) continue;
       if (!target.parts.every((part, index) => part === page.parts[index])) continue;
       if (!best || target.parts.length > best.length) best = { course, lesson, length: target.parts.length };

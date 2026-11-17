@@ -610,6 +610,7 @@ if (!globalThis.LumeCapture) {
               lessons: entry.lessons.map((lesson) => ({
                 title: lesson.title,
                 ...(lesson.externalId ? { externalId: lesson.externalId } : {}),
+                ...(lesson.videoIds ? { videoIds:lesson.videoIds } : {}),
                 url: lesson.url,
                 duration: lesson.duration,
                 completed: lesson.completed,
