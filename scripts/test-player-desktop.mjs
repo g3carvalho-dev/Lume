@@ -21,7 +21,7 @@ try {
   await page.waitForURL(origin+'/**');
   const media = (await readFile('tests/fixtures/watch.webm')).toString('base64');
   await desktop.evaluate(({session}, media) => {
-    session.fromPartition('persist:lume-courses').protocol.handle('https', () => new Response('<video muted autoplay loop src="data:video/webm;base64,'+media+'"></video>',{headers:{'Content-Type':'text/html'}}));
+    session.fromPartition('persist:lume-courses').protocol.handle('https', () => new Response('<header>Menu do curso</header><main><div class="video-js" data-purpose="video-player"><video muted autoplay loop src="data:video/webm;base64,'+media+'"></video><button>Pausar</button></div><aside>Grade</aside></main>',{headers:{'Content-Type':'text/html'}}));
   }, media);
   for (const address of ['https://www.udemy.com/course/teste/learn/lecture/1','https://www.grancursosonline.com.br/aluno/curso/video/codigo/teste/v/1']) {
     await page.evaluate(value=>window.lesson=value,address);
@@ -31,7 +31,7 @@ try {
     while (!playing && Date.now()-started<8000) {
       playing = await desktop.evaluate(async ({webContents},url)=>{
         const guest=webContents.getAllWebContents().find(w=>w.getURL()===url);
-        return guest && guest.executeJavaScript('document.querySelector("video")?.currentTime > 0');
+        return guest && guest.executeJavaScript('document.querySelector("video")?.currentTime > 0 && getComputedStyle(document.querySelector("header")).display === "none" && getComputedStyle(document.querySelector("aside")).display === "none" && document.querySelector("button").offsetWidth > 0 && document.querySelector(".video-js").offsetWidth === innerWidth');
       },address);
       if (!playing) await new Promise(resolve=>setTimeout(resolve,100));
     }

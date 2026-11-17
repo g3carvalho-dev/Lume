@@ -1,3 +1,4 @@
+import { presentPlayer } from './present-player.mjs';
 import { WebContentsView } from 'electron';
 import { fileURLToPath } from 'node:url';
 
@@ -50,6 +51,9 @@ export function showLesson(window, url, provider, titleHeight, openExternal) {
   contents.on('will-navigate', (event, address) => { if (!isHttps(address)) event.preventDefault(); });
   contents.on('will-redirect', (event, address) => { if (!isHttps(address)) event.preventDefault(); });
   contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  contents.on('dom-ready', () => {
+    if (lessonProvider(contents.getURL()) === provider) presentPlayer(contents, provider).catch(() => {});
+  });
   contents.on('did-navigate', (_event, address) => { if (isHttps(address)) setStatus(new URL(address).hostname); });
   contents.on('did-fail-load', (_event, code, _reason, _address, mainFrame) => {
     if (mainFrame && code !== -3) setStatus('A aula não carregou. Você pode abri-la no navegador.');

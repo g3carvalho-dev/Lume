@@ -275,5 +275,5 @@ Consulte também:
    - Exportação e restauração trabalham exclusivamente com arquivos JSON no formato **v3** (`schema: 'lume-backup'`, `version: 3`). Backups v1/v2 são recusados com mensagem clara, sem migração automática.
    - A mesclagem (`mergeStates`) é explícita e idempotente, preservando materiais, progresso, tarefas e compromissos sem duplicar registros.
 3. **Aplicativo de Desktop (`companion/`):**
-   - No desktop, um link direto de videoaula do Gran ou da Udemy abre a página autenticada da plataforma em uma área da própria janela. Voltar ao Lume fecha a aula e recupera a tela anterior. A abertura não concede XP.
+   - No desktop, um link direto de videoaula do Gran ou da Udemy abre a página autenticada da plataforma em uma área da própria janela. Após o login, o player reconhecido ocupa a área da aula com seus controles. Voltar ao Lume fecha a aula e recupera a tela anterior. A abertura não concede XP.
    - É o Lume completo em janela Electron, com bandeja do sistema, lembretes em segundo plano (`backgroundThrottling: false`), atualização via GitHub Releases (somente HTTPS) e presença opcional por allowlist de processos e no Discord (`discord-presence.mjs`, ligada por padrão nas configurações do app, com rate-limit mínimo de 15s e limpeza ao pausar ou sair). Presença nunca conta como estudo nem concede XP.
