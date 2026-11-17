@@ -252,36 +252,251 @@
   position: fixed;
   z-index: 80;
   display: grid;
-  gap: var(--space-4);
-  padding: var(--space-5);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: var(--surface-2);
-  box-shadow: 0 18px 48px color-mix(in srgb, var(--bg) 70%, transparent);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow:
+    0 20px 48px -12px color-mix(in srgb, var(--bg) 84%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--lume) 6%, transparent);
   color: var(--text);
+  overflow: hidden;
   outline: none;
 }
-.person-card-head { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
-.person-card-avatar { display: grid; place-items: center; flex: 0 0 auto; width: 3.5rem; height: 3.5rem; overflow: hidden; border-radius: 50%; background: color-mix(in srgb, var(--lume) 20%, var(--surface)); color: var(--text); font-weight: 700; }
+.person-card-banner {
+  position: relative;
+  height: 4.5rem;
+  background:
+    radial-gradient(65% 110% at 82% 20%, color-mix(in srgb, var(--lume) 16%, transparent), transparent 72%),
+    radial-gradient(50% 90% at 15% 85%, color-mix(in srgb, var(--reward) 11%, transparent), transparent 72%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 70%, var(--bg)) 0%, var(--surface) 100%);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  overflow: hidden;
+}
+.person-card-constellation {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.person-card-constellation-line {
+  fill: none;
+  stroke: color-mix(in srgb, var(--trail) 45%, transparent);
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.person-card-constellation-dot {
+  fill: var(--trail);
+  opacity: 0.72;
+}
+.person-card-constellation-star {
+  fill: var(--star);
+}
+.person-card-banner-fade {
+  position: absolute;
+  inset: auto 0 0;
+  height: 1.75rem;
+  background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--surface) 88%, transparent) 100%);
+  pointer-events: none;
+}
+.person-card-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 3;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--border-strong) 80%, transparent);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  color: var(--text-muted);
+  backdrop-filter: blur(8px);
+}
+.person-card-close:hover {
+  color: var(--text);
+  border-color: var(--lume);
+  background: var(--surface-2);
+}
+.person-card-body {
+  position: relative;
+  display: grid;
+  gap: var(--space-3);
+  padding: 0 var(--space-5) var(--space-5);
+}
+.person-card-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: -2.25rem;
+  position: relative;
+  z-index: 2;
+}
+.person-card-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 4.25rem;
+  height: 4.25rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  border: 3px solid var(--surface);
+  outline: 1px solid var(--border-strong);
+  background: radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--lume) 20%, var(--surface-2)), var(--surface-2));
+  color: var(--action);
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
 .person-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.person-card-who { display: grid; flex: 1; min-width: 0; gap: 0.15rem; }
-.person-card-who strong { font-family: var(--font-display); font-size: 1.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.person-card-who .mono { color: var(--text-subtle); font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; }
-.person-card-close { align-self: flex-start; margin: -0.4rem -0.4rem 0 0; }
-.person-card-stats { display: flex; gap: var(--space-3); margin: 0; }
-.person-card-stats > div { flex: 1; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-radius: 12px; background: var(--inner); }
-.person-card-stats dt { color: var(--text-subtle); font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; }
-.person-card-stats dd { margin: 0.15rem 0 0; color: var(--reward); font-family: var(--font-mono); font-size: 1.15rem; font-weight: 700; }
-.person-card-stats dd small { color: var(--text-subtle); font-size: 0.75rem; font-weight: 500; }
-.person-card-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.person-card-actions .button { flex: 1 1 auto; justify-content: center; }
-.person-card-backdrop { position: fixed; inset: 0; z-index: 79; background: color-mix(in srgb, var(--bg) 60%, transparent); }
+.person-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--lume) 28%, transparent);
+  background: var(--lume-soft);
+  color: var(--lume);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.person-card-badge.is-self {
+  border-color: color-mix(in srgb, var(--reward) 32%, transparent);
+  background: var(--reward-soft);
+  color: var(--reward);
+}
+.person-card-who {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+.person-card-who strong {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.person-card-who .mono {
+  color: var(--text-subtle);
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.person-card-error { margin: 0; }
+.person-card-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+.person-card-stats.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.person-card-stats > div {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--inner);
+}
+.person-card-stats dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.person-card-stats dt .icon {
+  width: 0.78rem;
+  height: 0.78rem;
+  color: var(--reward);
+}
+.person-card-stats dd {
+  margin: 0;
+  color: var(--reward);
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.person-card-stats dd small {
+  color: var(--text-subtle);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+.person-card-stat-loading {
+  display: inline-block;
+  width: 2.2rem;
+  height: 1.05rem;
+  border-radius: 6px;
+  background: var(--surface-3);
+  vertical-align: middle;
+}
+.person-card-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+}
+.person-card-actions .button {
+  justify-content: center;
+  white-space: nowrap;
+  padding-inline: 0.75rem;
+  font-size: 0.88rem;
+}
+.person-card-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 79;
+  background: color-mix(in srgb, var(--bg) 64%, transparent);
+  backdrop-filter: blur(2px);
+}
 .person-card.is-sheet {
   left: 0;
   right: 0;
   bottom: 0;
-  border-radius: 20px 20px 0 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  border-bottom: 0;
+}
+.person-card.is-sheet .person-card-body {
   padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+}
+@media (prefers-reduced-motion: no-preference) {
+  .person-card {
+    animation: person-card-in var(--dur-fast) var(--ease-out) both;
+  }
+  .person-card.is-sheet {
+    animation-name: person-card-sheet-in;
+  }
+  .person-card-stat-loading {
+    animation: person-card-pulse 1.2s ease-in-out infinite;
+  }
+}
+@keyframes person-card-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes person-card-sheet-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes person-card-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.9; }
 }
 
 /* Lateral do Feed: quem está estudando agora (mesma peça do Início). */
