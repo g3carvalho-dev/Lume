@@ -294,27 +294,5 @@ export const GENERATED_NEWS = [
       "A altura vai de 120 a 360 px e aparece igual para os seus amigos.",
       "Com sessão ativa, o selo continua mostrando o que você está estudando."
     ]
-  },
-  {
-    "id": "news-986159e7",
-    "at": "2026-11-15T14:56:08.000Z",
-    "title": "Tempo de leitura em PDFs",
-    "body": "Abrir um PDF agora registra o tempo automaticamente, com pausa após 5 minutos sem interação e escolha quando há uma sessão pausada.",
-    "href": "#biblioteca",
-    "area": "site",
-    "details": [
-      "O tempo continua valendo para os blocos de XP, agora de 25 minutos e 30 XP, e pode ser desligado em Configurações."
-    ]
-  },
-  {
-    "id": "news-94350906",
-    "at": "2026-11-15T05:31:50.000Z",
-    "title": "Otimização de avatar, capa e slides",
-    "body": "O Armazenamento agora também reduz imagens de perfil, capa e slides já salvos, atualizando o perfil ou a apresentação sem mudar o conteúdo.",
-    "href": "#armazenamento",
-    "area": "site",
-    "details": [
-      "Imagens só são trocadas quando a redução é de pelo menos 10% e 8 KB; GIFs são preservados."
-    ]
   }
 ];
