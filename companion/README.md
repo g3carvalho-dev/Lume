@@ -12,7 +12,7 @@ continua disponível para diagnóstico.
 ## O que ele faz
 
 - Abre o site do Lume em uma janela própria (1240×820), com barra de título do
-  Lume e links externos enviados ao navegador.
+  Lume. Links diretos de videoaulas importadas do Gran e da Udemy abrem o player da plataforma dentro da janela, com **Voltar ao Lume** e **Abrir no navegador**. O primeiro acesso pode pedir login na plataforma dentro do app. A sessão dos cursos fica separada da conta do Lume. Os demais links externos abrem no navegador.
 - Fecha para a bandeja em vez de encerrar; a bandeja mostra estado, próxima aula
   e o atalho para sair.
 - Painel de presença (400×640): dispositivo, aplicativo detectado, roteiro por
