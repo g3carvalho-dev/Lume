@@ -190,7 +190,7 @@ test('o Lume recebe a leitura da extensão, importa como histórico e depois reg
   const ack = await deliver(page, captured(1), 'leitura-1');
   expect(ack).toMatchObject({ type: 'capture-ack', accepted: true });
   await expect(page.getByRole('heading', { name: 'React do zero' })).toBeVisible();
-  await expect(page.getByText('Lido pela extensão na sua conta').first()).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('Udemy · Lido pela extensão', { exact: true })).toBeVisible();
   await expect(page.getByText('3 de 3 aulas selecionadas')).toBeVisible();
   await page.getByRole('button', { name: /Adicionar 3 aulas à biblioteca/ }).click();
   await expect(page.getByText('XP concedido agora: 0')).toBeVisible();
@@ -204,6 +204,11 @@ test('o Lume recebe a leitura da extensão, importa como histórico e depois reg
   await expect(page.getByText(/já está na sua biblioteca/)).toBeVisible();
   const checkbox = page.getByRole('checkbox', { name: /Registrar 1 aula concluída na plataforma/ });
   await expect(checkbox).toBeChecked();
+  await expect(page.locator('.import-review-history-badge')).toHaveText(['Histórico', 'Nova conclusão']);
+  await checkbox.uncheck();
+  await expect(page.locator('.import-review-history-badge')).toHaveText(['Histórico', 'Histórico']);
+  await expect(page.locator('.import-review-history')).toHaveText('2 aulas concluídas na fonte entram como histórico, sem XP.');
+  await checkbox.check();
   await page.getByRole('button', { name: /Adicionar 3 aulas à biblioteca/ }).click();
   await expect(page.getByText(/1 conclusão registrada com origem na plataforma/)).toBeVisible();
 

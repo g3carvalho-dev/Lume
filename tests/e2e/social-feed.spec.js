@@ -85,7 +85,7 @@ test('PDF só é publicado após confirmação; falha preserva texto e anexo par
   await seedAccount(page);
   await page.goto('/#amigos');
   await page.getByLabel('Sua publicação').fill('Meu resumo da semana.');
-  await page.getByLabel('Anexar PDF à publicação').setInputFiles({ name: 'resumo-penal.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
+  await page.getByLabel('Anexar arquivo à publicação').setInputFiles({ name: 'resumo-penal.pdf', mimeType: 'application/pdf', buffer: penalPdf() });
   await page.route('**/api/social/posts', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Envio indisponível no teste.' }) }), { times: 1 });
   await page.getByRole('button', { name: 'Publicar', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Envio indisponível no teste.');
@@ -106,7 +106,7 @@ test('PDF só é publicado após confirmação; falha preserva texto e anexo par
   await expect(page.getByLabel('Conquista para compartilhar')).toContainText('Você ainda não tem conquistas validadas');
   await page.getByLabel('Sua publicação').fill('Foto das minhas anotações.');
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==', 'base64');
-  await page.getByLabel('Anexar foto à publicação').setInputFiles({ name: 'anotacoes.png', mimeType: 'image/png', buffer: png });
+  await page.getByLabel('Anexar arquivo à publicação').setInputFiles({ name: 'anotacoes.png', mimeType: 'image/png', buffer: png });
   await expect(page.getByAltText('Prévia do anexo')).toBeVisible();
   await page.getByRole('button', { name: 'Publicar', exact: true }).click();
   const photo = page.getByRole('article').filter({ hasText: 'Foto das minhas anotações.' });
@@ -122,7 +122,7 @@ test('foto grande do Social é otimizada antes de publicar', async ({ page }) =>
   await page.getByLabel('Sua publicação').fill('Foto grande do quadro.');
   const source = noisePng();
   expect(source.length).toBeGreaterThan(2 * 1024 * 1024);
-  await page.getByLabel('Anexar foto à publicação').setInputFiles({ name: 'foto-grande.png', mimeType: 'image/png', buffer: source });
+  await page.getByLabel('Anexar arquivo à publicação').setInputFiles({ name: 'foto-grande.png', mimeType: 'image/png', buffer: source });
 
   await expect(page.locator('.social-draft-attachment')).toContainText('foto-grande.png');
   await expect(page.getByText(/Imagem otimizada:/)).toBeVisible({ timeout: 30000 });
@@ -143,7 +143,7 @@ test('PDF digitalizado do Social só publica depois de optar pela redução com 
   await page.getByLabel('Sua publicação').fill('Digitalização do caderno.');
   const source = scannedPdf();
   expect(source.length).toBeGreaterThan(10 * 1024 * 1024);
-  await page.getByLabel('Anexar PDF à publicação').setInputFiles({ name: 'caderno.pdf', mimeType: 'application/pdf', buffer: source });
+  await page.getByLabel('Anexar arquivo à publicação').setInputFiles({ name: 'caderno.pdf', mimeType: 'application/pdf', buffer: source });
 
   const option = page.getByRole('checkbox', { name: /Reduzir tamanho para digitalização/ });
   await expect(option).toBeVisible({ timeout: 30000 });

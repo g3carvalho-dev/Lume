@@ -58,9 +58,11 @@ export function Composer({ account, avatar, xp, onPosted, note = '' }) {
   const [useRaster, setUseRaster] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [progress, setProgress] = useState(null);
+  const [dragging, setDragging] = useState(false);
   const requestId = useRef(crypto.randomUUID());
   const fileInput = useRef(null);
-  const imageInput = useRef(null);
+  const dragDepth = useRef(0);
+  const preparingAttachment = useRef(false);
   const achievements = xp?.achievements || [];
 
   useEffect(() => {
@@ -80,10 +82,14 @@ export function Composer({ account, avatar, xp, onPosted, note = '' }) {
     setProgress(null);
   }
 
-  async function choose(event) {
+  function choose(event) {
     const picked = event.target.files?.[0];
     event.target.value = '';
-    if (!picked) return;
+    if (picked) chooseFile(picked);
+  }
+
+  async function chooseFile(picked) {
+    if (busy || preparingAttachment.current) return;
     const pdf = isPdfFile(picked);
     if (!pdf && !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(picked.type)) {
       setError('Escolha um PDF, PNG, JPG, WebP ou GIF.');
@@ -102,6 +108,7 @@ export function Composer({ account, avatar, xp, onPosted, note = '' }) {
     setPickAchievement(false);
     setAchievementId('');
     setError('');
+    preparingAttachment.current = true;
     setOptimizing(true);
     try {
       if (!pdf) {
@@ -138,8 +145,45 @@ export function Composer({ account, avatar, xp, onPosted, note = '' }) {
       setError(exception.message || 'Não foi possível otimizar este anexo.');
       if (pdf) clearAttachment();
     } finally {
+      preparingAttachment.current = false;
       setOptimizing(false);
     }
+  }
+
+  function hasDraggedFile(event) {
+    return Array.from(event.dataTransfer.types || []).includes('Files');
+  }
+
+  function dragEnter(event) {
+    if (!hasDraggedFile(event)) return;
+    event.preventDefault();
+    if (busy || preparingAttachment.current) return;
+    dragDepth.current += 1;
+    setDragging(true);
+  }
+
+  function dragOver(event) {
+    if (!hasDraggedFile(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = busy || preparingAttachment.current ? 'none' : 'copy';
+  }
+
+  function dragLeave(event) {
+    if (!hasDraggedFile(event)) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (!dragDepth.current) setDragging(false);
+  }
+
+  function dropFile(event) {
+    if (!hasDraggedFile(event) && !event.dataTransfer.files?.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepth.current = 0;
+    setDragging(false);
+    if (busy || preparingAttachment.current) return;
+    const files = Array.from(event.dataTransfer.files || []);
+    if (files.length > 1) { setError('Adicione um anexo por publicação.'); return; }
+    if (files[0]) chooseFile(files[0]);
   }
 
   async function submit(event) {
@@ -240,7 +284,9 @@ export function Composer({ account, avatar, xp, onPosted, note = '' }) {
   const rasterGain = rasterPlan ? Math.round(rasterPlan.gain * 100) : 0;
 
   const busyAny = busy || optimizing;
-  return <section className="card-surface social-composer sf-composer" aria-label="Criar publicação">
+  return <section className={`card-surface social-composer sf-composer${dragging ? ' is-dragging' : ''}`} aria-label="Criar publicação"
+    onDragEnter={dragEnter} onDragOver={dragOver} onDragLeave={dragLeave} onDrop={dropFile}>
+    {dragging && <div className="sf-attachment-drop" role="status"><Icon name="upload"/><strong>Solte o anexo aqui</strong><span>Um PDF ou imagem por publicação</span></div>}
     <form onSubmit={submit}>
       <div className="sf-composer-head">
         <SocialAvatar person={{ name: account.name, avatar }}/>
@@ -260,7 +306,7 @@ export function Composer({ account, avatar, xp, onPosted, note = '' }) {
           <strong>{file.name}</strong>
           <small>{compression ? `${formatBytes(compression.before)} → ${formatBytes(finalSize)}` : formatBytes(finalSize)}</small>
         </span>
-        <button type="button" className="icon-button" onClick={clearAttachment} disabled={busy} aria-label="Remover anexo"><Icon name="close"/></button>
+        <button type="button" className="icon-button" onClick={clearAttachment} disabled={busy || optimizing} aria-label="Remover anexo"><Icon name="close"/></button>
       </div>}
       {gif && <div className="social-draft-attachment">
         <img className="social-draft-image" src={gif.preview} alt="Prévia do GIF"/>
@@ -288,8 +334,7 @@ export function Composer({ account, avatar, xp, onPosted, note = '' }) {
       </label>}
       <div className="sf-composer-bar">
         <div className="sf-tools">
-          <button type="button" className="sf-tool" onClick={() => fileInput.current?.click()} disabled={busyAny}><Icon name="file"/>Arquivo</button>
-          <button type="button" className="sf-tool" onClick={() => imageInput.current?.click()} disabled={busyAny}><Icon name="image"/>Foto</button>
+          <button type="button" className="sf-tool" onClick={() => fileInput.current?.click()} disabled={busyAny} title="PDF ou imagem. Você também pode arrastar o anexo para esta publicação."><Icon name="file"/>Adicionar anexo</button>
           <button type="button" className="sf-tool" aria-pressed={pickAchievement} onClick={() => { setPickAchievement(value => !value); clearAttachment(); setGif(null); setAchievementId(''); }} disabled={busyAny}><Icon name="trophy"/>Conquista</button>
           <EmojiButton className="sf-tool" label="Emoji" disabled={busyAny} onEmoji={(emoji) => setBody((value) => `${value}${emoji}`.slice(0, SOCIAL_POST_LIMIT))}><Icon name="smile"/>Emoji</EmojiButton>
           <EmojiButton className="sf-tool" label="GIF" disabled={busyAny} onGif={(item) => { clearAttachment(); setPickAchievement(false); setAchievementId(''); setGif(item); }}><span className="sf-gif-tag">GIF</span>GIF</EmojiButton>
@@ -297,8 +342,7 @@ export function Composer({ account, avatar, xp, onPosted, note = '' }) {
         <span className="sf-count" aria-label={`${body.length} de ${SOCIAL_POST_LIMIT} caracteres`}>{body.length > SOCIAL_POST_LIMIT * 0.8 ? `${body.length}/${SOCIAL_POST_LIMIT}` : ''}</span>
         <Button type="submit" disabled={busyAny || !canAttach || (!socialText(body) && !file && !achievementId && !gif)}>{busy ? (progress ? 'Comprimindo…' : 'Publicando…') : 'Publicar'}<Icon name="arrow"/></Button>
       </div>
-      <input ref={fileInput} type="file" accept="application/pdf" className="sr-only" aria-label="Anexar PDF à publicação" onChange={choose} disabled={busyAny}/>
-      <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" aria-label="Anexar foto à publicação" onChange={choose} disabled={busyAny}/>
+      <input ref={fileInput} type="file" accept="application/pdf,image/png,image/jpeg,image/webp,image/gif" className="sr-only" aria-label="Anexar arquivo à publicação" onChange={choose} disabled={busyAny}/>
       {note && <p className="sf-composer-note quiet-note">{note}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
     </form>

@@ -124,3 +124,76 @@ test('Adicionar curso explica instalação e uso da extensão no computador e ce
   await expect(guide.getByRole('status')).toHaveCount(0);
   await page.screenshot({ path: `data/import-extension-guide-${testInfo.project.name}.png`, fullPage: true });
 });
+
+test('revisão da extensão mostra módulos reais, seleção e histórico no computador e celular', { tag: '@celular' }, async ({ page, isMobile }, testInfo) => {
+  if (!isMobile) await page.setViewportSize({ width: 1280, height: 1200 });
+  await openLibrary(page);
+  const lesson = (title, completed = false) => ({ title, completed });
+  await captureCourse(page, {
+    title: 'Astronomia observacional — fundamentos e prática',
+    sourceUrl: 'https://www.udemy.com/course/astronomia-observacional',
+    provider: { id: 'udemy' },
+    completionSource: 'lesson-flags',
+    warnings: ['A página pode carregar mais aulas ao expandir os módulos.'],
+    disciplines: [{ title: 'Conteúdo do curso', modules: [
+      { title: 'Observação inicial', lessons: [lesson('O céu a olho nu', true), lesson('Escolhendo o equipamento', true), lesson('Organizando a primeira observação')] },
+      { title: 'Mapas celestes e localização dos objetos', lessons: [lesson('Lendo um mapa celeste'), lesson('Encontrando as constelações')] },
+      { title: 'Registro das observações', lessons: [lesson('O diário de observação')] },
+    ] }],
+  });
+  const dialog = page.getByRole('dialog');
+  const selection = dialog.getByRole('region', { name: 'Seleção de conteúdo' });
+  const status = dialog.getByRole('status');
+  await expect(dialog.getByText('Udemy · Lido pela extensão', { exact: true })).toBeVisible();
+  await expect(selection.getByText('3 módulos · 6 aulas')).toBeVisible();
+  await expect(dialog.locator('.import-review-module')).toHaveCount(3);
+  await expect(dialog.locator('.import-review-group-heading')).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: /Observação inicial/ })).toHaveAttribute('aria-expanded', 'true');
+  await expect(dialog.getByRole('button', { name: /Mapas celestes/ })).toHaveAttribute('aria-expanded', 'false');
+  await expect(dialog.locator('.import-review-history-badge')).toHaveText(['Histórico', 'Histórico']);
+  await expect(dialog.locator('.import-review-history')).toHaveText('2 aulas concluídas na fonte entram como histórico, sem XP.');
+
+  // Entender explica a leitura parcial, sem acrescentar outra caixa de avisos.
+  await expect(dialog.getByText('A página pode carregar mais aulas ao expandir os módulos.')).toBeHidden();
+  await dialog.getByText('Entender', { exact: true }).click();
+  await expect(dialog.getByText('A página pode carregar mais aulas ao expandir os módulos.')).toBeVisible();
+  await dialog.getByText('Entender', { exact: true }).click();
+
+  // Módulos preservam a seleção ao fechar e abrir; teclado também altera a aula.
+  await dialog.getByRole('button', { name: /Mapas celestes/ }).click();
+  const mapLesson = dialog.getByRole('checkbox', { name: 'Incluir a aula Lendo um mapa celeste' });
+  await mapLesson.focus();
+  await page.keyboard.press('Space');
+  await expect(dialog.getByRole('checkbox', { name: 'Selecionar o módulo Mapas celestes e localização dos objetos' })).toHaveAttribute('aria-checked', 'mixed');
+  await expect(status).toHaveText('5 de 6 aulas selecionadas');
+  await dialog.getByRole('button', { name: /Mapas celestes/ }).click();
+  await dialog.getByRole('button', { name: /Mapas celestes/ }).click();
+  await expect(mapLesson).not.toBeChecked();
+
+  await dialog.getByRole('button', { name: 'Limpar seleção' }).click();
+  await expect(status).toHaveText('0 de 6 aulas selecionadas');
+  await expect(dialog.getByRole('button', { name: 'Adicionar 0 aulas à biblioteca' })).toBeDisabled();
+  await expect(dialog.locator('.import-review-history')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Selecionar todas' }).click();
+  await expect(status).toHaveText('6 de 6 aulas selecionadas');
+  await dialog.getByRole('checkbox', { name: 'Incluir a aula Organizando a primeira observação' }).click();
+  await dialog.getByRole('button', { name: /Mapas celestes/ }).click();
+  await expect(status).toHaveText('5 de 6 aulas selecionadas');
+  await expect(dialog).not.toContainText(/analisar outro link|Técnico em Manutenção|Primeiros passos/);
+  expect(await dialog.evaluate(node => {
+    const rect = node.getBoundingClientRect();
+    return rect.left >= 0 && rect.right <= innerWidth && node.scrollWidth <= node.clientWidth;
+  })).toBe(true);
+  await dialog.evaluate(node => { node.scrollTop = 0; });
+  await page.screenshot({ path: `data/import-review-${testInfo.project.name}.png`, fullPage: true });
+
+  const confirm = dialog.getByRole('button', { name: 'Adicionar 5 aulas à biblioteca' });
+  await confirm.scrollIntoViewIfNeeded();
+  if (isMobile) await page.screenshot({ path: 'data/import-review-mobile-footer.png' });
+  await confirm.click();
+  await expect(page.getByText('Importação concluída')).toBeVisible();
+  const saved = await readAccount(page);
+  expect(materialSteps(saved.courses[0])).toHaveLength(5);
+  expect(saved.progress).toHaveLength(2);
+  expect(saved.progress.every(event => event.origin === 'import' && event.historical)).toBe(true);
+});

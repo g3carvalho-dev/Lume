@@ -147,7 +147,7 @@ export function formatDuration(seconds) {
 // faltou a persistir algo que não sabemos de onde veio.
 export function normalizePayload(input, { sourceUrl = '' } = {}) {
   if (!input || typeof input !== 'object' || !Array.isArray(input.disciplines)) {
-    throw new Error('A fonte não devolveu uma grade legível. Tente colar o conteúdo ou enviar um arquivo.');
+    throw new Error('A fonte não devolveu uma grade legível. Abra a grade do curso na plataforma e tente ler novamente pela extensão do Lume.');
   }
   const url = canonicalUrl(input.sourceUrl || sourceUrl);
   const provider = providerById(input.provider?.id) === FALLBACK_PROVIDER && input.provider?.id

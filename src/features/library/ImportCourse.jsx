@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ExtensionInvite from './ExtensionInvite.jsx';
+import ImportReview from './ImportReview.jsx';
 import Icon from '../../ui/Icon.jsx';
 import { Button } from '../../ui/ui.jsx';
 import {
-  allLessonIds, formatDuration,
+  allLessonIds,
   looksLikeExamCourse, normalizePayload,
 } from '../../../public/import-domain.js';
 import { completedUnitIds } from '../../../public/progress-domain.js';
@@ -34,7 +35,6 @@ export default function ImportCourse({ state, actions, close, go, open, modal = 
   const [phase, setPhase] = useState(captured?.payload ? 'review' : captured ? 'error' : 'intro');
   const [payload, setPayload] = useState(captured?.payload || null);
   const [selected, setSelected] = useState(() => new Set(captured?.payload ? allLessonIds(captured.payload) : []));
-  const [expanded, setExpanded] = useState(() => new Set(captured?.payload ? captured.payload.disciplines.slice(0, 2).map((discipline) => discipline.id) : []));
   const [error, setError] = useState(captured?.error ? { message: captured.error, code: 'unparsed_text' } : null);
   const [recordNew, setRecordNew] = useState(true);
   const [edition, setEdition] = useState(existing?.edital?.edition || '');
@@ -46,7 +46,6 @@ export default function ImportCourse({ state, actions, close, go, open, modal = 
     if (!captured) return;
     setPayload(captured.payload || null);
     setSelected(new Set(captured.payload ? allLessonIds(captured.payload) : []));
-    setExpanded(new Set(captured.payload ? captured.payload.disciplines.slice(0, 2).map((discipline) => discipline.id) : []));
     setError(captured.error ? { message: captured.error, code: 'unparsed_text' } : null);
     setImported(null);
     setRecordNew(true);
@@ -59,7 +58,6 @@ export default function ImportCourse({ state, actions, close, go, open, modal = 
     node.focus({ preventScroll: true });
   }, [phase]);
 
-  const total = payload ? allLessonIds(payload).length : 0;
   const chosen = payload ? allLessonIds(payload).filter((id) => selected.has(id)).length : 0;
   // Curso que já está na biblioteca: aulas concluídas na plataforma desde a
   // última leitura podem ser registradas por você; as que já constavam
@@ -87,14 +85,6 @@ export default function ImportCourse({ state, actions, close, go, open, modal = 
     setSelected((previous) => {
       const next = new Set(previous);
       for (const id of ids) { if (value) next.add(id); else next.delete(id); }
-      return next;
-    });
-  }
-
-  function toggleExpanded(id) {
-    setExpanded((previous) => {
-      const next = new Set(previous);
-      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
@@ -147,76 +137,11 @@ export default function ImportCourse({ state, actions, close, go, open, modal = 
     <ExtensionInvite/>
   </>;
 
-  const reviewStep = phase === 'review' && payload && <>
-    <span className="eyebrow">{payload.provider.id === 'unknown' ? EXTRACTION_LABEL[payload.extraction.kind] : `${payload.provider.label} · ${EXTRACTION_LABEL[payload.extraction.kind] || 'análise da fonte'}`}</span>
-    <h2 id="dialog-title" className="headline" ref={heading}>{payload.title}</h2>
-    <div className="import-badges">
-      <span className={`import-badge ${payload.completeness === 'complete' ? 'tone-mint' : 'tone-warn'}`}>
-        <Icon name={payload.completeness === 'complete' ? 'check' : 'help'}/>
-        {payload.completeness === 'complete' ? 'Grade publicada pela fonte' : 'Grade parcial — confira antes de adicionar'}
-      </span>
-      <span className="import-badge neutral"><Icon name="book"/>{payload.disciplines.length} {payload.disciplines.length === 1 ? 'área' : 'áreas'} · {total} aulas</span>
-    </div>
-    {payload.completedCount > 0 && <p className="inline-note"><Icon name="check"/><span>{payload.completedCount} {payload.completedCount === 1 ? 'aula aparece concluída' : 'aulas aparecem concluídas'} na página lida. {newlyDone.length ? 'As que o Lume já conhecia entram como histórico, sem XP; veja abaixo as novas.' : 'Isso entra como histórico da fonte e não gera XP.'}</span></p>}
-    {matched && newlyDone.length > 0 && <label className="inline-note import-observed">
-      <input type="checkbox" checked={recordNew} onChange={(event) => setRecordNew(event.target.checked)}/>
-      <span><strong>Registrar {newlyDone.length} {newlyDone.length === 1 ? 'aula concluída' : 'aulas concluídas'} na plataforma desde a última leitura.</strong> Elas entram com origem “plataforma” e podem gerar XP, que o servidor confere e limita por dia. Desmarque para guardá-las só como histórico.</span>
-    </label>}
-    {matched && !updating && <p className="inline-note"><Icon name="return"/><span>Este curso já está na sua biblioteca: a leitura atualiza a grade e preserva o seu progresso.</span></p>}
-    {payload.warnings.length > 0 && <ul className="import-warning-list">{payload.warnings.map((warning) => <li key={warning}><Icon name="help"/><span>{warning}</span></li>)}</ul>}
-    {payload.demo && <p className="inline-note"><Icon name="help"/><span>Dados de demonstração: esta grade não veio de uma análise real.</span></p>}
-
-    <div className="import-toolbar">
-      <div className="import-toolbar-actions">
-        <button className="text-button" onClick={() => toggleMany(allLessonIds(payload), true)}>Selecionar todas</button>
-        <button className="text-button" onClick={() => toggleMany(allLessonIds(payload), false)}>Limpar seleção</button>
-      </div>
-      <span className="import-count" role="status">{chosen} de {total} aulas selecionadas</span>
-    </div>
-
-    <div className="import-tree" aria-label="Áreas encontradas">
-      {payload.disciplines.map((discipline) => {
-        const lessonIds = discipline.modules.flatMap((module) => module.lessons.map((lesson) => lesson.id));
-        const picked = lessonIds.filter((id) => selected.has(id)).length;
-        const stateMixed = picked === 0 ? 'false' : picked === lessonIds.length ? 'true' : 'mixed';
-        const isOpen = expanded.has(discipline.id);
-        return <div className={`import-discipline ${isOpen ? 'is-open' : ''}`} key={discipline.id}>
-          <div className="import-discipline-head">
-            <button role="checkbox" aria-checked={stateMixed} aria-label={`Selecionar a área ${discipline.title}`} className="import-check" onClick={() => toggleMany(lessonIds, picked !== lessonIds.length)}>
-              <Icon name={stateMixed === 'true' ? 'check' : stateMixed === 'mixed' ? 'minus' : 'plus'}/>
-            </button>
-            <button className="import-discipline-toggle" aria-expanded={isOpen} onClick={() => toggleExpanded(discipline.id)}>
-              <span className="import-discipline-title">{discipline.title}</span>
-              <small>{discipline.modules.length} {discipline.modules.length === 1 ? 'módulo' : 'módulos'} · {picked}/{lessonIds.length} aulas</small>
-              <Icon name={isOpen ? 'chevron-up' : 'chevron-down'}/>
-            </button>
-          </div>
-          {isOpen && <div className="import-modules">
-            {discipline.modules.map((module) => {
-              const moduleIds = module.lessons.map((lesson) => lesson.id);
-              return <div className="import-module" key={module.id}>
-                <div className="import-module-head">
-                  <button role="checkbox" aria-checked={moduleIds.every((id) => selected.has(id)) ? 'true' : moduleIds.some((id) => selected.has(id)) ? 'mixed' : 'false'} aria-label={`Selecionar o módulo ${module.title}`} className="import-check small" onClick={() => toggleMany(moduleIds, !moduleIds.every((id) => selected.has(id)))}>
-                    <Icon name={moduleIds.every((id) => selected.has(id)) ? 'check' : moduleIds.some((id) => selected.has(id)) ? 'minus' : 'plus'}/>
-                  </button>
-                  <strong>{module.title}</strong>
-                </div>
-                <ul className="import-lessons">
-                  {module.lessons.map((lesson) => <li key={lesson.id}>
-                    <button role="checkbox" aria-checked={selected.has(lesson.id) ? 'true' : 'false'} aria-label={`Incluir a aula ${lesson.title}`} className="import-check small" onClick={() => toggleLesson(lesson.id)}>
-                      <Icon name={selected.has(lesson.id) ? 'check' : 'plus'}/>
-                    </button>
-                    <span className="import-lesson-title">{lesson.title}{lesson.completedInSource ? <small className="import-flag">concluída na fonte · não gera XP</small> : null}</span>
-                    {lesson.duration ? <small className="import-lesson-time">{formatDuration(lesson.duration)}</small> : null}
-                  </li>)}
-                </ul>
-              </div>;
-            })}
-          </div>}
-        </div>;
-      })}
-    </div>
-
+  const reviewStep = phase === 'review' && payload && <ImportReview
+    payload={payload} selected={selected} toggleLesson={toggleLesson} toggleMany={toggleMany}
+    newlyDone={newlyDone} recordNew={recordNew} setRecordNew={setRecordNew} matched={matched} updating={updating}
+    onConfirm={confirmImport} onInstructions={() => { setPhase('intro'); setPayload(null); }} heading={heading}
+  >
     {examLike && <details className="import-exam">
       <summary>Preparando para prova (opcional)</summary>
       <p className="quiet-note">O edital é uma referência separada da grade do curso. Sem edição e fase identificadas, o Lume não calcula o que falta para a prova.</p>
@@ -226,13 +151,7 @@ export default function ImportCourse({ state, actions, close, go, open, modal = 
       </div>
       <p className="quiet-note">A comparação com o edital oficial só aparece quando houver um edital verificado cadastrado. A grade importada nunca é apresentada como cobertura completa da prova.</p>
     </details>}
-
-    <div className="dialog-actions">
-      <Button className="full-width" onClick={confirmImport} disabled={!chosen}><Icon name="plus"/>{updating ? 'Atualizar curso' : `Adicionar ${chosen} ${chosen === 1 ? 'aula' : 'aulas'} à biblioteca`}</Button>
-      <button className="text-button centered" onClick={() => { setPhase('intro'); setPayload(null); }}>Como importar outro curso</button>
-    </div>
-    <p className="quiet-note">Adicionar o curso não gera XP. O progresso das aulas é registrado por você e fica salvo na sua conta.</p>
-  </>;
+  </ImportReview>;
 
   const errorView = phase === 'error' && <div className="import-error">
     <span className="dialog-emblem tone-warn"><Icon name="help"/></span>
@@ -263,7 +182,7 @@ export default function ImportCourse({ state, actions, close, go, open, modal = 
     </div>
   </div>;
 
-  return <div className="dialog-content import-dialog">
+  return <div className={`dialog-content import-dialog${phase === 'review' ? ' import-review' : ''}`}>
     {introStep}{reviewStep}{errorView}{doneView}
   </div>;
 }

@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { hasPreparation, courseProgress, courseStatus, materialType } from '../../../public/domain.js';
+import { hasPreparation, courseProgress, courseStatus } from '../../../public/domain.js';
 import { materialSteps } from '../../../public/material-model.js';
 import { resumeMaterial } from '../../../public/study-plan.js';
-import { courseSummary, isImportedCourse, sourceLabel } from '../../../public/import-domain.js';
-import { slidePositionLabel, slidesSummary } from '../../../public/slides-domain.js';
+import { isImportedCourse } from '../../../public/import-domain.js';
 import Icon from '../../ui/Icon.jsx';
-import { Button, Empty, Heading, Progress, ease, enter } from '../../ui/ui.jsx';
+import { Button, Empty, Heading, Progress, enter } from '../../ui/ui.jsx';
 import { isCompleted } from '../../../public/progress-domain.js';
 import { materialStanding, subjectOf } from '../../../public/subject-domain.js';
 
@@ -48,18 +47,17 @@ function CourseCard({ course, state, open, compact = false, icon = 'file' }) {
   const progress = courseProgress(state, course);
   const status = courseStatus(state, course);
   const imported = isImportedCourse(course);
-  const summary = imported ? courseSummary(state, course) : null;
-  const scope = imported ? `${summary.done} de ${summary.total} aulas` : `${progress.done} de ${progress.total} etapas`;
-  const deck = slidesSummary(course);
+  const scope = `${progress.done} de ${progress.total} ${imported ? 'aulas' : 'etapas'}`;
   const reading = course.pdf ? materialStanding(state, course) : null;
   const subject = subjectOf(state, course);
-  const shownScope = reading ? reading.label : scope;
+  const shownScope = reading ? reading.done ? `${course.pdf.pages} páginas · leitura concluída`
+    : course.reading ? `p. ${course.reading.page} de ${course.pdf.pages}` : reading.label : scope;
   const percent = reading ? reading.percent : progress.percent;
   const label = `${course.title}, ${statuses[status]}, ${shownScope}`;
 
   if (compact) return <div className="course-card-wrap is-row"><button type="button" className={`reading-row ${state.selectedCourseId === course.id ? 'selected-course' : ''}`} onClick={() => open({ type: 'course', id: course.id })} aria-label={label}>
     <span className="reading-icon"><Icon name={icon}/></span>
-    <span className="reading-copy"><strong>{course.title}</strong><small>{shownScope}{subject ? ` · ${subject.title}` : ''}{reading?.done ? ` · ${course.pdf.pages} p.` : ''}</small></span>
+    <span className="reading-copy"><strong>{course.title}</strong><small>{shownScope}{subject ? ` · ${subject.title}` : ''}{course.example ? ' · Exemplo' : ''}</small></span>
     <span className="reading-progress"><Progress value={percent} tone="mint" label={`Progresso de ${course.title}`}/><strong>{percent}%</strong></span>
     <Icon name="chevron" className="reading-chevron"/>
   </button></div>;
@@ -73,27 +71,15 @@ function CourseCard({ course, state, open, compact = false, icon = 'file' }) {
       onClick={() => open({ type: 'course', id: course.id })}
       aria-label={label}
     >
-      <div className="stitch-course-top">
-        <div className="stitch-course-badges">
-          <span className="soft-badge tone-lume">{subject ? subject.title : materialType(course.type).title}</span>
-          <span className="stitch-course-scope">{shownScope}</span>
-          {imported && <span className="soft-badge">{sourceLabel(course.source)}</span>}
-          {deck.total > 0 && <span className="soft-badge">{deck.total} slides</span>}
-        </div>
-        <strong className={`stitch-course-percent status-${status}`}>{percent}%</strong>
-      </div>
       <h3 className="title">{course.title}</h3>
-      <p className="course-description">
-        {course.resumeAt ? `Retomar em ${course.resumeAt}` : materialType(course.type).title}
-        {course.example ? ' · Exemplo' : ''}
-        {imported && summary.partial ? ' · grade parcial' : ''}
-      </p>
+      {course.example && <span className="course-example">Exemplo</span>}
       <div className="stitch-course-foot">
-        <Progress value={percent} tone={status === 'completed' ? 'mint' : 'lume'} label={`Progresso de ${course.title}`}/>
         <div className="stitch-course-foot-row">
           <span className={`course-status status-${status}`}>{statuses[status]}</span>
-          <span className="stitch-course-open">Acessar<Icon name="chevron"/></span>
+          <strong className="stitch-course-percent">{percent}%</strong>
         </div>
+        <Progress value={percent} tone="mint" label={`Progresso de ${course.title}`}/>
+        <span className="stitch-course-open">Acessar<Icon name="chevron"/></span>
       </div>
     </motion.button>
   </div>;
@@ -180,10 +166,8 @@ export function Library({ state, open, actions }) {
   const action = resume?.action || null;
   const selected = resume?.course || null;
   const next = action && { course: selected, step: materialSteps(selected).find((step) => step.id === action.lessonId) };
-  const selectedDeck = selected ? slidesSummary(selected) : null;
   const selectedStanding = selected ? (selected.pdf ? materialStanding(state, selected) : null) : null;
   const selectedPercent = selected ? (selected.pdf ? selectedStanding.percent : courseProgress(state, selected).percent) : 0;
-  const selectedSubject = selected ? subjectOf(state, selected) : null;
 
   return <div className="library-root">
     <Heading
@@ -203,9 +187,8 @@ export function Library({ state, open, actions }) {
         <div className="library-section-label"><span><Icon name="play"/>Continuar de onde parei</span></div>
         <div className="card-surface resume-card">
           <div className="resume-copy">
-            <div className="resume-meta"><span className="soft-badge tone-mint">{resume.subjectDone.title}</span></div>
             <h2 id="library-resume-title" className="title">Disciplina concluída</h2>
-            <p className="muted-text">Todos os materiais de {resume.subjectDone.title} estão concluídos. Escolha um material de outra disciplina para continuar por ela.</p>
+            <p className="muted-text">Todos os materiais de {resume.subjectDone.title} estão concluídos.</p>
           </div>
           <div className="resume-actions">
             <Button secondary onClick={() => open({ type: 'subject', id: resume.subjectDone.id })}><Icon name="school"/>Abrir disciplina</Button>
@@ -218,23 +201,17 @@ export function Library({ state, open, actions }) {
         </div>
         <div className="card-surface resume-card">
           <div className="resume-copy">
-            <div className="resume-meta">
-              {selectedSubject && <span className="resume-subject">{selectedSubject.title}</span>}
-              <span>{materialType(selected.type).title}{isImportedCourse(selected) ? ` · ${sourceLabel(selected.source)}` : ''}</span>
-            </div>
             <h2 id="library-resume-title" className="title"><button type="button" className="resume-title-link" onClick={() => open({ type: 'course', id: selected.id })}>{selected.title}</button></h2>
             {next?.step && !selected.pdf && <p className="muted-text">Próximo passo: {next.step.title}</p>}
-            {selected.pdf && <p className="muted-text">{selectedStanding.label}</p>}
+            {selected.pdf && <p className="muted-text">{selected.reading ? `p. ${selected.reading.page} de ${selected.pdf.pages}` : selectedStanding.label}</p>}
             <div className="resume-progress"><Progress value={selectedPercent} tone="mint" label={`Progresso de ${selected.title}`}/><strong>{selectedPercent}%</strong></div>
           </div>
           <div className="resume-actions">
             {selected.pdf
               ? <Button onClick={() => open({ type: 'pdf', id: selected.id })}><Icon name="book"/>{selected.reading ? `Continuar na p. ${selected.reading.page}` : 'Abrir no leitor'}</Button>
-              : <Button onClick={() => open({ type: 'session', id: selected.id })}><Icon name="play"/>Continuar meu próximo passo</Button>}
+              : <Button aria-label="Continuar meu próximo passo" onClick={() => open({ type: 'session', id: selected.id })}><Icon name="play"/>Continuar</Button>}
           </div>
         </div>
-        {selectedDeck?.total > 0 && <button type="button" className="text-button accent resume-deck" onClick={() => open({ type: 'slides', id: selected.id })}><Icon name="book"/>Abrir apresentação · {slidePositionLabel(selectedDeck)}</button>}
-        {isImportedCourse(selected) && <ImportedInspector course={selected} state={state}/>}
       </section>}
 
       {filtering && <div role="status" className="search-result-count">{courses.length} {courses.length === 1 ? 'material encontrado' : 'materiais encontrados'}</div>}
@@ -242,7 +219,7 @@ export function Library({ state, open, actions }) {
       {trails.length > 0 && <section className="library-section" aria-labelledby="library-courses-title">
         <div className="library-section-head">
           <span className="card-icon"><Icon name="layers"/></span>
-          <div><h2 id="library-courses-title" className="title">Cursos e trilhas</h2><p className="card-subtitle">Aulas, etapas e projetos com o ponto de retomada.</p></div>
+          <h2 id="library-courses-title" className="title">Cursos e trilhas</h2>
         </div>
         <div className="course-grid" id="library-results">{trails.map(course => <CourseCard key={course.id} course={course} state={state} open={open}/>)}</div>
       </section>}
@@ -318,21 +295,4 @@ export function Steps({ course, state }) {
       <span className="step-copy">{step.title}{prepared && <small className="preparation-label">Material preparado</small>}</span>
     </li>;
   })}</ol>;
-}
-
-// Resumo compacto no painel da biblioteca. A lista completa fica no diálogo do
-// curso, para o painel continuar curto no celular.
-function ImportedInspector({ course, state }) {
-  const summary = courseSummary(state, course);
-  return <div className="import-inspector">
-    <p className="quiet-note">{sourceLabel(course.source)} · {summary.disciplines.length} {summary.disciplines.length === 1 ? 'área' : 'áreas'} · {summary.total} aulas selecionadas</p>
-    {summary.next
-      ? <p className="import-inspector-next"><Icon name="play"/><span>Próxima aula: <strong>{summary.next.title}</strong></span></p>
-      : <p className="import-inspector-next"><Icon name="check"/><span>Áreas selecionadas concluídas. O curso inteiro pode ter mais conteúdo.</span></p>}
-    <ul className="import-inspector-areas">
-      {summary.disciplines.slice(0, 4).map((discipline) => <li key={discipline.id}><span>{discipline.title}</span><strong>{discipline.done}/{discipline.total}</strong></li>)}
-    </ul>
-    {summary.disciplines.length > 4 && <p className="quiet-note">+ {summary.disciplines.length - 4} áreas no detalhe do curso.</p>}
-    {summary.partial && <p className="inline-note"><Icon name="help"/><span>Grade parcial: o curso pode ter mais conteúdo do que o encontrado.</span></p>}
-  </div>;
 }

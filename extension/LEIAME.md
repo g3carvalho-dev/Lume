@@ -2,6 +2,8 @@
 
 No Chrome ou no Edge do computador, abra um curso com a sua conta e escolha **Ler este curso** no ícone do Lume. Revise as aulas e adicione à biblioteca. A primeira importação preserva as conclusões anteriores como histórico. Em leituras seguintes, a revisão permite registrar novas conclusões.
 
+Na revisão, abra os módulos para selecionar as aulas ou marque o módulo inteiro. Os contadores e o botão acompanham a seleção. **Entender** explica os limites da leitura e mostra os avisos da plataforma; o selo **Histórico** identifica as aulas já concluídas, sem XP.
+
 ## Acompanhar uma aula
 
 1. Entre no Lume no mesmo perfil do navegador. No popup, em **Acompanhar aulas**, ligue a plataforma e aceite o pedido de acesso do navegador.

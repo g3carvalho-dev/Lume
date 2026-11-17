@@ -124,20 +124,13 @@
 }
 .resume-copy .title {
   margin: 0;
-  font-size: clamp(1.25rem, 2.4vw, 1.6rem);
+  font-size: clamp(1.2rem, 2.2vw, 1.45rem);
   letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
 }
 .resume-copy .muted-text {
   margin: 0;
   font-size: 0.85rem;
-}
-.resume-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  color: var(--text-subtle);
-  font-size: 0.78rem;
 }
 .resume-progress {
   display: flex;
@@ -155,6 +148,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+.resume-actions > .button {
+  min-width: 10rem;
 }
 
 .library-section {
@@ -237,6 +233,7 @@
   color: var(--text-subtle);
   font-family: var(--font-mono);
   font-size: 0.74rem;
+  overflow-wrap: anywhere;
 }
 .reading-progress {
   display: flex;
@@ -268,9 +265,27 @@
   }
   .reading-progress {
     grid-column: 2 / 4;
+    grid-row: 2;
+  }
+  .reading-row .reading-chevron {
+    grid-column: 3;
+    grid-row: 1;
   }
   .reading-row .course-status {
     display: none;
+  }
+}
+@media (max-width: 600px) {
+  .resume-card.card-surface {
+    padding: var(--space-4);
+    gap: var(--space-4);
+  }
+  .resume-copy {
+    flex-basis: 100%;
+  }
+  .resume-actions,
+  .resume-actions > .button {
+    width: 100%;
   }
 }
 
@@ -295,7 +310,7 @@
   display: grid;
   gap: 0.65rem;
   align-content: space-between;
-  padding: 1.1rem 1.2rem 1.05rem;
+  padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-lg);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -307,46 +322,25 @@
   background: var(--surface);
   border-color: var(--border-strong);
 }
-.stitch-course-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-.stitch-course-badges {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-.stitch-course-scope {
-  font-family: var(--font-mono);
-  font-size: 0.74rem;
-  color: var(--text-subtle);
-}
 .stitch-course-percent {
   font-family: var(--font-mono);
   font-size: 0.82rem;
   font-weight: 500;
   color: var(--text-subtle);
 }
-.stitch-course-percent.status-completed {
-  color: var(--lume);
-}
 .stitch-course-card .title {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
 }
-.stitch-course-card .course-description {
-  margin: 0;
-  font-size: 0.8rem;
+.course-example {
   color: var(--text-subtle);
+  font-size: 0.75rem;
 }
 .stitch-course-foot {
   display: grid;
   gap: 0.45rem;
-  padding-top: 0.55rem;
-  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  padding-top: var(--space-2);
 }
 .stitch-course-foot .progress {
   height: 0.25rem;
@@ -364,9 +358,10 @@
   border: 0;
   backdrop-filter: none;
   color: var(--text-subtle);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 .stitch-course-open {
+  justify-self: end;
   display: inline-flex;
   align-items: center;
   gap: 0.15rem;
@@ -383,8 +378,6 @@
   }
 }
 
-/* O menu "…" fica no canto do cartão: a linha de etiquetas e a porcentagem
-   reservam o espaço dele. */
 /* Um botão para adicionar material (menu) e um para filtros (painel). */
 .add-menu,
 .library-filter-menu {
@@ -498,18 +491,12 @@
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
-.resume-subject {
-  color: var(--lume);
-  font-family: var(--font-mono);
-}
-.resume-deck {
-  justify-self: start;
-}
-
 .reading-chevron {
   width: 1.1rem;
   height: 1.1rem;
   color: var(--text-subtle);
+  grid-column: 4;
+  grid-row: 1;
 }
 .finished-toggle {
   display: flex;
