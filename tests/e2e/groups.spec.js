@@ -100,15 +100,16 @@ test('grupo entre amigos, denúncia enviada à criadora e acesso restrito', asyn
   await signUp(creatorPage.request, baseURL, 'Criadora Lume', CREATOR_EMAIL);
   await creatorPage.goto('/#denuncias');
   await expect(creatorPage.getByRole('heading', { name: 'Denúncias', exact: true })).toBeVisible();
-  const spam = creatorPage.locator('.report-card').filter({ hasText: 'Spam ou propaganda' });
+  const ownReports = creatorPage.locator('.report-card').filter({ hasText: 'Denunciada: Ana Grupo' });
+  const spam = ownReports.filter({ hasText: 'Spam ou propaganda' });
   await expect(spam).toContainText('Denunciada: Ana Grupo');
   await expect(spam).toContainText('Mensagem repetida em vários grupos.');
   await expect(spam.getByLabel('Cópia do conteúdo')).toContainText('Bom dia, turma!');
-  await expect(creatorPage.locator('.report-card')).toHaveCount(2);
+  await expect(ownReports).toHaveCount(2);
   await spam.getByRole('button', { name: 'Marcar como analisada' }).click();
-  await expect(creatorPage.locator('.report-card')).toHaveCount(1);
+  await expect(ownReports).toHaveCount(1);
   await creatorPage.getByRole('button', { name: /^Analisada/ }).click();
-  await expect(creatorPage.locator('.report-card').filter({ hasText: 'Spam ou propaganda' })).toBeVisible();
+  await expect(spam).toBeVisible();
 
   // Ana sai do grupo como dona: a pessoa mais antiga que ficou assume.
   await page.getByRole('button', { name: /Turma de Direito/ }).first().click();

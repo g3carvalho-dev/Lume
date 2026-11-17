@@ -13,6 +13,7 @@ const CONTEXT_COPY = {
 // Denúncia de uma pessoa. Vai para a conta criadora do Lume; a pessoa denunciada
 // não é avisada. `canBlock` oferece bloquear na mesma hora.
 export default function ReportDialog({ target, context, groupId = '', subjectId = '', canBlock = false, onClose, onDone }) {
+  const reportingPost = context === 'post';
   const [reason, setReason] = useState('');
   const [details, setDetails] = useState('');
   const [includeContext, setIncludeContext] = useState(true);
@@ -42,21 +43,27 @@ export default function ReportDialog({ target, context, groupId = '', subjectId 
   }
 
   return <Dialog onClose={onClose} identity="report">
-    <form className="report-dialog" onSubmit={submit}>
-      <h2 id="dialog-title" className="title">Denunciar {target.name}</h2>
-      <p className="muted-text"><Icon name="lock"/> A denúncia vai para a equipe do Lume. {target.name} não é avisada e não vê quem denunciou.</p>
+    <form className={`report-dialog${reportingPost ? ' dialog-content report-post-dialog' : ''}`} onSubmit={submit}>
+      {reportingPost ? <header className="report-heading">
+        <h2 id="dialog-title" className="headline">Denunciar publicação</h2>
+        <p className="muted-text">Publicação de {target.name}</p>
+      </header> : <>
+        <h2 id="dialog-title" className="title">Denunciar {target.name}</h2>
+        <p className="muted-text"><Icon name="lock"/> A denúncia vai para a equipe do Lume. {target.name} não é avisada e não vê quem denunciou.</p>
+      </>}
       <fieldset className="report-reasons">
-        <legend className="metric-label">Qual é o motivo?</legend>
-        {Object.entries(REPORT_REASONS).map(([id, label]) => <label key={id} className="report-reason">
-          <input type="radio" name="report-reason" value={id} checked={reason === id} onChange={() => setReason(id)} disabled={busy}/>
+        <legend className={reportingPost ? 'report-legend' : 'metric-label'}>Qual é o motivo?</legend>
+        <div className="report-reason-grid">{Object.entries(REPORT_REASONS).map(([id, label]) => <label key={id} className="report-reason">
+          <input type="radio" name="report-reason" value={id} checked={reason === id} onChange={() => { setReason(id); if (error === 'Escolha o motivo da denúncia.') setError(''); }} disabled={busy}/>
           <span>{label}</span>
-        </label>)}
+        </label>)}</div>
       </fieldset>
-      <label className="field">Detalhes (opcional)
+      <label className="field">{reportingPost ? <span className="report-details-label">Detalhes <span>opcional</span></span> : 'Detalhes (opcional)'}
         <textarea rows={3} maxLength={REPORT_DETAILS_LIMIT} value={details} disabled={busy} onChange={(event) => setDetails(event.target.value)} placeholder="Conte o que aconteceu, se quiser."/>
       </label>
       <label className="report-check"><input type="checkbox" checked={includeContext} onChange={(event) => setIncludeContext(event.target.checked)} disabled={busy}/><span>{CONTEXT_COPY[context]}</span></label>
       {canBlock && <label className="report-check"><input type="checkbox" checked={alsoBlock} onChange={(event) => setAlsoBlock(event.target.checked)} disabled={busy}/><span>Bloquear {target.name} também</span></label>}
+      {reportingPost && <p className="report-privacy"><Icon name="lock"/><span>Só a equipe do Lume recebe a denúncia. A pessoa denunciada não será avisada nem verá quem enviou.</span></p>}
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="dialog-actions">
         <Button secondary type="button" onClick={onClose} disabled={busy}>Cancelar</Button>
